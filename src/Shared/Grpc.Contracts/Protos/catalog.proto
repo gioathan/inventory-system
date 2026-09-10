@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+option csharp_namespace = "InventorySystem.Grpc.Contracts.Catalog";
+
+package catalog;
+
+// Covers everything Scan Gateway and Dashboard call internally — reads and, as of CreateItem,
+// writes too. Admin-only operations (categories) stay REST-only since nothing internal calls them.
+service CatalogGrpcService {
+  rpc GetItemByBarcode (GetItemByBarcodeRequest) returns (ItemReply);
+  rpc ListItems (ListItemsRequest) returns (ListItemsReply);
+  rpc CreateItem (CreateItemRequest) returns (ItemReply);
+}
+
+message GetItemByBarcodeRequest {
+  string barcode = 1;
+}
+
+message ItemReply {
+  string sku = 1;
+  string name = 2;
+  string barcode = 3;
+  optional string category_id = 4;
+  // Protobuf has no decimal type; serialized as an invariant-culture string to avoid the
+  // precision loss a double would introduce for money values.
+  string price = 5;
+  optional string image_url = 6;
+}
+
+message ListItemsRequest {
+}
+
+message ListItemsReply {
+  repeated ItemReply items = 1;
+}
+
+message CreateItemRequest {
+  string name = 1;
+  string price = 2;
+  // Barcode/Sku are optional: omit both and the server auto-generates a code for items with
+  // no pre-existing manufacturer barcode. Supplying one is a real request for that exact
+  // value — a conflict on a supplied value fails the call; a conflict on a generated one retries.
+  optional string barcode = 3;
+  optional string sku = 4;
+  optional string category_id = 5;
+  optional string image_url = 6;
+}

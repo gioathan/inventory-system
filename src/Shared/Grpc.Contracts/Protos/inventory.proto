@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+option csharp_namespace = "InventorySystem.Grpc.Contracts.Inventory";
+
+package inventory;
+
+// Covers everything Scan Gateway and Dashboard call internally — reads and, as of
+// ReceiveStock, writes too. The strictly-guarded create/adjust endpoints stay REST-only
+// since nothing internal calls them that way.
+service InventoryGrpcService {
+  rpc GetStock (GetStockRequest) returns (StockReply);
+  rpc ListStock (ListStockRequest) returns (ListStockReply);
+  rpc ReceiveStock (ReceiveStockRequest) returns (StockReply);
+}
+
+message GetStockRequest {
+  string sku = 1;
+}
+
+message StockReply {
+  string sku = 1;
+  int32 quantity_on_hand = 2;
+}
+
+message ListStockRequest {
+}
+
+message ListStockReply {
+  repeated StockReply stock = 1;
+}
+
+message ReceiveStockRequest {
+  string sku = 1;
+  int32 quantity = 2;
+}

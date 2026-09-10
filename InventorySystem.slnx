@@ -1,0 +1,27 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/AppHost/">
+    <Project Path="src/AppHost/InventorySystem.AppHost.csproj" />
+  </Folder>
+  <Folder Name="/src/ServiceDefaults/">
+    <Project Path="src/ServiceDefaults/InventorySystem.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/src/Shared/Grpc.Contracts/">
+    <Project Path="src/Shared/Grpc.Contracts/InventorySystem.Grpc.Contracts.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/Inventory/">
+    <Project Path="src/Services/Inventory/Inventory.Api/InventorySystem.Inventory.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/Catalog/">
+    <Project Path="src/Services/Catalog/Catalog.Api/InventorySystem.Catalog.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/ScanGateway/">
+    <Project Path="src/Services/ScanGateway/ScanGateway.Api/InventorySystem.ScanGateway.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/Dashboard/">
+    <Project Path="src/Services/Dashboard/Dashboard.Api/InventorySystem.Dashboard.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/IntegrationTests/InventorySystem.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

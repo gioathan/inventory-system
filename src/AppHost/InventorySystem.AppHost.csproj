@@ -8,4 +8,16 @@
     <UserSecretsId>64fb512f-8add-4d17-b453-a29d8dc57c70</UserSecretsId>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.4.6" />
+    <PackageReference Include="Aspire.Hosting.Redis" Version="13.4.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Services\Inventory\Inventory.Api\InventorySystem.Inventory.Api.csproj" />
+    <ProjectReference Include="..\Services\Catalog\Catalog.Api\InventorySystem.Catalog.Api.csproj" />
+    <ProjectReference Include="..\Services\ScanGateway\ScanGateway.Api\InventorySystem.ScanGateway.Api.csproj" />
+    <ProjectReference Include="..\Services\Dashboard\Dashboard.Api\InventorySystem.Dashboard.Api.csproj" />
+  </ItemGroup>
+
 </Project>
