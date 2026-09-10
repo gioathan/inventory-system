@@ -1,0 +1,6 @@
+@InventorySystem.ScanGateway.Api_HostAddress = http://localhost:5271
+
+GET {{InventorySystem.ScanGateway.Api_HostAddress}}/scan/012345678905
+Accept: application/json
+
+###

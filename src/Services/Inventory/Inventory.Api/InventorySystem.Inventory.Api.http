@@ -1,0 +1,25 @@
+@InventorySystem.Inventory.Api_HostAddress = http://localhost:5026
+
+POST {{InventorySystem.Inventory.Api_HostAddress}}/stock
+Content-Type: application/json
+
+{
+  "sku": "WIDGET-1",
+  "initialQuantity": 10
+}
+
+###
+
+GET {{InventorySystem.Inventory.Api_HostAddress}}/stock/WIDGET-1
+Accept: application/json
+
+###
+
+POST {{InventorySystem.Inventory.Api_HostAddress}}/stock/WIDGET-1/adjust
+Content-Type: application/json
+
+{
+  "delta": -3
+}
+
+###
