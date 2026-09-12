@@ -21,6 +21,7 @@ builder.Services.AddOpenApi();
 builder.Services.AddGrpc();
 
 builder.Services.AddScoped<StockReceivingService>();
+builder.Services.AddScoped<RestockSessionService>();
 
 var app = builder.Build();
 
@@ -40,6 +41,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.MapStockEndpoints();
+app.MapRestockSessionEndpoints();
 app.MapGrpcService<InventoryGrpcServiceImpl>();
 
 app.Run();

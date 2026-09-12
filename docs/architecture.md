@@ -65,3 +65,47 @@ The real usage pattern this system is built around: scan/generate a code for an 
 11. Service mesh (Linkerd), mTLS, canary deploy
 12. OTel/Jaeger/Prometheus for the k8s environment (Aspire already gives this locally)
 13. *(Stretch)* Purchase Order saga (Wolverine sagas)
+
+## Stock movement ledger & restock sessions
+
+Added ahead of step 8, inside Inventory.Api (not deferred to the future event-driven Reporting
+service) since it only needs Inventory's own data, not cross-service events yet.
+
+- **`StockMovement`** — append-only row per quantity change (Sku, Delta, Reason, Timestamp,
+  ResultingQuantity, nullable SessionId). `StockItem.QuantityOnHand` remains the current total;
+  this table is the history the total alone can't answer ("how much did I have 3 restockings
+  ago" is a range query over this table, not a special "since last count" case).
+- **`RestockSession`** — an explicit, admin-opened/closed window (only one open at a time,
+  enforced by a partial unique index on `ClosedAt IS NULL`, not just app logic). Every
+  receive/adjust made while a session is open is auto-tagged with it server-side — Scan Gateway
+  and Dashboard never need to know a session exists, let alone pass its id.
+- **`GET /restock-sessions/{id}/summary`** (Inventory, also exposed over gRPC as
+  `GetSessionSummary`) — per-Sku Restocked/Sold/NetDelta for one session. `Sold` only counts
+  `Reason == Sale` movements, so a `ManualAdjust` correction never gets counted as a sale.
+- **Revenue lives in Dashboard, not Inventory** — Inventory's ledger only ever knows quantities,
+  never money (same boundary as everywhere else: Inventory owns stock truth, Catalog owns
+  price). Dashboard's new `sessionReport(sessionId)` GraphQL query is the join point: it calls
+  Inventory's `GetSessionSummary` and Catalog's `ListItems` in parallel and multiplies
+  `Sold × Price` in memory — the same fan-out-and-join pattern `GetItems` already uses.
+
+## Scan-and-sell (two-step, never implicit)
+
+The seller-facing UX is: scan a barcode, see current quantity in a popup, then either close
+(just checking) or pick a quantity and confirm a sale. That maps directly onto two endpoints
+with no overlap in effect:
+
+- **`GET /scan/{barcode}`** — always a pure read, no matter how many times it's called. This is
+  what populates the popup. Scanning to merely check stock has zero side effects by construction,
+  not by convention — there's no code path from this endpoint that touches `StockItems`.
+- **`POST /scan/{barcode}/sell`** *(new)* — the only thing that reduces stock from a scan.
+  Fires only on the seller's explicit confirm, with whatever quantity they picked (defaults to
+  1). Resolves barcode → Sku via the same cached Catalog lookup as the GET, then calls
+  Inventory's new `AdjustStock` RPC with `Reason.Sale` and a negative delta.
+- **`AdjustStock`** (Inventory, gRPC) — the REST `/adjust` endpoint's atomic floor-at-zero guard,
+  now also reachable internally. Both REST and gRPC callers share one implementation
+  (`StockReceivingService.AdjustStockAsync`) so the guard exists in exactly one place. Selling
+  more than what's on hand returns `FailedPrecondition` (409 over REST), so two sellers racing
+  to sell the last unit can't both succeed.
+
+No UI exists yet for this — the popup/confirm flow described above is a client-side
+responsibility for whatever eventually calls these two endpoints.
