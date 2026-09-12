@@ -87,3 +87,25 @@ service) since it only needs Inventory's own data, not cross-service events yet.
   price). Dashboard's new `sessionReport(sessionId)` GraphQL query is the join point: it calls
   Inventory's `GetSessionSummary` and Catalog's `ListItems` in parallel and multiplies
   `Sold × Price` in memory — the same fan-out-and-join pattern `GetItems` already uses.
+
+## Scan-and-sell (two-step, never implicit)
+
+The seller-facing UX is: scan a barcode, see current quantity in a popup, then either close
+(just checking) or pick a quantity and confirm a sale. That maps directly onto two endpoints
+with no overlap in effect:
+
+- **`GET /scan/{barcode}`** — always a pure read, no matter how many times it's called. This is
+  what populates the popup. Scanning to merely check stock has zero side effects by construction,
+  not by convention — there's no code path from this endpoint that touches `StockItems`.
+- **`POST /scan/{barcode}/sell`** *(new)* — the only thing that reduces stock from a scan.
+  Fires only on the seller's explicit confirm, with whatever quantity they picked (defaults to
+  1). Resolves barcode → Sku via the same cached Catalog lookup as the GET, then calls
+  Inventory's new `AdjustStock` RPC with `Reason.Sale` and a negative delta.
+- **`AdjustStock`** (Inventory, gRPC) — the REST `/adjust` endpoint's atomic floor-at-zero guard,
+  now also reachable internally. Both REST and gRPC callers share one implementation
+  (`StockReceivingService.AdjustStockAsync`) so the guard exists in exactly one place. Selling
+  more than what's on hand returns `FailedPrecondition` (409 over REST), so two sellers racing
+  to sell the last unit can't both succeed.
+
+No UI exists yet for this — the popup/confirm flow described above is a client-side
+responsibility for whatever eventually calls these two endpoints.

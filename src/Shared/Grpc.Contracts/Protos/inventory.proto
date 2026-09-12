@@ -11,6 +11,9 @@ service InventoryGrpcService {
   rpc GetStock (GetStockRequest) returns (StockReply);
   rpc ListStock (ListStockRequest) returns (ListStockReply);
   rpc ReceiveStock (ReceiveStockRequest) returns (StockReply);
+  // Scan Gateway's "sell" action: same atomic floor-at-zero guard as the REST /adjust endpoint,
+  // just reachable internally now that a real caller (scan-to-sell) needs it over gRPC.
+  rpc AdjustStock (AdjustStockRequest) returns (StockReply);
   // Dashboard's sessionReport query calls this, then joins the lines against Catalog's prices
   // to compute revenue — Inventory only ever reports quantities, never money.
   rpc GetSessionSummary (GetSessionSummaryRequest) returns (SessionSummaryReply);
@@ -19,6 +22,8 @@ service InventoryGrpcService {
 enum MovementReason {
   RESTOCK = 0;
   INTAKE = 1;
+  SALE = 2;
+  MANUAL_ADJUST = 3;
 }
 
 message GetStockRequest {
@@ -40,6 +45,12 @@ message ListStockReply {
 message ReceiveStockRequest {
   string sku = 1;
   int32 quantity = 2;
+  MovementReason reason = 3;
+}
+
+message AdjustStockRequest {
+  string sku = 1;
+  int32 delta = 2;
   MovementReason reason = 3;
 }
 

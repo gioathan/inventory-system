@@ -45,31 +45,16 @@ public static class StockEndpoints
             return Results.Created($"/stock/{item.Sku}", new StockResponse(item.Sku, item.QuantityOnHand));
         });
 
-        app.MapPost("/stock/{sku}/adjust", async (string sku, AdjustStockRequest request, InventoryDbContext db, StockReceivingService receiving, CancellationToken cancellationToken) =>
+        app.MapPost("/stock/{sku}/adjust", async (string sku, AdjustStockRequest request, StockReceivingService receiving, CancellationToken cancellationToken) =>
         {
-            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            var result = await receiving.AdjustStockAsync(sku, request.Delta, request.Reason, cancellationToken);
 
-            // Single atomic UPDATE with the guard in the WHERE clause: the database evaluates
-            // "would this go negative?" and applies the change in the same operation, so two
-            // concurrent requests can never both read 1-in-stock and both decrement to -1.
-            var rowsAffected = await db.StockItems
-                .Where(s => s.Sku == sku && s.QuantityOnHand + request.Delta >= 0)
-                .ExecuteUpdateAsync(setters =>
-                    setters.SetProperty(s => s.QuantityOnHand, s => s.QuantityOnHand + request.Delta), cancellationToken);
-
-            if (rowsAffected == 0)
+            return result.Outcome switch
             {
-                var exists = await db.StockItems.AnyAsync(s => s.Sku == sku, cancellationToken);
-                return exists
-                    ? Results.Conflict($"Insufficient stock for '{sku}'.")
-                    : Results.NotFound();
-            }
-
-            var updated = await db.StockItems.AsNoTracking().FirstAsync(s => s.Sku == sku, cancellationToken);
-            await receiving.LogMovementAsync(sku, request.Delta, request.Reason, updated.QuantityOnHand, cancellationToken);
-
-            await transaction.CommitAsync(cancellationToken);
-            return Results.Ok(new StockResponse(updated.Sku, updated.QuantityOnHand));
+                AdjustStockOutcome.NotFound => Results.NotFound(),
+                AdjustStockOutcome.InsufficientStock => Results.Conflict($"Insufficient stock for '{sku}'."),
+                _ => Results.Ok(new StockResponse(result.Item!.Sku, result.Item.QuantityOnHand))
+            };
         });
 
         // "Receive" stock: create the row at the given quantity if it doesn't exist yet,

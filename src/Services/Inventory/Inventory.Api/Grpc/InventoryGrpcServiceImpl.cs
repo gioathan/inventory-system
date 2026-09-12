@@ -36,9 +36,22 @@ public class InventoryGrpcServiceImpl(InventoryDbContext db, StockReceivingServi
         if (request.Quantity <= 0)
             throw new RpcException(new Status(StatusCode.InvalidArgument, "Quantity must be positive."));
 
-        var reason = request.Reason == MovementReason.Intake ? StockMovementReason.Intake : StockMovementReason.Restock;
-        var item = await receiving.ReceiveStockAsync(request.Sku, request.Quantity, reason, context.CancellationToken);
+        var item = await receiving.ReceiveStockAsync(request.Sku, request.Quantity, ToDomainReason(request.Reason), context.CancellationToken);
         return ToReply(item);
+    }
+
+    // Scan Gateway's scan-to-sell action calls this with a negative Delta and Reason.Sale — the
+    // same atomic floor-at-zero guard as the REST /adjust endpoint, just reachable internally.
+    public override async Task<StockReply> AdjustStock(AdjustStockRequest request, ServerCallContext context)
+    {
+        var result = await receiving.AdjustStockAsync(request.Sku, request.Delta, ToDomainReason(request.Reason), context.CancellationToken);
+
+        return result.Outcome switch
+        {
+            AdjustStockOutcome.NotFound => throw new RpcException(new Status(StatusCode.NotFound, $"No stock record found for SKU '{request.Sku}'.")),
+            AdjustStockOutcome.InsufficientStock => throw new RpcException(new Status(StatusCode.FailedPrecondition, $"Insufficient stock for '{request.Sku}'.")),
+            _ => ToReply(result.Item!)
+        };
     }
 
     public override async Task<SessionSummaryReply> GetSessionSummary(GetSessionSummaryRequest request, ServerCallContext context)
@@ -61,4 +74,12 @@ public class InventoryGrpcServiceImpl(InventoryDbContext db, StockReceivingServi
 
     private static StockReply ToReply(StockItem item) =>
         new() { Sku = item.Sku, QuantityOnHand = item.QuantityOnHand };
+
+    private static StockMovementReason ToDomainReason(MovementReason reason) => reason switch
+    {
+        MovementReason.Intake => StockMovementReason.Intake,
+        MovementReason.Sale => StockMovementReason.Sale,
+        MovementReason.ManualAdjust => StockMovementReason.ManualAdjust,
+        _ => StockMovementReason.Restock
+    };
 }
