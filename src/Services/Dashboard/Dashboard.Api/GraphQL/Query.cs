@@ -27,6 +27,37 @@ public class Query
             item.CategoryId,
             stockBySku.TryGetValue(item.Sku, out var quantity) ? quantity : null));
     }
+
+    // Answers "how much did I sell / restock between two points in time, and what's that worth."
+    // Inventory only knows quantities (its ledger has no concept of price); this resolver is
+    // the join point that turns "sold 4" into "sold 4, that's $X" using Catalog's price.
+    public async Task<IEnumerable<SessionReportLine>> SessionReport(
+        Guid sessionId,
+        [Service] CatalogApiClient catalog,
+        [Service] InventoryApiClient inventory,
+        CancellationToken cancellationToken)
+    {
+        var summaryTask = inventory.GetSessionSummaryAsync(sessionId, cancellationToken);
+        var itemsTask = catalog.GetAllItemsAsync(cancellationToken);
+        await Task.WhenAll(summaryTask, itemsTask);
+
+        var itemsBySku = itemsTask.Result.ToDictionary(i => i.Sku);
+
+        return summaryTask.Result.Select(line =>
+        {
+            itemsBySku.TryGetValue(line.Sku, out var item);
+            var price = item?.Price;
+
+            return new SessionReportLine(
+                line.Sku,
+                item?.Name,
+                line.Restocked,
+                line.Sold,
+                line.NetDelta,
+                price is null ? null : price * line.Sold);
+        });
+    }
 }
 
 public record DashboardItem(string Sku, string Name, string Barcode, decimal Price, string? ImageUrl, Guid? CategoryId, int? QuantityOnHand);
+public record SessionReportLine(string Sku, string? Name, int Restocked, int Sold, int NetDelta, decimal? Revenue);

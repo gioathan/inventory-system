@@ -54,4 +54,14 @@ Track anything done quick-and-dirty here the moment you do it — future you wil
 - **Why:** Scan Gateway's intake flow only ever passes a real `Guid.ToString()` or omits the field entirely, so this can't happen through the one caller that exists today. Left unvalidated to keep the first cut of intake/restock focused.
 - **Fix later by:** Wrap the parse in a try/catch mapping to `RpcException(StatusCode.InvalidArgument)` before any other caller (e.g. a future admin UI) can hit this with untrusted input.
 
+## [2026-09-12] sessionReport revenue uses today's Catalog price, not the price at time of sale
+- **What:** `Query.SessionReport` multiplies a session's `Sold` quantity by whatever `CatalogApiClient.GetAllItemsAsync` returns *right now* for that Sku's price. If the price changed after the movements in that session happened, the reported revenue for that historical session will silently drift from what was actually charged at the time.
+- **Why:** Catalog has no price history — `Item` stores one current `Price`, full stop. Snapshotting price per-movement would mean adding a `Price` column to `StockMovement`, which means Inventory would need to know price at write time, which crosses the "Inventory never knows money" boundary the whole ledger/reporting split was built around (see architecture.md). Not worth doing until this project actually needs to survive a price change occurring inside an already-closed session's window.
+- **Fix later by:** If/when this matters: have Scan Gateway pass the price it already fetched from Catalog (during the scan/receive call) through to Inventory's `ReceiveStockAsync`/`/adjust` calls purely as an opaque snapshot value stored on the `StockMovement` row — Inventory still never *interprets* it, just carries it for Dashboard's report to read back instead of re-fetching current price.
+
+## [2026-09-12] RestockSession is a single global lock, not per-item or per-category
+- **What:** Only one `RestockSession` can be open system-wide at a time (enforced by a partial unique index on `ClosedAt IS NULL`). Two admins can't run independent restocking sessions concurrently, even for unrelated categories.
+- **Why:** Matches the actual usage pattern described when this was designed — one admin, one restocking period, 2-3 days at a time — so a single global session was the simplest thing that fit. Also sidesteps having to decide how movements should be tagged if sessions could overlap.
+- **Fix later by:** N/A unless multiple people start restocking concurrently; if that happens, the likely fix is scoping sessions by a category or location tag rather than making them fully independent per-Sku.
+
 <!-- Add new entries above this line as you go -->

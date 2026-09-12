@@ -65,3 +65,25 @@ The real usage pattern this system is built around: scan/generate a code for an 
 11. Service mesh (Linkerd), mTLS, canary deploy
 12. OTel/Jaeger/Prometheus for the k8s environment (Aspire already gives this locally)
 13. *(Stretch)* Purchase Order saga (Wolverine sagas)
+
+## Stock movement ledger & restock sessions
+
+Added ahead of step 8, inside Inventory.Api (not deferred to the future event-driven Reporting
+service) since it only needs Inventory's own data, not cross-service events yet.
+
+- **`StockMovement`** — append-only row per quantity change (Sku, Delta, Reason, Timestamp,
+  ResultingQuantity, nullable SessionId). `StockItem.QuantityOnHand` remains the current total;
+  this table is the history the total alone can't answer ("how much did I have 3 restockings
+  ago" is a range query over this table, not a special "since last count" case).
+- **`RestockSession`** — an explicit, admin-opened/closed window (only one open at a time,
+  enforced by a partial unique index on `ClosedAt IS NULL`, not just app logic). Every
+  receive/adjust made while a session is open is auto-tagged with it server-side — Scan Gateway
+  and Dashboard never need to know a session exists, let alone pass its id.
+- **`GET /restock-sessions/{id}/summary`** (Inventory, also exposed over gRPC as
+  `GetSessionSummary`) — per-Sku Restocked/Sold/NetDelta for one session. `Sold` only counts
+  `Reason == Sale` movements, so a `ManualAdjust` correction never gets counted as a sale.
+- **Revenue lives in Dashboard, not Inventory** — Inventory's ledger only ever knows quantities,
+  never money (same boundary as everywhere else: Inventory owns stock truth, Catalog owns
+  price). Dashboard's new `sessionReport(sessionId)` GraphQL query is the join point: it calls
+  Inventory's `GetSessionSummary` and Catalog's `ListItems` in parallel and multiplies
+  `Sold × Price` in memory — the same fan-out-and-join pattern `GetItems` already uses.

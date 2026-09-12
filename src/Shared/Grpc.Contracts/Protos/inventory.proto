@@ -11,6 +11,14 @@ service InventoryGrpcService {
   rpc GetStock (GetStockRequest) returns (StockReply);
   rpc ListStock (ListStockRequest) returns (ListStockReply);
   rpc ReceiveStock (ReceiveStockRequest) returns (StockReply);
+  // Dashboard's sessionReport query calls this, then joins the lines against Catalog's prices
+  // to compute revenue — Inventory only ever reports quantities, never money.
+  rpc GetSessionSummary (GetSessionSummaryRequest) returns (SessionSummaryReply);
+}
+
+enum MovementReason {
+  RESTOCK = 0;
+  INTAKE = 1;
 }
 
 message GetStockRequest {
@@ -32,4 +40,20 @@ message ListStockReply {
 message ReceiveStockRequest {
   string sku = 1;
   int32 quantity = 2;
+  MovementReason reason = 3;
+}
+
+message GetSessionSummaryRequest {
+  string session_id = 1;
+}
+
+message SessionSummaryLine {
+  string sku = 1;
+  int32 restocked = 2;
+  int32 sold = 3;
+  int32 net_delta = 4;
+}
+
+message SessionSummaryReply {
+  repeated SessionSummaryLine lines = 1;
 }

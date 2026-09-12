@@ -1,3 +1,4 @@
+using InventorySystem.Grpc.Contracts.Inventory;
 using InventorySystem.ScanGateway.Api.Clients;
 
 namespace InventorySystem.ScanGateway.Api.Endpoints;
@@ -19,7 +20,7 @@ public static class ReceivingEndpoints
                 return Results.BadRequest("Quantity must be positive.");
 
             var item = await catalog.CreateItemAsync(request.Name, request.Price, request.CategoryId, request.ImageUrl, cancellationToken);
-            var stock = await inventory.ReceiveStockAsync(item.Sku, request.Quantity, cancellationToken);
+            var stock = await inventory.ReceiveStockAsync(item.Sku, request.Quantity, MovementReason.Intake, cancellationToken);
 
             return Results.Ok(new ReceiveResponse(item.Sku, item.Name, item.Barcode, item.Price, stock.QuantityOnHand));
         });
@@ -41,7 +42,7 @@ public static class ReceivingEndpoints
             if (item is null)
                 return Results.NotFound($"No catalog item found for barcode '{barcode}'. Use /items/intake to create a new item.");
 
-            var stock = await inventory.ReceiveStockAsync(item.Sku, request.Quantity, cancellationToken);
+            var stock = await inventory.ReceiveStockAsync(item.Sku, request.Quantity, MovementReason.Restock, cancellationToken);
 
             return Results.Ok(new ReceiveResponse(item.Sku, item.Name, item.Barcode, item.Price, stock.QuantityOnHand));
         });

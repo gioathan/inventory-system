@@ -18,10 +18,10 @@ public class InventoryApiClient(InventoryGrpcService.InventoryGrpcServiceClient 
         }
     }
 
-    public async Task<StockLevel> ReceiveStockAsync(string sku, int quantity, CancellationToken cancellationToken)
+    public async Task<StockLevel> ReceiveStockAsync(string sku, int quantity, MovementReason reason, CancellationToken cancellationToken)
     {
         var reply = await grpcClient.ReceiveStockAsync(
-            new ReceiveStockRequest { Sku = sku, Quantity = quantity },
+            new ReceiveStockRequest { Sku = sku, Quantity = quantity, Reason = reason },
             cancellationToken: cancellationToken);
         return new StockLevel(reply.Sku, reply.QuantityOnHand);
     }
