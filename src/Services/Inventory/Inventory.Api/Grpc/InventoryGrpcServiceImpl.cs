@@ -59,7 +59,8 @@ public class InventoryGrpcServiceImpl(InventoryDbContext db, StockReceivingServi
         if (!Guid.TryParse(request.SessionId, out var sessionId))
             throw new RpcException(new Status(StatusCode.InvalidArgument, $"'{request.SessionId}' is not a valid session id."));
 
-        var lines = await sessions.GetSummaryAsync(sessionId, context.CancellationToken);
+        var lines = await sessions.GetSummaryAsync(sessionId, context.CancellationToken)
+            ?? throw new RpcException(new Status(StatusCode.NotFound, $"No restock session found with id '{sessionId}'."));
 
         var reply = new SessionSummaryReply();
         reply.Lines.AddRange(lines.Select(l => new GrpcSessionSummaryLine

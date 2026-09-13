@@ -35,7 +35,8 @@ Inventory Service owns stock truth. It is queried live (gRPC, direct to Postgres
 - **Aspire 13** (not raw Docker Compose/k3d for local dev) — AppHost models all resources in C#, gives OTel/dashboard tracing from day one instead of bolted on at the end.
 - **Wolverine, not MassTransit** — MassTransit v8 moved to a commercial license for production use; Wolverine is the free (MIT) equivalent with built-in transactional outbox and source-generated handlers.
 - **GraphQL only for the dashboard query** — everywhere else (scan lookup) stays REST; GraphQL solves the "aggregate multiple services into one client-shaped query" problem, nothing else.
-- **gRPC for all internal service-to-service calls** — including from the GraphQL resolvers into Catalog/Inventory, so there's one consistent internal-call pattern. Covers everything Scan Gateway/Dashboard actually call internally, reads (barcode lookup, list items, get/list stock) and writes alike (CreateItem, ReceiveStock, CreateCategory). The concurrency-guarded `/adjust` stays REST-only since nothing internal calls it that way. Contracts (`.proto` files) live in `src/Shared/Grpc.Contracts`, referenced by both server and client projects — one definition, not duplicated per consumer.
+- **gRPC for all internal service-to-service calls** — including from the GraphQL resolvers into Catalog/Inventory, so there's one consistent internal-call pattern. Covers everything Scan Gateway/Dashboard actually call internally: reads (barcode lookup, list items, get/list stock, session summary) and writes alike (CreateItem, CreateCategory, ReceiveStock, AdjustStock). Contracts (`.proto` files) live in `src/Shared/Grpc.Contracts`, referenced by both server and client projects — one definition, not duplicated per consumer.
+- **Catalog/Inventory's REST surface was trimmed to just what gRPC doesn't cover** — every REST route that duplicated a gRPC RPC already called internally (items, categories, stock read/receive/adjust, session summary) was removed rather than kept as a second, unused way to reach the same logic; Catalog.Api is now gRPC-only. What's left on Inventory is genuinely admin-only with no gRPC equivalent: `POST /stock` (exact-quantity creation, used by the concurrency test's fixture setup), the restock-session open/close/list/current endpoints, and `GET /movements` for raw ledger queries.
 - **GraphQL stays query-only, no exceptions** — categories were briefly considered as a GraphQL mutation (the "it's rare, low-stakes setup data" argument), but the value of "GraphQL never writes, Scan Gateway is the only front door for writes" as an absolute rule outweighs the convenience of a one-off exception. `POST/GET /categories` live on Scan Gateway instead, proxying to Catalog over gRPC like every other Scan Gateway write.
 - **Redis only for barcode→item resolution caching** — never on the live-stock-read path. Lives in Scan Gateway (cache-aside, TTL-based), not inside Catalog — it's a property of the barcode-routing step, not of Catalog's own storage. Catalog 404s are never cached, so a newly-created item resolves immediately. TTL-only for now (no explicit invalidation) because Catalog has no update/delete endpoints yet; revisit once it does.
 - **Monorepo, one `.sln`/`.slnx`** — Aspire's AppHost needs visibility into every service project; splitting into many repos adds friction with no benefit at this scale.
@@ -81,8 +82,13 @@ service) since it only needs Inventory's own data, not cross-service events yet.
   receive/adjust made while a session is open is auto-tagged with it server-side — Scan Gateway
   and Dashboard never need to know a session exists, let alone pass its id.
 - **`GET /restock-sessions/{id}/summary`** (Inventory, also exposed over gRPC as
-  `GetSessionSummary`) — per-Sku Restocked/Sold/NetDelta for one session. `Sold` only counts
-  `Reason == Sale` movements, so a `ManualAdjust` correction never gets counted as a sale.
+  `GetSessionSummary`) — per-Sku Restocked/Sold/NetDelta from that session's `OpenedAt` through
+  right now — **time-bounded by when the session opened, not tag-filtered by its `SessionId`**.
+  A closed session still answers "since this restocking, how much has moved, as of today," not
+  a snapshot frozen at whenever it was closed — that's the whole point of picking "restocking
+  #7" as your starting line rather than a raw date. `Sold` only counts `Reason == Sale`
+  movements, so a `ManualAdjust` correction never gets counted as a sale. 404s if the session id
+  doesn't exist.
 - **Revenue lives in Dashboard, not Inventory** — Inventory's ledger only ever knows quantities,
   never money (same boundary as everywhere else: Inventory owns stock truth, Catalog owns
   price). Dashboard's new `sessionReport(sessionId)` GraphQL query is the join point: it calls
@@ -102,11 +108,11 @@ with no overlap in effect:
   Fires only on the seller's explicit confirm, with whatever quantity they picked (defaults to
   1). Resolves barcode → Sku via the same cached Catalog lookup as the GET, then calls
   Inventory's new `AdjustStock` RPC with `Reason.Sale` and a negative delta.
-- **`AdjustStock`** (Inventory, gRPC) — the REST `/adjust` endpoint's atomic floor-at-zero guard,
-  now also reachable internally. Both REST and gRPC callers share one implementation
-  (`StockReceivingService.AdjustStockAsync`) so the guard exists in exactly one place. Selling
-  more than what's on hand returns `FailedPrecondition` (409 over REST), so two sellers racing
-  to sell the last unit can't both succeed.
+- **`AdjustStock`** (Inventory, gRPC-only — the REST `/adjust` twin was removed once this and
+  Scan Gateway's scan-to-sell were both confirmed working) — the same atomic floor-at-zero guard
+  as everywhere else, implemented once in `StockReceivingService.AdjustStockAsync`. Selling more
+  than what's on hand returns `FailedPrecondition`, so two sellers racing to sell the last unit
+  can't both succeed.
 
 No UI exists yet for this — the popup/confirm flow described above is a client-side
 responsibility for whatever eventually calls these two endpoints.

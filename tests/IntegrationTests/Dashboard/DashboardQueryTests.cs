@@ -2,6 +2,8 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Aspire.Hosting;
 using Aspire.Hosting.Testing;
+using InventorySystem.Grpc.Contracts.Catalog;
+using InventorySystem.IntegrationTests.TestHelpers;
 
 namespace InventorySystem.IntegrationTests.Dashboard;
 
@@ -22,27 +24,29 @@ public class DashboardQueryTests
         await app.StartAsync(cts.Token);
         await app.ResourceNotifications.WaitForResourceHealthyAsync("dashboard-api", cts.Token);
 
-        var catalog = app.CreateHttpClient("catalog-api");
+        var catalog = app.CreateCatalogGrpcClient();
         var inventory = app.CreateHttpClient("inventory-api");
         var dashboard = app.CreateHttpClient("dashboard-api");
 
         var stockedSku = $"DASHBOARD-TEST-STOCKED-{Guid.NewGuid():N}";
         var unstockedSku = $"DASHBOARD-TEST-UNSTOCKED-{Guid.NewGuid():N}";
 
-        await catalog.PostAsJsonAsync("/items", new
+        await catalog.CreateItemAsync(new CreateItemRequest
         {
             Sku = stockedSku,
             Name = "Stocked Dashboard Item",
-            Barcode = Random.Shared.NextInt64(100000000000, 999999999999).ToString()
-        }, cts.Token);
+            Barcode = Random.Shared.NextInt64(100000000000, 999999999999).ToString(),
+            Price = "0"
+        }, cancellationToken: cts.Token);
         await inventory.PostAsJsonAsync("/stock", new { Sku = stockedSku, InitialQuantity = 15 }, cts.Token);
 
-        await catalog.PostAsJsonAsync("/items", new
+        await catalog.CreateItemAsync(new CreateItemRequest
         {
             Sku = unstockedSku,
             Name = "Unstocked Dashboard Item",
-            Barcode = Random.Shared.NextInt64(100000000000, 999999999999).ToString()
-        }, cts.Token);
+            Barcode = Random.Shared.NextInt64(100000000000, 999999999999).ToString(),
+            Price = "0"
+        }, cancellationToken: cts.Token);
 
         var queryResponse = await dashboard.PostAsJsonAsync(
             "/graphql",

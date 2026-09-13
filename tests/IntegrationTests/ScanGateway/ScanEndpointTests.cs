@@ -2,22 +2,26 @@ using System.Net;
 using System.Net.Http.Json;
 using Aspire.Hosting;
 using Aspire.Hosting.Testing;
+using InventorySystem.Grpc.Contracts.Catalog;
+using InventorySystem.IntegrationTests.TestHelpers;
 
 namespace InventorySystem.IntegrationTests.ScanGateway;
 
 // Spins up the real AppHost — all three services plus Postgres — and drives the scan flow
 // entirely over HTTP, proving Scan Gateway's service-discovery calls to Catalog and Inventory
 // actually resolve and compose correctly, not just that each service works in isolation.
+// Test fixtures are seeded via gRPC (Catalog) / REST (Inventory's POST /stock, its one
+// remaining REST route) since that's how Scan Gateway itself reaches each service.
 public class ScanEndpointTests
 {
-    private static async Task<(DistributedApplication App, HttpClient Catalog, HttpClient Inventory, HttpClient ScanGateway)> StartAsync(CancellationToken token)
+    private static async Task<(DistributedApplication App, CatalogGrpcService.CatalogGrpcServiceClient Catalog, HttpClient Inventory, HttpClient ScanGateway)> StartAsync(CancellationToken token)
     {
         var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.InventorySystem_AppHost>();
         var app = await appHost.BuildAsync(token);
         await app.StartAsync(token);
         await app.ResourceNotifications.WaitForResourceHealthyAsync("scan-gateway", token);
 
-        return (app, app.CreateHttpClient("catalog-api"), app.CreateHttpClient("inventory-api"), app.CreateHttpClient("scan-gateway"));
+        return (app, app.CreateCatalogGrpcClient(), app.CreateHttpClient("inventory-api"), app.CreateHttpClient("scan-gateway"));
     }
 
     [Fact]
@@ -30,7 +34,7 @@ public class ScanEndpointTests
         var sku = $"SCAN-TEST-{Guid.NewGuid():N}";
         var barcode = Random.Shared.NextInt64(100000000000, 999999999999).ToString();
 
-        await catalog.PostAsJsonAsync("/items", new { Sku = sku, Name = "Scan Test Item", Barcode = barcode }, cts.Token);
+        await catalog.CreateItemAsync(new CreateItemRequest { Name = "Scan Test Item", Sku = sku, Barcode = barcode, Price = "0" }, cancellationToken: cts.Token);
         await inventory.PostAsJsonAsync("/stock", new { Sku = sku, InitialQuantity = 7 }, cts.Token);
 
         var result = await scanGateway.GetFromJsonAsync<ScanResponse>($"/scan/{barcode}", cts.Token);
@@ -50,7 +54,7 @@ public class ScanEndpointTests
         var sku = $"SCAN-TEST-NOSTOCK-{Guid.NewGuid():N}";
         var barcode = Random.Shared.NextInt64(100000000000, 999999999999).ToString();
 
-        await catalog.PostAsJsonAsync("/items", new { Sku = sku, Name = "Unstocked Item", Barcode = barcode }, cts.Token);
+        await catalog.CreateItemAsync(new CreateItemRequest { Name = "Unstocked Item", Sku = sku, Barcode = barcode, Price = "0" }, cancellationToken: cts.Token);
 
         var result = await scanGateway.GetFromJsonAsync<ScanResponse>($"/scan/{barcode}", cts.Token);
 

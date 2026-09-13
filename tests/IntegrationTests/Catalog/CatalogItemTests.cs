@@ -1,29 +1,31 @@
-using System.Net;
-using System.Net.Http.Json;
 using Aspire.Hosting;
 using Aspire.Hosting.Testing;
+using global::Grpc.Core;
+using InventorySystem.Grpc.Contracts.Catalog;
+using InventorySystem.IntegrationTests.TestHelpers;
 
 namespace InventorySystem.IntegrationTests.Catalog;
 
 // Same approach as the Inventory concurrency test: spin up the real AppHost (real Postgres,
-// real Catalog.Api process) and hit it over HTTP, rather than mocking anything.
+// real Catalog.Api process) and hit it over gRPC — the only surface Catalog.Api exposes now
+// that its REST routes (all duplicates of this same gRPC contract) were removed.
 public class CatalogItemTests
 {
-    private static async Task<(DistributedApplication App, HttpClient Client)> StartAsync(CancellationToken token)
+    private static async Task<(DistributedApplication App, CatalogGrpcService.CatalogGrpcServiceClient Catalog)> StartAsync(CancellationToken token)
     {
         var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.InventorySystem_AppHost>();
         var app = await appHost.BuildAsync(token);
         await app.StartAsync(token);
         await app.ResourceNotifications.WaitForResourceHealthyAsync("catalog-api", token);
 
-        return (app, app.CreateHttpClient("catalog-api"));
+        return (app, app.CreateCatalogGrpcClient());
     }
 
     [Fact]
     public async Task CreateItem_ThenLookupByBarcode_ReturnsTheSameItem()
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        var (app, client) = await StartAsync(cts.Token);
+        var (app, catalog) = await StartAsync(cts.Token);
         await using var _ = app;
 
         // Postgres persists across runs via WithDataVolume (intentional, for local dev), so
@@ -32,52 +34,47 @@ public class CatalogItemTests
         var sku = $"CATALOG-TEST-BARCODE-LOOKUP-{Guid.NewGuid():N}";
         var barcode = Random.Shared.NextInt64(100000000000, 999999999999).ToString();
 
-        var createResponse = await client.PostAsJsonAsync(
-            "/items",
-            new { Sku = sku, Name = "Test Item", Barcode = barcode },
-            cts.Token);
-        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        await catalog.CreateItemAsync(
+            new CreateItemRequest { Name = "Test Item", Sku = sku, Barcode = barcode, Price = "0" },
+            cancellationToken: cts.Token);
 
-        var found = await client.GetFromJsonAsync<ItemResponse>($"/items/by-barcode/{barcode}", cts.Token);
+        var found = await catalog.GetItemByBarcodeAsync(new GetItemByBarcodeRequest { Barcode = barcode }, cancellationToken: cts.Token);
 
-        Assert.NotNull(found);
-        Assert.Equal(sku, found!.Sku);
+        Assert.Equal(sku, found.Sku);
         Assert.Equal(barcode, found.Barcode);
     }
 
     [Fact]
-    public async Task CreateItem_WithDuplicateSku_ReturnsConflict()
+    public async Task CreateItem_WithDuplicateSku_ReturnsAlreadyExists()
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        var (app, client) = await StartAsync(cts.Token);
+        var (app, catalog) = await StartAsync(cts.Token);
         await using var _ = app;
 
         var sku = $"CATALOG-TEST-DUPLICATE-SKU-{Guid.NewGuid():N}";
 
-        var first = await client.PostAsJsonAsync(
-            "/items",
-            new { Sku = sku, Name = "First", Barcode = Random.Shared.NextInt64(100000000000, 999999999999).ToString() },
-            cts.Token);
-        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        await catalog.CreateItemAsync(
+            new CreateItemRequest { Name = "First", Sku = sku, Barcode = Random.Shared.NextInt64(100000000000, 999999999999).ToString(), Price = "0" },
+            cancellationToken: cts.Token);
 
-        var duplicate = await client.PostAsJsonAsync(
-            "/items",
-            new { Sku = sku, Name = "Second", Barcode = Random.Shared.NextInt64(100000000000, 999999999999).ToString() },
-            cts.Token);
-        Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
+        var ex = await Assert.ThrowsAsync<RpcException>(() => catalog.CreateItemAsync(
+            new CreateItemRequest { Name = "Second", Sku = sku, Barcode = Random.Shared.NextInt64(100000000000, 999999999999).ToString(), Price = "0" },
+            cancellationToken: cts.Token).ResponseAsync);
+
+        Assert.Equal(StatusCode.AlreadyExists, ex.StatusCode);
     }
 
     [Fact]
     public async Task LookupByBarcode_ForUnknownBarcode_ReturnsNotFound()
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        var (app, client) = await StartAsync(cts.Token);
+        var (app, catalog) = await StartAsync(cts.Token);
         await using var _ = app;
 
-        var response = await client.GetAsync("/items/by-barcode/000000000000", cts.Token);
+        var ex = await Assert.ThrowsAsync<RpcException>(() => catalog.GetItemByBarcodeAsync(
+            new GetItemByBarcodeRequest { Barcode = "000000000000" },
+            cancellationToken: cts.Token).ResponseAsync);
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(StatusCode.NotFound, ex.StatusCode);
     }
-
-    private record ItemResponse(string Sku, string Name, string Barcode, Guid? CategoryId);
 }

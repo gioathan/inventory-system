@@ -1,6 +1,7 @@
-using System.Net.Http.Json;
 using Aspire.Hosting;
 using Aspire.Hosting.Testing;
+using InventorySystem.Grpc.Contracts.Catalog;
+using InventorySystem.IntegrationTests.TestHelpers;
 using StackExchange.Redis;
 
 namespace InventorySystem.IntegrationTests.ScanGateway;
@@ -20,13 +21,13 @@ public class ScanCachingTests
         await app.StartAsync(cts.Token);
         await app.ResourceNotifications.WaitForResourceHealthyAsync("scan-gateway", cts.Token);
 
-        var catalog = app.CreateHttpClient("catalog-api");
+        var catalog = app.CreateCatalogGrpcClient();
         var scanGateway = app.CreateHttpClient("scan-gateway");
 
         var sku = $"CACHE-TEST-{Guid.NewGuid():N}";
         var barcode = Random.Shared.NextInt64(100000000000, 999999999999).ToString();
 
-        await catalog.PostAsJsonAsync("/items", new { Sku = sku, Name = "Cache Test Item", Barcode = barcode }, cts.Token);
+        await catalog.CreateItemAsync(new CreateItemRequest { Name = "Cache Test Item", Sku = sku, Barcode = barcode, Price = "0" }, cancellationToken: cts.Token);
 
         var scanResponse = await scanGateway.GetAsync($"/scan/{barcode}", cts.Token);
         scanResponse.EnsureSuccessStatusCode();

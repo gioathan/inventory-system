@@ -42,9 +42,8 @@ public static class RestockSessionEndpoints
             return session is null ? Results.NotFound() : Results.Ok(ToResponse(session));
         });
 
-        // Per-Sku restocked/sold/net for one session — e.g. "from restocking #7 to now."
-        app.MapGet("/restock-sessions/{id:guid}/summary", async (Guid id, RestockSessionService sessions, CancellationToken cancellationToken) =>
-            Results.Ok(await sessions.GetSummaryAsync(id, cancellationToken)));
+        // Per-Sku restocked/sold/net summary is gRPC-only (GetSessionSummary) — Dashboard's
+        // sessionReport is its only caller, so there's no REST twin to keep.
 
         // Raw ledger query — filter by any combination of Sku/session/date range.
         app.MapGet("/movements", async (string? sku, Guid? sessionId, DateTimeOffset? from, DateTimeOffset? to, RestockSessionService sessions, CancellationToken cancellationToken) =>
