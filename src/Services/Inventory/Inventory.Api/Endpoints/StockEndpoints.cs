@@ -1,3 +1,4 @@
+using InventorySystem.Auth.Contracts;
 using InventorySystem.Inventory.Api.Data;
 using InventorySystem.Inventory.Api.Services;
 using Microsoft.EntityFrameworkCore;
@@ -30,7 +31,7 @@ public static class StockEndpoints
             await receiving.LogMovementAsync(item.Sku, request.InitialQuantity, StockMovementReason.ManualAdjust, item.QuantityOnHand, CancellationToken.None);
 
             return Results.Created($"/stock/{item.Sku}", new StockResponse(item.Sku, item.QuantityOnHand));
-        });
+        }).RequireAuthorization(AuthPolicies.AdminOnly);
     }
 }
 

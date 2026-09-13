@@ -16,7 +16,7 @@ public class StockConcurrencyTests
     [Fact]
     public async Task ConcurrentDecrements_NeverOversell_EvenUnderRace()
     {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
 
         var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.InventorySystem_AppHost>();
         await using var app = await appHost.BuildAsync(cts.Token);
@@ -28,6 +28,11 @@ public class StockConcurrencyTests
         // which is exactly the clean-fixture behavior this test needs.
         var client = app.CreateHttpClient("inventory-api");
         var inventory = app.CreateInventoryGrpcClient();
+
+        // Step 9: every endpoint now requires a valid JWT.
+        var token = await app.LoginAsAdminAsync(cts.Token);
+        client.UseBearerToken(token);
+        var auth = AuthTestHelper.BearerHeaders(token);
 
         // Postgres persists across runs via WithDataVolume (intentional, for local dev), so
         // tests share that same data across runs too — a unique SKU per run keeps this test
@@ -46,7 +51,7 @@ public class StockConcurrencyTests
             {
                 await inventory.AdjustStockAsync(
                     new AdjustStockRequest { Sku = sku, Delta = -1, Reason = MovementReason.ManualAdjust },
-                    cancellationToken: cts.Token);
+                    headers: auth, cancellationToken: cts.Token);
                 return true;
             }
             catch (RpcException ex) when (ex.StatusCode == StatusCode.FailedPrecondition)
@@ -61,7 +66,7 @@ public class StockConcurrencyTests
         Assert.Equal(startingQuantity, succeeded);
         Assert.Equal(concurrentRequests - startingQuantity, rejected);
 
-        var final = await inventory.GetStockAsync(new GetStockRequest { Sku = sku }, cancellationToken: cts.Token);
+        var final = await inventory.GetStockAsync(new GetStockRequest { Sku = sku }, headers: auth, cancellationToken: cts.Token);
         Assert.Equal(0, final.QuantityOnHand);
     }
 }

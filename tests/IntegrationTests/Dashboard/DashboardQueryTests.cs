@@ -17,7 +17,7 @@ public class DashboardQueryTests
     [Fact]
     public async Task ItemsQuery_ComposesCatalogAndInventoryData()
     {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
 
         var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.InventorySystem_AppHost>();
         await using var app = await appHost.BuildAsync(cts.Token);
@@ -28,6 +28,12 @@ public class DashboardQueryTests
         var inventory = app.CreateHttpClient("inventory-api");
         var dashboard = app.CreateHttpClient("dashboard-api");
 
+        // Step 9: every endpoint now requires a valid JWT.
+        var jwt = await app.LoginAsAdminAsync(cts.Token);
+        dashboard.UseBearerToken(jwt);
+        inventory.UseBearerToken(jwt);
+        var auth = AuthTestHelper.BearerHeaders(jwt);
+
         var stockedSku = $"DASHBOARD-TEST-STOCKED-{Guid.NewGuid():N}";
         var unstockedSku = $"DASHBOARD-TEST-UNSTOCKED-{Guid.NewGuid():N}";
 
@@ -37,8 +43,9 @@ public class DashboardQueryTests
             Name = "Stocked Dashboard Item",
             Barcode = Random.Shared.NextInt64(100000000000, 999999999999).ToString(),
             Price = "0"
-        }, cancellationToken: cts.Token);
-        await inventory.PostAsJsonAsync("/stock", new { Sku = stockedSku, InitialQuantity = 15 }, cts.Token);
+        }, headers: auth, cancellationToken: cts.Token);
+        (await inventory.PostAsJsonAsync("/stock", new { Sku = stockedSku, InitialQuantity = 15 }, cts.Token))
+            .EnsureSuccessStatusCode();
 
         await catalog.CreateItemAsync(new CreateItemRequest
         {
@@ -46,7 +53,7 @@ public class DashboardQueryTests
             Name = "Unstocked Dashboard Item",
             Barcode = Random.Shared.NextInt64(100000000000, 999999999999).ToString(),
             Price = "0"
-        }, cancellationToken: cts.Token);
+        }, headers: auth, cancellationToken: cts.Token);
 
         var queryResponse = await dashboard.PostAsJsonAsync(
             "/graphql",

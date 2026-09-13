@@ -1,3 +1,4 @@
+using InventorySystem.Auth.Contracts;
 using InventorySystem.Inventory.Api.Data;
 using InventorySystem.Inventory.Api.Endpoints;
 using InventorySystem.Inventory.Api.Grpc;
@@ -13,6 +14,8 @@ using Wolverine.RabbitMQ;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
+
+builder.Services.AddInventorySystemJwtAuth(builder.Configuration);
 
 // "inventorydb" matches the name AppHost.cs gives this database resource; Aspire resolves
 // the actual connection string (host, port, credentials) from that reference at startup.
@@ -67,7 +70,10 @@ if (app.Environment.IsDevelopment())
     scope.ServiceProvider.GetRequiredService<InventoryDbContext>().Database.Migrate();
 }
 
-app.UseHttpsRedirection();
+// Deliberately no UseHttpsRedirection() — see architecture.md / TECH_DEBT.md: it strips the
+// Authorization header on the redirect it issues for any plain-HTTP request.
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapStockEndpoints();
 app.MapRestockSessionEndpoints();

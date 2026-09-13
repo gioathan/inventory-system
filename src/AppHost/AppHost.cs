@@ -17,6 +17,13 @@ var postgres = builder.AddPostgres("postgres", password: postgresPassword)
 
 var inventoryDb = postgres.AddDatabase("inventorydb");
 var catalogDb = postgres.AddDatabase("catalogdb");
+var staffDb = postgres.AddDatabase("staffdb");
+
+// Same reasoning as postgres-password: this has to be byte-for-byte identical across every
+// service's process (Staff.Api signs with it, everyone else validates with it) and stable
+// across restarts, or token validation breaks the moment any service restarts with a freshly
+// generated value. Local dev only — a real deployment would pull this from a real secret store.
+var jwtSigningKey = builder.AddParameter("jwt-signing-key", "local-dev-only-signing-key-do-not-use-in-prod", secret: true);
 
 // RabbitMQ backs Inventory's transactional outbox (see StockReceivingService) — every stock
 // movement publishes a StockMovementRecorded event here. Deliberately NOT WithDataVolume():
@@ -32,6 +39,13 @@ var rabbitmq = builder.AddRabbitMQ("rabbitmq");
 var mongo = builder.AddMongoDB("mongo");
 var notificationDb = mongo.AddDatabase("notificationdb");
 
+// Staff.Api issues and validates JWTs (it's also a caller of its own /staff and /audit-log
+// endpoints, hence needing the signing key itself too). Every other service only validates.
+builder.AddProject<Projects.InventorySystem_Staff_Api>("staff-api")
+    .WithReference(staffDb)
+    .WaitFor(staffDb)
+    .WithEnvironment("Jwt__SigningKey", jwtSigningKey);
+
 // WithReference injects the resolved connection string into Inventory.Api's config at the
 // key "inventorydb", which builder.AddNpgsqlDbContext<InventoryDbContext>("inventorydb")
 // picks up. WaitFor makes Aspire hold off starting the API until Postgres is ready.
@@ -39,20 +53,23 @@ var inventoryApi = builder.AddProject<Projects.InventorySystem_Inventory_Api>("i
     .WithReference(inventoryDb)
     .WithReference(rabbitmq)
     .WaitFor(inventoryDb)
-    .WaitFor(rabbitmq);
+    .WaitFor(rabbitmq)
+    .WithEnvironment("Jwt__SigningKey", jwtSigningKey);
 
 builder.AddProject<Projects.InventorySystem_Notification_Api>("notification-api")
     .WithReference(notificationDb)
     .WithReference(rabbitmq)
     .WaitFor(notificationDb)
-    .WaitFor(rabbitmq);
+    .WaitFor(rabbitmq)
+    .WithEnvironment("Jwt__SigningKey", jwtSigningKey);
 
 // Catalog gets its own logical database on the same Postgres server (separate schema from
 // Inventory, so no cross-service joins are even possible) rather than its own container —
 // one container is plenty for local dev, and each service still owns its own database.
 var catalogApi = builder.AddProject<Projects.InventorySystem_Catalog_Api>("catalog-api")
     .WithReference(catalogDb)
-    .WaitFor(catalogDb);
+    .WaitFor(catalogDb)
+    .WithEnvironment("Jwt__SigningKey", jwtSigningKey);
 
 // Redis backs Scan Gateway's barcode->item cache only — nothing else references it, so
 // there's no risk of it accidentally ending up on the live-stock-read path.
@@ -67,7 +84,8 @@ builder.AddProject<Projects.InventorySystem_ScanGateway_Api>("scan-gateway")
     .WithReference(redis)
     .WaitFor(catalogApi)
     .WaitFor(inventoryApi)
-    .WaitFor(redis);
+    .WaitFor(redis)
+    .WithEnvironment("Jwt__SigningKey", jwtSigningKey);
 
 // Dashboard.Api is the one GraphQL surface in the system (see architecture.md) — it composes
 // Catalog and Inventory into a single client-shaped query, still over REST for now.
@@ -75,6 +93,7 @@ builder.AddProject<Projects.InventorySystem_Dashboard_Api>("dashboard-api")
     .WithReference(catalogApi)
     .WithReference(inventoryApi)
     .WaitFor(catalogApi)
-    .WaitFor(inventoryApi);
+    .WaitFor(inventoryApi)
+    .WithEnvironment("Jwt__SigningKey", jwtSigningKey);
 
 builder.Build().Run();

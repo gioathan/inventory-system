@@ -61,8 +61,8 @@ The real usage pattern this system is built around: scan/generate a code for an 
 5. Redis (barcode caching only) ✅
 6. GraphQL dashboard (HotChocolate) ✅
 7. Convert internal calls to gRPC ✅
-8. RabbitMQ + Wolverine + outbox + Notification Service
-9. Staff/Auth + JWT
+8. RabbitMQ + Wolverine + outbox + Notification Service ✅
+9. Staff/Auth + JWT ✅
 10. Containerize, move to k3d/Kubernetes
 11. Service mesh (Linkerd), mTLS, canary deploy
 12. OTel/Jaeger/Prometheus for the k8s environment (Aspire already gives this locally)
@@ -94,6 +94,32 @@ service) since it only needs Inventory's own data, not cross-service events yet.
   price). Dashboard's new `sessionReport(sessionId)` GraphQL query is the join point: it calls
   Inventory's `GetSessionSummary` and Catalog's `ListItems` in parallel and multiplies
   `Sold × Price` in memory — the same fan-out-and-join pattern `GetItems` already uses.
+
+## Staff/Auth & JWT
+
+A new `Staff.Api` service (Postgres `staffdb`) is the sole issuer of JWTs; every other service
+only validates. Two roles, no more: **Admin** (staff management, audit log, category creation,
+manual stock corrections, restock sessions, low-stock alerts) and **Seller** (scan/sell/intake —
+the shop-floor day-to-day). Two policies compose them: `SellerOrAdmin` and `AdminOnly`.
+
+- **Scope is everything, not just the front door** — every endpoint on every service requires a
+  valid JWT, including the internal gRPC calls Scan Gateway/Dashboard make to Catalog/Inventory.
+  A stolen service-to-service call is just as much a hole as a stolen browser session in a
+  single-VM local setup with no network segmentation between services, so there's no "internal
+  therefore trusted" carve-out. ASP.NET Core `[Authorize]` on a gRPC service class/method combines
+  AND-wise with any class-level attribute — used to make e.g. `CreateCategory`/`ListCategories`
+  Admin-only while the rest of `CatalogGrpcServiceImpl` stays `SellerOrAdmin`.
+- **Category creation goes through Scan Gateway (REST), not GraphQL** — Dashboard's GraphQL
+  surface stays strictly query-only, no mutation exceptions, even for an Admin-only action.
+- **Bearer token forwarding** — Scan Gateway and Dashboard both call Catalog/Inventory over gRPC
+  on the caller's behalf, so both use `AddCallCredentials` on their gRPC clients to re-attach the
+  inbound request's `Authorization` header to the outbound gRPC call (`IHttpContextAccessor` reads
+  the original header). Nothing is re-issued or impersonated — the same token just rides along.
+- **Two real bugs found wiring this up, both in TECH_DEBT.md** — `UseHttpsRedirection()` silently
+  strips the `Authorization` header on the http→https redirect it issues (removed from every
+  service instead); and a corrupted Postgres-backed Wolverine node-tracking row left over from
+  crash/restart cycles made Inventory.Api fail to start at all, which looked exactly like a JWT
+  bug (every call to it just hung) but had nothing to do with auth.
 
 ## Scan-and-sell (two-step, never implicit)
 

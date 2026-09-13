@@ -26,6 +26,7 @@
     <ProjectReference Include="..\..\..\ServiceDefaults\InventorySystem.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\..\Shared\Grpc.Contracts\InventorySystem.Grpc.Contracts.csproj" />
     <ProjectReference Include="..\..\..\Shared\Messaging.Contracts\InventorySystem.Messaging.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Auth.Contracts\InventorySystem.Auth.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

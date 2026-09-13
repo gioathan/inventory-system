@@ -1,3 +1,4 @@
+using InventorySystem.Auth.Contracts;
 using InventorySystem.Notification.Api.Data;
 using MongoDB.Driver;
 
@@ -22,7 +23,7 @@ public static class AlertEndpoints
                 .ToListAsync();
 
             return Results.Ok(alerts.Select(a => new AlertResponse(a.Sku, a.QuantityOnHand, a.Threshold, a.Timestamp)));
-        });
+        }).RequireAuthorization(AuthPolicies.AdminOnly);
     }
 }
 

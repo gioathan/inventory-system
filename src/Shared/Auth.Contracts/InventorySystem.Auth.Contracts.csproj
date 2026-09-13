@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Needed for WebApplicationBuilder/IServiceCollection auth APIs — a plain classlib has no
+         framework reference to Microsoft.AspNetCore.App by default. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
+    <!-- System.IdentityModel.Tokens.Jwt (JwtSecurityTokenHandler) comes in transitively via
+         JwtBearer at whatever version it requires — pinning it separately here caused a
+         package-downgrade error, so it's left unpinned. -->
+  </ItemGroup>
+
+</Project>

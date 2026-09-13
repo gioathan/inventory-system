@@ -12,6 +12,9 @@
   <Folder Name="/src/Shared/Messaging.Contracts/">
     <Project Path="src/Shared/Messaging.Contracts/InventorySystem.Messaging.Contracts.csproj" />
   </Folder>
+  <Folder Name="/src/Shared/Auth.Contracts/">
+    <Project Path="src/Shared/Auth.Contracts/InventorySystem.Auth.Contracts.csproj" />
+  </Folder>
   <Folder Name="/src/Services/Inventory/">
     <Project Path="src/Services/Inventory/Inventory.Api/InventorySystem.Inventory.Api.csproj" />
   </Folder>
@@ -26,6 +29,9 @@
   </Folder>
   <Folder Name="/src/Services/Notification/">
     <Project Path="src/Services/Notification/Notification.Api/InventorySystem.Notification.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/Staff/">
+    <Project Path="src/Services/Staff/Staff.Api/InventorySystem.Staff.Api.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/IntegrationTests/InventorySystem.IntegrationTests.csproj" />

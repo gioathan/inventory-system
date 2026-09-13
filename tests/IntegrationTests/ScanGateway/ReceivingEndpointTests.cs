@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Aspire.Hosting;
 using Aspire.Hosting.Testing;
+using InventorySystem.IntegrationTests.TestHelpers;
 
 namespace InventorySystem.IntegrationTests.ScanGateway;
 
@@ -17,13 +18,17 @@ public class ReceivingEndpointTests
         await app.StartAsync(token);
         await app.ResourceNotifications.WaitForResourceHealthyAsync("scan-gateway", token);
 
-        return (app, app.CreateHttpClient("scan-gateway"));
+        // Step 9: every endpoint now requires a valid JWT.
+        var scanGateway = app.CreateHttpClient("scan-gateway");
+        scanGateway.UseBearerToken(await app.LoginAsAdminAsync(token));
+
+        return (app, scanGateway);
     }
 
     [Fact]
     public async Task Intake_CreatesNewItemWithGeneratedBarcodeAndInitialQuantity()
     {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         var (app, scanGateway) = await StartAsync(cts.Token);
         await using var _ = app;
 
@@ -51,7 +56,7 @@ public class ReceivingEndpointTests
     [Fact]
     public async Task Intake_ThenRestock_AddsToExistingQuantity()
     {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         var (app, scanGateway) = await StartAsync(cts.Token);
         await using var _ = app;
 
@@ -75,7 +80,7 @@ public class ReceivingEndpointTests
     [Fact]
     public async Task Restock_ForUnknownBarcode_ReturnsNotFound()
     {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         var (app, scanGateway) = await StartAsync(cts.Token);
         await using var _ = app;
 
@@ -90,7 +95,7 @@ public class ReceivingEndpointTests
     [Fact]
     public async Task Restock_WithNonPositiveQuantity_ReturnsBadRequest()
     {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         var (app, scanGateway) = await StartAsync(cts.Token);
         await using var _ = app;
 

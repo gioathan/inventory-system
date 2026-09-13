@@ -14,7 +14,7 @@ public class ScanCachingTests
     [Fact]
     public async Task Scan_OnCacheMiss_PopulatesRedisWithTheResolvedItem()
     {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
 
         var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.InventorySystem_AppHost>();
         await using var app = await appHost.BuildAsync(cts.Token);
@@ -24,10 +24,15 @@ public class ScanCachingTests
         var catalog = app.CreateCatalogGrpcClient();
         var scanGateway = app.CreateHttpClient("scan-gateway");
 
+        // Step 9: every endpoint now requires a valid JWT.
+        var jwt = await app.LoginAsAdminAsync(cts.Token);
+        scanGateway.UseBearerToken(jwt);
+        var auth = AuthTestHelper.BearerHeaders(jwt);
+
         var sku = $"CACHE-TEST-{Guid.NewGuid():N}";
         var barcode = Random.Shared.NextInt64(100000000000, 999999999999).ToString();
 
-        await catalog.CreateItemAsync(new CreateItemRequest { Name = "Cache Test Item", Sku = sku, Barcode = barcode, Price = "0" }, cancellationToken: cts.Token);
+        await catalog.CreateItemAsync(new CreateItemRequest { Name = "Cache Test Item", Sku = sku, Barcode = barcode, Price = "0" }, headers: auth, cancellationToken: cts.Token);
 
         var scanResponse = await scanGateway.GetAsync($"/scan/{barcode}", cts.Token);
         scanResponse.EnsureSuccessStatusCode();

@@ -1,3 +1,4 @@
+using InventorySystem.Auth.Contracts;
 using InventorySystem.Notification.Api.Endpoints;
 using MongoDB.Driver;
 using Scalar.AspNetCore;
@@ -7,6 +8,8 @@ using Wolverine.RabbitMQ;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
+
+builder.Services.AddInventorySystemJwtAuth(builder.Configuration);
 
 // "notificationdb" matches the database resource name AppHost.cs gives this service.
 // AddMongoDBClient only registers IMongoClient; resolving the specific IMongoDatabase
@@ -39,7 +42,10 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
-app.UseHttpsRedirection();
+// Deliberately no UseHttpsRedirection() — see architecture.md / TECH_DEBT.md: it strips the
+// Authorization header on the redirect it issues for any plain-HTTP request.
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapAlertEndpoints();
 

@@ -1,12 +1,18 @@
 using System.Globalization;
 using global::Grpc.Core;
+using InventorySystem.Auth.Contracts;
 using InventorySystem.Catalog.Api.Data;
 using InventorySystem.Catalog.Api.Services;
 using InventorySystem.Grpc.Contracts.Catalog;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 
 namespace InventorySystem.Catalog.Api.Grpc;
 
+// Class-level floor for every RPC; CreateCategory/ListCategories add a stricter Admin-only
+// policy on top (attributes combine with AND) — categories are admin-managed setup data, not
+// a day-to-day seller action (see architecture.md), matching Scan Gateway's /categories.
+[Authorize(Policy = AuthPolicies.SellerOrAdmin)]
 public class CatalogGrpcServiceImpl(CatalogDbContext db, ItemCreationService itemCreation) : CatalogGrpcService.CatalogGrpcServiceBase
 {
     public override async Task<ItemReply> GetItemByBarcode(GetItemByBarcodeRequest request, ServerCallContext context)
@@ -50,6 +56,7 @@ public class CatalogGrpcServiceImpl(CatalogDbContext db, ItemCreationService ite
         }
     }
 
+    [Authorize(Policy = AuthPolicies.AdminOnly)]
     public override async Task<CategoryReply> CreateCategory(CreateCategoryRequest request, ServerCallContext context)
     {
         if (await db.Categories.AnyAsync(c => c.Name == request.Name, context.CancellationToken))
@@ -62,6 +69,7 @@ public class CatalogGrpcServiceImpl(CatalogDbContext db, ItemCreationService ite
         return ToReply(category);
     }
 
+    [Authorize(Policy = AuthPolicies.AdminOnly)]
     public override async Task<ListCategoriesReply> ListCategories(ListCategoriesRequest request, ServerCallContext context)
     {
         var categories = await db.Categories.AsNoTracking().ToListAsync(context.CancellationToken);
