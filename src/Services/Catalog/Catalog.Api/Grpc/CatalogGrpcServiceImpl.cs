@@ -79,17 +79,70 @@ public class CatalogGrpcServiceImpl(CatalogDbContext db, ItemCreationService ite
         return reply;
     }
 
+    // Admin-only, same reasoning as categories: a batch price reduction for a "low prices
+    // period" sale is admin-managed setup, not a day-to-day seller action.
+    [Authorize(Policy = AuthPolicies.AdminOnly)]
+    public override async Task<DiscountReply> ApplyDiscount(ApplyDiscountRequest request, ServerCallContext context)
+    {
+        if (request.Percentage <= 0 || request.Percentage >= 1)
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "percentage must be strictly between 0 and 1."));
+
+        var items = await LoadItemsOrThrowAsync(request.Skus, context.CancellationToken);
+
+        foreach (var item in items)
+            item.DiscountPercentage = request.Percentage;
+
+        await db.SaveChangesAsync(context.CancellationToken);
+
+        var reply = new DiscountReply();
+        reply.Items.AddRange(items.Select(ToReply));
+        return reply;
+    }
+
+    [Authorize(Policy = AuthPolicies.AdminOnly)]
+    public override async Task<DiscountReply> RemoveDiscount(RemoveDiscountRequest request, ServerCallContext context)
+    {
+        var items = await LoadItemsOrThrowAsync(request.Skus, context.CancellationToken);
+
+        foreach (var item in items)
+            item.DiscountPercentage = null;
+
+        await db.SaveChangesAsync(context.CancellationToken);
+
+        var reply = new DiscountReply();
+        reply.Items.AddRange(items.Select(ToReply));
+        return reply;
+    }
+
+    // Shared by ApplyDiscount/RemoveDiscount: both are all-or-nothing over the requested SKU
+    // list — a typo'd SKU fails the whole call instead of silently discounting a subset.
+    private async Task<List<Item>> LoadItemsOrThrowAsync(IReadOnlyCollection<string> skus, CancellationToken cancellationToken)
+    {
+        var items = await db.Items.Where(i => skus.Contains(i.Sku)).ToListAsync(cancellationToken);
+
+        var missing = skus.Except(items.Select(i => i.Sku)).ToList();
+        if (missing.Count > 0)
+            throw new RpcException(new Status(StatusCode.NotFound, $"No catalog item(s) found for SKU(s): {string.Join(", ", missing)}"));
+
+        return items;
+    }
+
     private static CategoryReply ToReply(Category category) =>
         new() { Id = category.Id.ToString(), Name = category.Name };
 
     private static ItemReply ToReply(Item item)
     {
+        var effectivePrice = item.DiscountPercentage is { } discount
+            ? item.Price * (1 - (decimal)discount)
+            : item.Price;
+
         var reply = new ItemReply
         {
             Sku = item.Sku,
             Name = item.Name,
             Barcode = item.Barcode,
-            Price = item.Price.ToString(CultureInfo.InvariantCulture)
+            Price = item.Price.ToString(CultureInfo.InvariantCulture),
+            EffectivePrice = effectivePrice.ToString(CultureInfo.InvariantCulture)
         };
 
         if (item.CategoryId is { } categoryId)
@@ -97,6 +150,9 @@ public class CatalogGrpcServiceImpl(CatalogDbContext db, ItemCreationService ite
 
         if (item.ImageUrl is not null)
             reply.ImageUrl = item.ImageUrl;
+
+        if (item.DiscountPercentage is { } percentage)
+            reply.DiscountPercentage = percentage;
 
         return reply;
     }

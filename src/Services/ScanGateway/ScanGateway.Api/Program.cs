@@ -66,5 +66,6 @@ app.UseAuthorization();
 app.MapScanEndpoints();
 app.MapReceivingEndpoints();
 app.MapCategoryEndpoints();
+app.MapDiscountEndpoints();
 
 app.Run();

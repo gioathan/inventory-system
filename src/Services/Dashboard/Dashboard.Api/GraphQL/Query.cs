@@ -26,6 +26,8 @@ public class Query
             item.Name,
             item.Barcode,
             item.Price,
+            item.DiscountPercentage,
+            item.EffectivePrice,
             item.ImageUrl,
             item.CategoryId,
             stockBySku.TryGetValue(item.Sku, out var quantity) ? quantity : null));
@@ -51,7 +53,11 @@ public class Query
         return summaryTask.Result.Select(line =>
         {
             itemsBySku.TryGetValue(line.Sku, out var item);
-            var price = item?.Price;
+            // EffectivePrice, not Price: if a discount is active right now, revenue for a sale
+            // that happened during the session reflects what's actually being charged today —
+            // same "uses current Catalog price, not price-at-time-of-sale" tradeoff already
+            // documented in TECH_DEBT.md, just carried through the discount on top of it.
+            var price = item?.EffectivePrice;
 
             return new SessionReportLine(
                 line.Sku,
@@ -64,5 +70,7 @@ public class Query
     }
 }
 
-public record DashboardItem(string Sku, string Name, string Barcode, decimal Price, string? ImageUrl, Guid? CategoryId, int? QuantityOnHand);
+public record DashboardItem(
+    string Sku, string Name, string Barcode, decimal Price, double? DiscountPercentage, decimal EffectivePrice,
+    string? ImageUrl, Guid? CategoryId, int? QuantityOnHand);
 public record SessionReportLine(string Sku, string? Name, int Restocked, int Sold, int NetDelta, decimal? Revenue);

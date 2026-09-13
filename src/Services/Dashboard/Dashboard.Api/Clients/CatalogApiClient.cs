@@ -16,9 +16,13 @@ public class CatalogApiClient(CatalogGrpcService.CatalogGrpcServiceClient grpcCl
                 i.Barcode,
                 decimal.Parse(i.Price, CultureInfo.InvariantCulture),
                 i.HasImageUrl ? i.ImageUrl : null,
-                i.HasCategoryId ? Guid.Parse(i.CategoryId) : null))
+                i.HasCategoryId ? Guid.Parse(i.CategoryId) : null,
+                i.HasDiscountPercentage ? i.DiscountPercentage : null,
+                decimal.Parse(i.EffectivePrice, CultureInfo.InvariantCulture)))
             .ToList();
     }
 }
 
-public record CatalogItem(string Sku, string Name, string Barcode, decimal Price, string? ImageUrl, Guid? CategoryId);
+public record CatalogItem(
+    string Sku, string Name, string Barcode, decimal Price, string? ImageUrl, Guid? CategoryId,
+    double? DiscountPercentage, decimal EffectivePrice);

@@ -8,9 +8,9 @@ namespace InventorySystem.ScanGateway.Api.Clients;
 
 public class CatalogApiClient(CatalogGrpcService.CatalogGrpcServiceClient grpcClient, IDistributedCache cache)
 {
-    // Catalog has no update/delete endpoints yet, so there's nothing to invalidate on writes —
-    // a short TTL is sufficient for now. Revisit with real invalidation once Catalog can mutate
-    // existing items (see architecture.md).
+    // Discount apply/remove explicitly invalidate the affected entries (see
+    // InvalidateCacheAsync) since they change the price a cached lookup would return; this TTL
+    // is just the fallback ceiling on staleness for everything else.
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
 
     public async Task<CatalogItem?> GetItemByBarcodeAsync(string barcode, CancellationToken cancellationToken)
@@ -83,16 +83,70 @@ public class CatalogApiClient(CatalogGrpcService.CatalogGrpcServiceClient grpcCl
         return reply.Categories.Select(c => new Category(Guid.Parse(c.Id), c.Name)).ToList();
     }
 
+    public async Task<List<CatalogItem>> ApplyDiscountAsync(IEnumerable<string> skus, double percentage, CancellationToken cancellationToken)
+    {
+        var request = new ApplyDiscountRequest { Percentage = percentage };
+        request.Skus.AddRange(skus);
+
+        DiscountReply reply;
+        try
+        {
+            reply = await grpcClient.ApplyDiscountAsync(request, cancellationToken: cancellationToken);
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
+        {
+            throw new CatalogItemsNotFoundException(ex.Status.Detail);
+        }
+
+        var items = reply.Items.Select(ToCatalogItem).ToList();
+        await InvalidateCacheAsync(items, cancellationToken);
+        return items;
+    }
+
+    public async Task<List<CatalogItem>> RemoveDiscountAsync(IEnumerable<string> skus, CancellationToken cancellationToken)
+    {
+        var request = new RemoveDiscountRequest();
+        request.Skus.AddRange(skus);
+
+        DiscountReply reply;
+        try
+        {
+            reply = await grpcClient.RemoveDiscountAsync(request, cancellationToken: cancellationToken);
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
+        {
+            throw new CatalogItemsNotFoundException(ex.Status.Detail);
+        }
+
+        var items = reply.Items.Select(ToCatalogItem).ToList();
+        await InvalidateCacheAsync(items, cancellationToken);
+        return items;
+    }
+
+    // Applying/removing a discount changes the price a cached barcode->item entry would
+    // return, so those entries can't just be left to expire on their own TTL (up to 5 stale
+    // minutes of a seller scanning the old price right after a sale starts or ends).
+    private async Task InvalidateCacheAsync(IEnumerable<CatalogItem> items, CancellationToken cancellationToken)
+    {
+        foreach (var item in items)
+            await cache.RemoveAsync($"catalog-item:{item.Barcode}", cancellationToken);
+    }
+
     private static CatalogItem ToCatalogItem(ItemReply reply) => new(
         reply.Sku,
         reply.Name,
         reply.Barcode,
         decimal.Parse(reply.Price, CultureInfo.InvariantCulture),
         reply.HasImageUrl ? reply.ImageUrl : null,
-        reply.HasCategoryId ? Guid.Parse(reply.CategoryId) : null);
+        reply.HasCategoryId ? Guid.Parse(reply.CategoryId) : null,
+        reply.HasDiscountPercentage ? reply.DiscountPercentage : null,
+        decimal.Parse(reply.EffectivePrice, CultureInfo.InvariantCulture));
 }
 
-public record CatalogItem(string Sku, string Name, string Barcode, decimal Price, string? ImageUrl, Guid? CategoryId);
+public record CatalogItem(
+    string Sku, string Name, string Barcode, decimal Price, string? ImageUrl, Guid? CategoryId,
+    double? DiscountPercentage, decimal EffectivePrice);
 public record Category(Guid Id, string Name);
 
 public class CategoryAlreadyExistsException(string name) : Exception($"Category '{name}' already exists.");
+public class CatalogItemsNotFoundException(string message) : Exception(message);

@@ -14,6 +14,8 @@ service CatalogGrpcService {
   rpc CreateItem (CreateItemRequest) returns (ItemReply);
   rpc CreateCategory (CreateCategoryRequest) returns (CategoryReply);
   rpc ListCategories (ListCategoriesRequest) returns (ListCategoriesReply);
+  rpc ApplyDiscount (ApplyDiscountRequest) returns (DiscountReply);
+  rpc RemoveDiscount (RemoveDiscountRequest) returns (DiscountReply);
 }
 
 message GetItemByBarcodeRequest {
@@ -29,6 +31,13 @@ message ItemReply {
   // precision loss a double would introduce for money values.
   string price = 5;
   optional string image_url = 6;
+  // Fraction in (0, 1) taken off Price, e.g. 0.2 = 20% off. Unset means no active discount.
+  // Price itself is never overwritten, so removing a discount is an exact, lossless revert.
+  optional double discount_percentage = 7;
+  // Price with discount_percentage already applied — equal to price when there's no discount.
+  // Precomputed here so every reader (Scan Gateway's popup, Dashboard) shows the same number
+  // without re-deriving the multiplication itself.
+  string effective_price = 8;
 }
 
 message ListItemsRequest {
@@ -64,4 +73,19 @@ message ListCategoriesRequest {
 
 message ListCategoriesReply {
   repeated CategoryReply categories = 1;
+}
+
+// One percentage applied to many SKUs at once — a seasonal/low-price-period sale on a batch
+// of items, not a single-item price edit.
+message ApplyDiscountRequest {
+  repeated string skus = 1;
+  double percentage = 2; // strictly between 0 and 1; rejected otherwise
+}
+
+message RemoveDiscountRequest {
+  repeated string skus = 1;
+}
+
+message DiscountReply {
+  repeated ItemReply items = 1;
 }

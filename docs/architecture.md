@@ -121,6 +121,32 @@ the shop-floor day-to-day). Two policies compose them: `SellerOrAdmin` and `Admi
   crash/restart cycles made Inventory.Api fail to start at all, which looked exactly like a JWT
   bug (every call to it just hung) but had nothing to do with auth.
 
+## Item discounts (batch, non-destructive)
+
+Lets an admin take a percentage off a batch of items at once for a "low prices period" —
+e.g. 20% off 10 SKUs — without touching their base `Price`.
+
+- **`Item.DiscountPercentage`** (Catalog, nullable `double`, strictly between 0 and 1) sits
+  alongside `Price`, never replaces it. Effective price = `Price × (1 - DiscountPercentage)`,
+  computed wherever an item is read (`ItemReply.EffectivePrice`) so every caller (Scan Gateway's
+  scan popup, Dashboard) sees the same number without re-deriving the multiplication. Removing a
+  discount just clears the field back to `null` — an exact, lossless revert to `Price`, which is
+  the reason it's a separate field instead of overwriting `Price` directly.
+- **`ApplyDiscount`/`RemoveDiscount`** (Catalog gRPC, Admin-only) take a list of SKUs and are
+  all-or-nothing: a typo'd SKU fails the whole batch instead of silently discounting a subset.
+  Fronted by Scan Gateway's `POST /items/discount` and `POST /items/discount/remove` — same
+  "Catalog is gRPC-only internally, Scan Gateway is the REST admin surface" pattern as categories.
+- **A single global sale, not scheduled** — this is a manually-triggered admin action with no
+  start/end date or history of past discounts, matching how restock sessions started simple (see
+  above). If discounts ever need scheduling or an audit trail of past sales, that's a dedicated
+  entity; not worth it while it's an admin flipping a value on and off by hand.
+- **Scan Gateway's item cache is invalidated on apply/remove** — a discount changes the price a
+  cached barcode→item lookup would return, so `CatalogApiClient` explicitly clears the affected
+  entries instead of waiting out the 5-minute TTL (see `InvalidateCacheAsync`).
+- **SessionReport revenue uses `EffectivePrice`**, not `Price` — consistent with the existing
+  "revenue uses today's Catalog price, not price-at-time-of-sale" tradeoff already in
+  TECH_DEBT.md; a discount is just today's price being lower than it was.
+
 ## Scan-and-sell (two-step, never implicit)
 
 The seller-facing UX is: scan a barcode, see current quantity in a popup, then either close
