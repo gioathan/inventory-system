@@ -48,12 +48,21 @@ public class RestockSessionService(InventoryDbContext db)
     public Task<List<RestockSession>> ListAsync(CancellationToken cancellationToken) =>
         db.RestockSessions.AsNoTracking().OrderByDescending(s => s.OpenedAt).ToListAsync(cancellationToken);
 
+    // Time-bounded from the session's OpenedAt through now — NOT filtered by SessionId. A
+    // closed session still answers "since this restocking, how much has moved" for as long as
+    // no later session has re-opened; using the SessionId tag instead would freeze the summary
+    // at whenever the session was closed, which is wrong for "3 restockings ago to today."
     // Restocked = sum of positive deltas (Intake + Restock movements), Sold = sum of negative
     // deltas from Sale movements only — a ManualAdjust correction shouldn't be counted as a sale.
-    public async Task<List<SessionSummaryLine>> GetSummaryAsync(Guid sessionId, CancellationToken cancellationToken)
+    public async Task<List<SessionSummaryLine>?> GetSummaryAsync(Guid sessionId, CancellationToken cancellationToken)
     {
+        var session = await db.RestockSessions.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == sessionId, cancellationToken);
+        if (session is null)
+            return null;
+
         var grouped = await db.StockMovements.AsNoTracking()
-            .Where(m => m.SessionId == sessionId)
+            .Where(m => m.Timestamp >= session.OpenedAt)
             .GroupBy(m => m.Sku)
             .Select(g => new
             {

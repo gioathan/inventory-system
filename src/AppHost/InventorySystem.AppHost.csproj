@@ -9,7 +9,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.MongoDB" Version="13.4.6" />
     <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.4.6" />
+    <PackageReference Include="Aspire.Hosting.RabbitMQ" Version="13.4.6" />
     <PackageReference Include="Aspire.Hosting.Redis" Version="13.4.6" />
   </ItemGroup>
 
@@ -18,6 +20,8 @@
     <ProjectReference Include="..\Services\Catalog\Catalog.Api\InventorySystem.Catalog.Api.csproj" />
     <ProjectReference Include="..\Services\ScanGateway\ScanGateway.Api\InventorySystem.ScanGateway.Api.csproj" />
     <ProjectReference Include="..\Services\Dashboard\Dashboard.Api\InventorySystem.Dashboard.Api.csproj" />
+    <ProjectReference Include="..\Services\Notification\Notification.Api\InventorySystem.Notification.Api.csproj" />
+    <ProjectReference Include="..\Services\Staff\Staff.Api\InventorySystem.Staff.Api.csproj" />
   </ItemGroup>
 
 </Project>

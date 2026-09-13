@@ -1,3 +1,4 @@
+using InventorySystem.Auth.Contracts;
 using InventorySystem.ScanGateway.Api.Clients;
 
 namespace InventorySystem.ScanGateway.Api.Endpoints;
@@ -21,7 +22,7 @@ public static class ScanEndpoints
             var stock = await inventory.GetStockAsync(item.Sku, cancellationToken);
 
             return Results.Ok(new ScanResponse(item.Sku, item.Name, item.Barcode, item.Price, stock?.QuantityOnHand));
-        });
+        }).RequireAuthorization(AuthPolicies.SellerOrAdmin);
 
         // The confirm step of the scan-and-sell UX: GET /scan/{barcode} above is always a pure
         // lookup (safe to call just to check quantity); this is the only thing that actually
@@ -48,7 +49,7 @@ public static class ScanEndpoints
                 SellOutcome.InsufficientStock => Results.Conflict($"Insufficient stock for '{item.Sku}'."),
                 _ => Results.Ok(new ScanResponse(item.Sku, item.Name, item.Barcode, item.Price, result.Stock!.QuantityOnHand))
             };
-        });
+        }).RequireAuthorization(AuthPolicies.SellerOrAdmin);
     }
 }
 

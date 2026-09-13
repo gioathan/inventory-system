@@ -1,17 +1,44 @@
+using InventorySystem.Auth.Contracts;
 using InventorySystem.Inventory.Api.Data;
 using InventorySystem.Inventory.Api.Endpoints;
 using InventorySystem.Inventory.Api.Grpc;
 using InventorySystem.Inventory.Api.Services;
+using InventorySystem.Messaging.Contracts.Events;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
+using Wolverine;
+using Wolverine.EntityFrameworkCore;
+using Wolverine.Postgresql;
+using Wolverine.RabbitMQ;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 
+builder.Services.AddInventorySystemJwtAuth(builder.Configuration);
+
 // "inventorydb" matches the name AppHost.cs gives this database resource; Aspire resolves
 // the actual connection string (host, port, credentials) from that reference at startup.
 builder.AddNpgsqlDbContext<InventoryDbContext>("inventorydb");
+
+// Wolverine's own durability store (its outbox/inbox envelope tables) lives in the same
+// Postgres server as the domain data, in its own schema — a separate concern from EF's
+// InventoryDbContext, but no separate database to stand up for it.
+var postgresConnectionString = builder.Configuration.GetConnectionString("inventorydb")
+    ?? throw new InvalidOperationException("Missing 'inventorydb' connection string.");
+var rabbitConnectionString = builder.Configuration.GetConnectionString("rabbitmq")
+    ?? throw new InvalidOperationException("Missing 'rabbitmq' connection string.");
+
+builder.Host.UseWolverine(opts =>
+{
+    opts.PersistMessagesWithPostgresql(postgresConnectionString);
+    opts.UseRabbitMq(new Uri(rabbitConnectionString)).AutoProvision();
+
+    // Every StockMovementRecorded publish (see StockReceivingService) goes to this one queue —
+    // Notification.Api is the only consumer today, but any future subscriber (Reporting) just
+    // adds its own listener on the same queue/exchange, no change needed here.
+    opts.PublishMessage<StockMovementRecorded>().ToRabbitQueue("stock-movements");
+});
 
 builder.Services.AddOpenApi();
 
@@ -22,6 +49,11 @@ builder.Services.AddGrpc();
 
 builder.Services.AddScoped<StockReceivingService>();
 builder.Services.AddScoped<RestockSessionService>();
+
+// The concrete DbContextOutbox implementation Enroll()s whatever DbContext we hand it at
+// publish time (see StockReceivingService), so one registration covers InventoryDbContext
+// without needing Wolverine to own its registration.
+builder.Services.AddScoped<IDbContextOutbox, DbContextOutbox>();
 
 var app = builder.Build();
 
@@ -38,7 +70,10 @@ if (app.Environment.IsDevelopment())
     scope.ServiceProvider.GetRequiredService<InventoryDbContext>().Database.Migrate();
 }
 
-app.UseHttpsRedirection();
+// Deliberately no UseHttpsRedirection() — see architecture.md / TECH_DEBT.md: it strips the
+// Authorization header on the redirect it issues for any plain-HTTP request.
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapStockEndpoints();
 app.MapRestockSessionEndpoints();

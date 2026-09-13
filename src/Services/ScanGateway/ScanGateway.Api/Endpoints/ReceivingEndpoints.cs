@@ -1,3 +1,4 @@
+using InventorySystem.Auth.Contracts;
 using InventorySystem.Grpc.Contracts.Inventory;
 using InventorySystem.ScanGateway.Api.Clients;
 
@@ -23,7 +24,7 @@ public static class ReceivingEndpoints
             var stock = await inventory.ReceiveStockAsync(item.Sku, request.Quantity, MovementReason.Intake, cancellationToken);
 
             return Results.Ok(new ReceiveResponse(item.Sku, item.Name, item.Barcode, item.Price, stock.QuantityOnHand));
-        });
+        }).RequireAuthorization(AuthPolicies.SellerOrAdmin);
 
         // Restock an existing item by its already-assigned barcode — the "I scanned something
         // the system already knows about" path. Unknown barcodes 404 here rather than
@@ -45,7 +46,7 @@ public static class ReceivingEndpoints
             var stock = await inventory.ReceiveStockAsync(item.Sku, request.Quantity, MovementReason.Restock, cancellationToken);
 
             return Results.Ok(new ReceiveResponse(item.Sku, item.Name, item.Barcode, item.Price, stock.QuantityOnHand));
-        });
+        }).RequireAuthorization(AuthPolicies.SellerOrAdmin);
     }
 }
 

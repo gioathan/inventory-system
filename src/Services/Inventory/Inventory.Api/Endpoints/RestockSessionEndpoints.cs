@@ -1,3 +1,4 @@
+using InventorySystem.Auth.Contracts;
 using InventorySystem.Inventory.Api.Data;
 using InventorySystem.Inventory.Api.Services;
 
@@ -7,7 +8,12 @@ public static class RestockSessionEndpoints
 {
     public static void MapRestockSessionEndpoints(this WebApplication app)
     {
-        app.MapPost("/restock-sessions", async (OpenSessionRequest request, RestockSessionService sessions, CancellationToken cancellationToken) =>
+        // Every route here is Admin-only — opening/closing a restocking window and browsing the
+        // raw ledger were designed as admin actions from day one (see architecture.md), so the
+        // requirement is set once at the group level rather than repeated on every route.
+        var group = app.MapGroup("").RequireAuthorization(AuthPolicies.AdminOnly);
+
+        group.MapPost("/restock-sessions", async (OpenSessionRequest request, RestockSessionService sessions, CancellationToken cancellationToken) =>
         {
             try
             {
@@ -20,7 +26,7 @@ public static class RestockSessionEndpoints
             }
         });
 
-        app.MapPost("/restock-sessions/{id:guid}/close", async (Guid id, RestockSessionService sessions, CancellationToken cancellationToken) =>
+        group.MapPost("/restock-sessions/{id:guid}/close", async (Guid id, RestockSessionService sessions, CancellationToken cancellationToken) =>
         {
             try
             {
@@ -33,21 +39,20 @@ public static class RestockSessionEndpoints
             }
         });
 
-        app.MapGet("/restock-sessions", async (RestockSessionService sessions, CancellationToken cancellationToken) =>
+        group.MapGet("/restock-sessions", async (RestockSessionService sessions, CancellationToken cancellationToken) =>
             Results.Ok((await sessions.ListAsync(cancellationToken)).Select(ToResponse)));
 
-        app.MapGet("/restock-sessions/current", async (RestockSessionService sessions, CancellationToken cancellationToken) =>
+        group.MapGet("/restock-sessions/current", async (RestockSessionService sessions, CancellationToken cancellationToken) =>
         {
             var session = await sessions.GetCurrentAsync(cancellationToken);
             return session is null ? Results.NotFound() : Results.Ok(ToResponse(session));
         });
 
-        // Per-Sku restocked/sold/net for one session — e.g. "from restocking #7 to now."
-        app.MapGet("/restock-sessions/{id:guid}/summary", async (Guid id, RestockSessionService sessions, CancellationToken cancellationToken) =>
-            Results.Ok(await sessions.GetSummaryAsync(id, cancellationToken)));
+        // Per-Sku restocked/sold/net summary is gRPC-only (GetSessionSummary) — Dashboard's
+        // sessionReport is its only caller, so there's no REST twin to keep.
 
         // Raw ledger query — filter by any combination of Sku/session/date range.
-        app.MapGet("/movements", async (string? sku, Guid? sessionId, DateTimeOffset? from, DateTimeOffset? to, RestockSessionService sessions, CancellationToken cancellationToken) =>
+        group.MapGet("/movements", async (string? sku, Guid? sessionId, DateTimeOffset? from, DateTimeOffset? to, RestockSessionService sessions, CancellationToken cancellationToken) =>
             Results.Ok((await sessions.GetMovementsAsync(sku, sessionId, from, to, cancellationToken)).Select(ToResponse)));
     }
 

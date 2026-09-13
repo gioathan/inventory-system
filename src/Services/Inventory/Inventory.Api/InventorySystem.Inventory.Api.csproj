@@ -15,11 +15,18 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Scalar.AspNetCore" Version="2.16.18" />
+    <PackageReference Include="WolverineFx" Version="6.36.0" />
+    <PackageReference Include="WolverineFx.EntityFrameworkCore" Version="6.36.0" />
+    <PackageReference Include="WolverineFx.Postgresql" Version="6.36.0" />
+    <PackageReference Include="WolverineFx.RabbitMQ" Version="6.36.0" />
+    <PackageReference Include="WolverineFx.RuntimeCompilation" Version="6.36.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\ServiceDefaults\InventorySystem.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\..\Shared\Grpc.Contracts\InventorySystem.Grpc.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Messaging.Contracts\InventorySystem.Messaging.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Auth.Contracts\InventorySystem.Auth.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

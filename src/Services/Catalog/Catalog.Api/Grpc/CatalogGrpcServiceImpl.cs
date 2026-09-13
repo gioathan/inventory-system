@@ -1,12 +1,18 @@
 using System.Globalization;
 using global::Grpc.Core;
+using InventorySystem.Auth.Contracts;
 using InventorySystem.Catalog.Api.Data;
 using InventorySystem.Catalog.Api.Services;
 using InventorySystem.Grpc.Contracts.Catalog;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 
 namespace InventorySystem.Catalog.Api.Grpc;
 
+// Class-level floor for every RPC; CreateCategory/ListCategories add a stricter Admin-only
+// policy on top (attributes combine with AND) — categories are admin-managed setup data, not
+// a day-to-day seller action (see architecture.md), matching Scan Gateway's /categories.
+[Authorize(Policy = AuthPolicies.SellerOrAdmin)]
 public class CatalogGrpcServiceImpl(CatalogDbContext db, ItemCreationService itemCreation) : CatalogGrpcService.CatalogGrpcServiceBase
 {
     public override async Task<ItemReply> GetItemByBarcode(GetItemByBarcodeRequest request, ServerCallContext context)
@@ -49,6 +55,32 @@ public class CatalogGrpcServiceImpl(CatalogDbContext db, ItemCreationService ite
             throw new RpcException(new Status(StatusCode.AlreadyExists, ex.Message));
         }
     }
+
+    [Authorize(Policy = AuthPolicies.AdminOnly)]
+    public override async Task<CategoryReply> CreateCategory(CreateCategoryRequest request, ServerCallContext context)
+    {
+        if (await db.Categories.AnyAsync(c => c.Name == request.Name, context.CancellationToken))
+            throw new RpcException(new Status(StatusCode.AlreadyExists, $"Category '{request.Name}' already exists."));
+
+        var category = new Category { Id = Guid.NewGuid(), Name = request.Name };
+        db.Categories.Add(category);
+        await db.SaveChangesAsync(context.CancellationToken);
+
+        return ToReply(category);
+    }
+
+    [Authorize(Policy = AuthPolicies.AdminOnly)]
+    public override async Task<ListCategoriesReply> ListCategories(ListCategoriesRequest request, ServerCallContext context)
+    {
+        var categories = await db.Categories.AsNoTracking().ToListAsync(context.CancellationToken);
+
+        var reply = new ListCategoriesReply();
+        reply.Categories.AddRange(categories.Select(ToReply));
+        return reply;
+    }
+
+    private static CategoryReply ToReply(Category category) =>
+        new() { Id = category.Id.ToString(), Name = category.Name };
 
     private static ItemReply ToReply(Item item)
     {

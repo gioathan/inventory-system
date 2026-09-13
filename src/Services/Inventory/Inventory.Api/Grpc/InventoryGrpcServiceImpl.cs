@@ -1,7 +1,9 @@
 using global::Grpc.Core;
+using InventorySystem.Auth.Contracts;
 using InventorySystem.Inventory.Api.Data;
 using InventorySystem.Inventory.Api.Services;
 using InventorySystem.Grpc.Contracts.Inventory;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 // Both the domain layer and the generated proto define a "SessionSummaryLine" type; alias the
 // wire-format one so usage below stays unambiguous without fully qualifying every reference.
@@ -9,6 +11,10 @@ using GrpcSessionSummaryLine = InventorySystem.Grpc.Contracts.Inventory.SessionS
 
 namespace InventorySystem.Inventory.Api.Grpc;
 
+// Class-level policy is the floor every RPC needs; GetSessionSummary adds a second, stricter
+// policy on top (see below) — [Authorize] attributes combine with AND, so a Seller passes this
+// one but still fails that stricter one, landing at Admin-only in practice for that one RPC.
+[Authorize(Policy = AuthPolicies.SellerOrAdmin)]
 public class InventoryGrpcServiceImpl(InventoryDbContext db, StockReceivingService receiving, RestockSessionService sessions) : InventoryGrpcService.InventoryGrpcServiceBase
 {
     public override async Task<StockReply> GetStock(GetStockRequest request, ServerCallContext context)
@@ -54,12 +60,15 @@ public class InventoryGrpcServiceImpl(InventoryDbContext db, StockReceivingServi
         };
     }
 
+    // Revenue-adjacent reporting data — Admin-only, matching Dashboard's sessionReport.
+    [Authorize(Policy = AuthPolicies.AdminOnly)]
     public override async Task<SessionSummaryReply> GetSessionSummary(GetSessionSummaryRequest request, ServerCallContext context)
     {
         if (!Guid.TryParse(request.SessionId, out var sessionId))
             throw new RpcException(new Status(StatusCode.InvalidArgument, $"'{request.SessionId}' is not a valid session id."));
 
-        var lines = await sessions.GetSummaryAsync(sessionId, context.CancellationToken);
+        var lines = await sessions.GetSummaryAsync(sessionId, context.CancellationToken)
+            ?? throw new RpcException(new Status(StatusCode.NotFound, $"No restock session found with id '{sessionId}'."));
 
         var reply = new SessionSummaryReply();
         reply.Lines.AddRange(lines.Select(l => new GrpcSessionSummaryLine
