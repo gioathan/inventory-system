@@ -7,24 +7,16 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.4.6" />
-    <PackageReference Include="Grpc.AspNetCore" Version="2.83.0" />
+    <PackageReference Include="Aspire.MongoDB.Driver" Version="13.4.6" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
     <PackageReference Include="Scalar.AspNetCore" Version="2.16.18" />
     <PackageReference Include="WolverineFx" Version="6.36.0" />
-    <PackageReference Include="WolverineFx.EntityFrameworkCore" Version="6.36.0" />
-    <PackageReference Include="WolverineFx.Postgresql" Version="6.36.0" />
     <PackageReference Include="WolverineFx.RabbitMQ" Version="6.36.0" />
     <PackageReference Include="WolverineFx.RuntimeCompilation" Version="6.36.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\ServiceDefaults\InventorySystem.ServiceDefaults.csproj" />
-    <ProjectReference Include="..\..\..\Shared\Grpc.Contracts\InventorySystem.Grpc.Contracts.csproj" />
     <ProjectReference Include="..\..\..\Shared\Messaging.Contracts\InventorySystem.Messaging.Contracts.csproj" />
   </ItemGroup>
 

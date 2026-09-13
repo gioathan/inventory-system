@@ -4,12 +4,16 @@ option csharp_namespace = "InventorySystem.Grpc.Contracts.Catalog";
 
 package catalog;
 
-// Covers everything Scan Gateway and Dashboard call internally — reads and, as of CreateItem,
-// writes too. Admin-only operations (categories) stay REST-only since nothing internal calls them.
+// Covers everything Scan Gateway and Dashboard call internally — reads and writes alike.
+// CreateCategory/ListCategories exist here specifically so Dashboard's GraphQL mutation
+// (the one deliberate exception to "GraphQL is read-only" — see architecture.md) has
+// something internal to call; nothing else uses them, so REST on Catalog.Api stays as well.
 service CatalogGrpcService {
   rpc GetItemByBarcode (GetItemByBarcodeRequest) returns (ItemReply);
   rpc ListItems (ListItemsRequest) returns (ListItemsReply);
   rpc CreateItem (CreateItemRequest) returns (ItemReply);
+  rpc CreateCategory (CreateCategoryRequest) returns (CategoryReply);
+  rpc ListCategories (ListCategoriesRequest) returns (ListCategoriesReply);
 }
 
 message GetItemByBarcodeRequest {
@@ -44,4 +48,20 @@ message CreateItemRequest {
   optional string sku = 4;
   optional string category_id = 5;
   optional string image_url = 6;
+}
+
+message CreateCategoryRequest {
+  string name = 1;
+}
+
+message CategoryReply {
+  string id = 1;
+  string name = 2;
+}
+
+message ListCategoriesRequest {
+}
+
+message ListCategoriesReply {
+  repeated CategoryReply categories = 1;
 }

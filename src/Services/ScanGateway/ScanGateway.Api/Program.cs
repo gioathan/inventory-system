@@ -45,5 +45,6 @@ app.UseHttpsRedirection();
 
 app.MapScanEndpoints();
 app.MapReceivingEndpoints();
+app.MapCategoryEndpoints();
 
 app.Run();

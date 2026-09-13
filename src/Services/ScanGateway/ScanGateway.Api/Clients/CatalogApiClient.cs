@@ -64,6 +64,25 @@ public class CatalogApiClient(CatalogGrpcService.CatalogGrpcServiceClient grpcCl
         return ToCatalogItem(reply);
     }
 
+    public async Task<Category> CreateCategoryAsync(string name, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var reply = await grpcClient.CreateCategoryAsync(new CreateCategoryRequest { Name = name }, cancellationToken: cancellationToken);
+            return new Category(Guid.Parse(reply.Id), reply.Name);
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
+        {
+            throw new CategoryAlreadyExistsException(name);
+        }
+    }
+
+    public async Task<List<Category>> GetAllCategoriesAsync(CancellationToken cancellationToken)
+    {
+        var reply = await grpcClient.ListCategoriesAsync(new ListCategoriesRequest(), cancellationToken: cancellationToken);
+        return reply.Categories.Select(c => new Category(Guid.Parse(c.Id), c.Name)).ToList();
+    }
+
     private static CatalogItem ToCatalogItem(ItemReply reply) => new(
         reply.Sku,
         reply.Name,
@@ -74,3 +93,6 @@ public class CatalogApiClient(CatalogGrpcService.CatalogGrpcServiceClient grpcCl
 }
 
 public record CatalogItem(string Sku, string Name, string Barcode, decimal Price, string? ImageUrl, Guid? CategoryId);
+public record Category(Guid Id, string Name);
+
+public class CategoryAlreadyExistsException(string name) : Exception($"Category '{name}' already exists.");

@@ -50,6 +50,30 @@ public class CatalogGrpcServiceImpl(CatalogDbContext db, ItemCreationService ite
         }
     }
 
+    public override async Task<CategoryReply> CreateCategory(CreateCategoryRequest request, ServerCallContext context)
+    {
+        if (await db.Categories.AnyAsync(c => c.Name == request.Name, context.CancellationToken))
+            throw new RpcException(new Status(StatusCode.AlreadyExists, $"Category '{request.Name}' already exists."));
+
+        var category = new Category { Id = Guid.NewGuid(), Name = request.Name };
+        db.Categories.Add(category);
+        await db.SaveChangesAsync(context.CancellationToken);
+
+        return ToReply(category);
+    }
+
+    public override async Task<ListCategoriesReply> ListCategories(ListCategoriesRequest request, ServerCallContext context)
+    {
+        var categories = await db.Categories.AsNoTracking().ToListAsync(context.CancellationToken);
+
+        var reply = new ListCategoriesReply();
+        reply.Categories.AddRange(categories.Select(ToReply));
+        return reply;
+    }
+
+    private static CategoryReply ToReply(Category category) =>
+        new() { Id = category.Id.ToString(), Name = category.Name };
+
     private static ItemReply ToReply(Item item)
     {
         var reply = new ItemReply
