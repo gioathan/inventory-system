@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  namespace: inventory-system
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: inventory-system
+spec:
+  # A real multi-replica Postgres needs a StatefulSet plus actual replication, not this — one
+  # instance, no replication, is the same tradeoff Aspire's single Postgres container already
+  # makes for local dev. This earns an upgrade only once more than one service needs a database
+  # in here, or replicas actually matter.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:18.3
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: catalogdb
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            # Explicit rather than relying on the image's inferred default — makes sure
+            # cross-pod (non-loopback) connections authenticate with the password above over
+            # plain TCP, instead of only matching an SSL-only pg_hba.conf rule.
+            - name: POSTGRES_HOST_AUTH_METHOD
+              value: scram-sha-256
+          volumeMounts:
+            - name: data
+              # postgres:18+ images expect a single mount at /var/lib/postgresql (not the old
+              # .../data subdirectory) and refuse to start if they see the pre-18 layout there —
+              # a real image-version gotcha, not k3d-specific. No subPath needed here since
+              # Postgres itself creates its own subdirectory inside this mount.
+              mountPath: /var/lib/postgresql
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: inventory-system
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

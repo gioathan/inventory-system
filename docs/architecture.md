@@ -63,7 +63,7 @@ The real usage pattern this system is built around: scan/generate a code for an 
 7. Convert internal calls to gRPC ✅
 8. RabbitMQ + Wolverine + outbox + Notification Service ✅
 9. Staff/Auth + JWT ✅
-10. Containerize, move to k3d/Kubernetes
+10. Containerize, move to k3d/Kubernetes 🚧 (Catalog.Api proof of concept done — see `k8s/README.md`)
 11. Service mesh (Linkerd), mTLS, canary deploy
 12. OTel/Jaeger/Prometheus for the k8s environment (Aspire already gives this locally)
 13. *(Stretch)* Purchase Order saga (Wolverine sagas)

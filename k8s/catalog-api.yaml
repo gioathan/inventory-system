@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-api
+  namespace: inventory-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: catalog-api
+  template:
+    metadata:
+      labels:
+        app: catalog-api
+    spec:
+      containers:
+        - name: catalog-api
+          image: catalog-api:dev
+          # Built locally via `dotnet publish -t:PublishContainer` and loaded with
+          # `k3d image import` (see k8s/README.md) — never try to pull this from a registry.
+          imagePullPolicy: Never
+          ports:
+            - name: grpc
+              containerPort: 8080
+            - name: http
+              containerPort: 8081
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Development # dev-only gate: enables /health, /alive, and the startup EF migration (see Program.cs)
+            # The base mcr.microsoft.com/dotnet/aspnet image bakes in ASPNETCORE_HTTP_PORTS=8080,
+            # which would bind its own default endpoint on the same port as "Grpc" below and
+            # crash on startup ("address already in use") — cleared so only the two explicit
+            # named endpoints below exist.
+            - name: ASPNETCORE_HTTP_PORTS
+              value: ""
+            # Two separate Kestrel endpoints, not one: without TLS there's no ALPN, so a single
+            # endpoint can't negotiate HTTP/1.1 vs HTTP/2 per-connection — it just falls back to
+            # HTTP/1.1 only (Kestrel logs a warning saying exactly this). gRPC hard-requires
+            # HTTP/2, so the grpc endpoint is pinned to Http2-only (cleartext "h2c", the standard
+            # pattern for internal cluster traffic with TLS terminated elsewhere); the probes
+            # then need their own plain HTTP/1.1 endpoint since kubelet's probe client doesn't
+            # speak HTTP/2 prior-knowledge.
+            - name: Kestrel__Endpoints__Grpc__Url
+              value: "http://+:8080"
+            - name: Kestrel__Endpoints__Grpc__Protocols
+              value: Http2
+            - name: Kestrel__Endpoints__Http__Url
+              value: "http://+:8081"
+            - name: Kestrel__Endpoints__Http__Protocols
+              value: Http1
+            - name: ConnectionStrings__catalogdb
+              valueFrom:
+                secretKeyRef:
+                  name: catalog-api-secrets
+                  key: ConnectionStrings__catalogdb
+            - name: Jwt__SigningKey
+              valueFrom:
+                secretKeyRef:
+                  name: catalog-api-secrets
+                  key: Jwt__SigningKey
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /alive
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-api
+  namespace: inventory-system
+spec:
+  selector:
+    app: catalog-api
+  ports:
+    # Only the gRPC port is exposed here — the plain-HTTP port exists solely for kubelet's
+    # own probes and isn't meant for other pods/clients to call.
+    - name: grpc
+      port: 80
+      targetPort: grpc
