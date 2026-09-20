@@ -63,7 +63,7 @@ The real usage pattern this system is built around: scan/generate a code for an 
 7. Convert internal calls to gRPC ✅
 8. RabbitMQ + Wolverine + outbox + Notification Service ✅
 9. Staff/Auth + JWT ✅
-10. Containerize, move to k3d/Kubernetes 🚧 (Catalog.Api proof of concept done — see `k8s/README.md`)
+10. Containerize, move to k3d/Kubernetes ✅ (all 6 services + Postgres×3/RabbitMQ/MongoDB/Redis — see `k8s/README.md`)
 11. Service mesh (Linkerd), mTLS, canary deploy
 12. OTel/Jaeger/Prometheus for the k8s environment (Aspire already gives this locally)
 13. *(Stretch)* Purchase Order saga (Wolverine sagas)
@@ -146,6 +146,37 @@ e.g. 20% off 10 SKUs — without touching their base `Price`.
 - **SessionReport revenue uses `EffectivePrice`**, not `Price` — consistent with the existing
   "revenue uses today's Catalog price, not price-at-time-of-sale" tradeoff already in
   TECH_DEBT.md; a discount is just today's price being lower than it was.
+
+## Kubernetes (Step 10) — local k3d, no TLS/mTLS yet
+
+Every service now also runs as a plain-YAML Kubernetes deployment (`k8s/`), rehearsed locally
+against a `k3d` cluster (k3s packaged as Docker containers — see `k8s/README.md` for the
+build/import/apply workflow). This is deliberately **not** a replacement for Aspire's `AppHost.cs`
+day-to-day — Aspire stays the fast inner loop; this is the "how does this actually run on real
+Kubernetes" rehearsal, one step closer to production than local dev, one step short of it.
+
+- **Each service gets its own Postgres instance**, not one shared server split into three
+  databases like Aspire's local setup. Full storage isolation per service (no shared blast
+  radius) at the cost of three small containers instead of one — a defensible real
+  microservices tradeoff, not just a k8s quirk.
+- **No TLS between services yet** — deliberately deferred to Step 11 (service mesh, mTLS), so
+  every internal call (gRPC and REST alike) is plain HTTP inside the cluster. This has two
+  concrete consequences, both documented as real bugs in TECH_DEBT.md: Catalog.Api/Inventory.Api
+  need a dedicated HTTP/2-only Kestrel endpoint for gRPC (there's no ALPN without TLS to
+  negotiate HTTP/1.1-vs-2 on one port), and every gRPC client needs
+  `UnsafeUseInsecureChannelCallCredentials = true` or `GrpcChannel` refuses to send the bearer
+  token at all over a channel it considers insecure.
+- **gRPC client addresses are config-driven, not hardcoded** — `ScanGateway.Api`/`Dashboard.Api`
+  read `GrpcClients:CatalogApi`/`GrpcClients:InventoryApi` from config, defaulting to Aspire's
+  `https://catalog-api` shape when unset. The k8s manifests override both to `http://catalog-api`
+  or `http://inventory-api` (plain k8s Service DNS, no scheme mismatch).
+- **No equivalent of Aspire's `WaitFor()`** — a plain Deployment has no built-in "don't start
+  until this other thing is ready" primitive. In practice this surfaced as each service
+  restarting once on first boot (RabbitMQ/Postgres not yet accepting connections), self-healed by
+  Wolverine's/Npgsql's own retry logic — not something this project has needed to solve
+  explicitly yet, but the real fix (an initContainer that polls the dependency, or a Helm chart's
+  dependency ordering) is worth knowing about before this ever needs to be reliable rather than
+  "restarts once and then it's fine."
 
 ## Scan-and-sell (two-step, never implicit)
 

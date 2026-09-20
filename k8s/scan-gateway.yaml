@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scan-gateway
+  namespace: inventory-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scan-gateway
+  template:
+    metadata:
+      labels:
+        app: scan-gateway
+    spec:
+      containers:
+        - name: scan-gateway
+          image: scan-gateway:dev
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Development
+            - name: ASPNETCORE_HTTP_PORTS
+              value: "8080"
+            # Overrides Program.cs's Aspire-shaped defaults (https://catalog-api,
+            # https://inventory-api) — there's no TLS/mTLS between services yet (Step 11), so
+            # catalog-api/inventory-api's gRPC ports are plain HTTP/2 (h2c) here, not HTTPS.
+            - name: GrpcClients__CatalogApi
+              value: "http://catalog-api"
+            - name: GrpcClients__InventoryApi
+              value: "http://inventory-api"
+            # No auth configured on the Redis container, so a bare host:port is enough — same
+            # shape StackExchange.Redis (and Aspire's own connection string) expects.
+            - name: ConnectionStrings__redis
+              value: "redis:6379"
+            - name: Jwt__SigningKey
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret
+                  key: Jwt__SigningKey
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /alive
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: scan-gateway
+  namespace: inventory-system
+spec:
+  selector:
+    app: scan-gateway
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

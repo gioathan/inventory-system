@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: postgres-data
+  name: postgres-catalog-data
   namespace: inventory-system
 spec:
   accessModes: ["ReadWriteOnce"]
@@ -12,21 +12,23 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: postgres
+  name: postgres-catalog
   namespace: inventory-system
 spec:
   # A real multi-replica Postgres needs a StatefulSet plus actual replication, not this — one
   # instance, no replication, is the same tradeoff Aspire's single Postgres container already
-  # makes for local dev. This earns an upgrade only once more than one service needs a database
-  # in here, or replicas actually matter.
+  # makes for local dev. Each service gets its own Postgres instance rather than sharing one
+  # (unlike Aspire, which puts catalogdb/inventorydb/staffdb on one shared server for local dev
+  # convenience) — full storage isolation per service, no shared blast radius, at the cost of
+  # three small containers instead of one.
   replicas: 1
   selector:
     matchLabels:
-      app: postgres
+      app: postgres-catalog
   template:
     metadata:
       labels:
-        app: postgres
+        app: postgres-catalog
     spec:
       containers:
         - name: postgres
@@ -56,16 +58,16 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: postgres-data
+            claimName: postgres-catalog-data
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: postgres
+  name: postgres-catalog
   namespace: inventory-system
 spec:
   selector:
-    app: postgres
+    app: postgres-catalog
   ports:
     - port: 5432
       targetPort: 5432

@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-api
+  namespace: inventory-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inventory-api
+  template:
+    metadata:
+      labels:
+        app: inventory-api
+    spec:
+      containers:
+        - name: inventory-api
+          image: inventory-api:dev
+          imagePullPolicy: Never
+          ports:
+            - name: grpc
+              containerPort: 8080
+            - name: http
+              containerPort: 8081
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Development
+            - name: ASPNETCORE_HTTP_PORTS
+              value: ""
+            # Same dual-endpoint reasoning as catalog-api.yaml: gRPC needs its own HTTP/2-only
+            # (h2c) endpoint since there's no TLS/ALPN here, and probes need a separate plain
+            # HTTP/1.1 endpoint since kubelet's probe client can't speak HTTP/2 prior-knowledge.
+            - name: Kestrel__Endpoints__Grpc__Url
+              value: "http://+:8080"
+            - name: Kestrel__Endpoints__Grpc__Protocols
+              value: Http2
+            - name: Kestrel__Endpoints__Http__Url
+              value: "http://+:8081"
+            - name: Kestrel__Endpoints__Http__Protocols
+              value: Http1
+            - name: ConnectionStrings__inventorydb
+              valueFrom:
+                secretKeyRef:
+                  name: inventory-api-secrets
+                  key: ConnectionStrings__inventorydb
+            - name: ConnectionStrings__rabbitmq
+              valueFrom:
+                secretKeyRef:
+                  name: inventory-api-secrets
+                  key: ConnectionStrings__rabbitmq
+            - name: Jwt__SigningKey
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret
+                  key: Jwt__SigningKey
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /alive
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-api
+  namespace: inventory-system
+spec:
+  selector:
+    app: inventory-api
+  ports:
+    - name: grpc
+      port: 80
+      targetPort: grpc

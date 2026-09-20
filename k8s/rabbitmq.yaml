@@ -1,0 +1,46 @@
+# Shared by inventory-api (publisher) and notification-api (consumer) — unlike Postgres, the
+# broker genuinely needs to be one shared instance since it's how those two services talk.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  namespace: inventory-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:4.3
+          ports:
+            - containerPort: 5672
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              value: guest
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: RABBITMQ_DEFAULT_PASS
+      # Deliberately no PersistentVolumeClaim — same tradeoff AppHost.cs documents for Aspire's
+      # RabbitMQ (no WithDataVolume()): losing queued/unacked messages on a restart is
+      # acceptable for local dev, and it sidesteps the same "stale volume, stale credentials"
+      # class of bug already hit twice with Postgres.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: inventory-system
+spec:
+  selector:
+    app: rabbitmq
+  ports:
+    - port: 5672
+      targetPort: 5672

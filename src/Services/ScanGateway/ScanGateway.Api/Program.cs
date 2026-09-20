@@ -21,14 +21,27 @@ builder.Services.AddHttpContextAccessor();
 // itself to pick a resolver and doesn't understand the compound one. Service discovery still
 // resolves "catalog-api" to a real address underneath, via the same HttpClientFactory pipeline
 // AddGrpcClient is built on.
+//
+// The scheme itself is configurable, not hardcoded: Aspire always gives every service a real
+// HTTPS endpoint, but a plain Kubernetes Deployment (no TLS/mTLS yet — that's Step 11's service
+// mesh, not Step 10) serves gRPC over cleartext HTTP/2 instead. Defaults match Aspire; k8s
+// manifests override via GrpcClients__CatalogApi/GrpcClients__InventoryApi env vars.
+var catalogApiAddress = builder.Configuration["GrpcClients:CatalogApi"] ?? "https://catalog-api";
+var inventoryApiAddress = builder.Configuration["GrpcClients:InventoryApi"] ?? "https://inventory-api";
+
+// GrpcChannel refuses to send call credentials (the bearer token) over a channel it considers
+// insecure — a safeguard against leaking a token to an unintended plaintext endpoint. Cluster-
+// internal traffic without TLS yet (see above) trips that safeguard even though it's fine here;
+// UnsafeUseInsecureChannelCallCredentials is the documented opt-out. It's a no-op for the
+// Aspire/HTTPS case, so this is safe to set unconditionally rather than branching on scheme.
 builder.Services.AddGrpcClient<CatalogGrpcService.CatalogGrpcServiceClient>(o =>
 {
-    o.Address = new Uri("https://catalog-api");
-}).AddCallCredentials(ForwardBearerToken);
+    o.Address = new Uri(catalogApiAddress);
+}).AddCallCredentials(ForwardBearerToken).ConfigureChannel(o => o.UnsafeUseInsecureChannelCallCredentials = true);
 builder.Services.AddGrpcClient<InventoryGrpcService.InventoryGrpcServiceClient>(o =>
 {
-    o.Address = new Uri("https://inventory-api");
-}).AddCallCredentials(ForwardBearerToken);
+    o.Address = new Uri(inventoryApiAddress);
+}).AddCallCredentials(ForwardBearerToken).ConfigureChannel(o => o.UnsafeUseInsecureChannelCallCredentials = true);
 
 static Task ForwardBearerToken(global::Grpc.Core.AuthInterceptorContext context, global::Grpc.Core.Metadata metadata, IServiceProvider serviceProvider)
 {

@@ -1,12 +1,16 @@
-# Kubernetes manifests (Step 10 proof of concept)
+# Kubernetes manifests (Step 10)
 
 Local-only, learning-focused Kubernetes manifests for this project, run against a `k3d` cluster
 (k3s packaged to run as Docker containers — see `docs/architecture.md`). This is **not** meant
 to replace Aspire for day-to-day development; Aspire's `AppHost.cs` is still the fast inner loop.
-This is for learning/rehearsing how the same services run on real Kubernetes, one step at a time.
+This is for learning/rehearsing how the same services run on real Kubernetes.
 
-Currently covers only `catalog-api` + its own Postgres, as a proof of concept before every
-service gets the same treatment.
+All 6 services now have manifests, plus their own Postgres instances (one each for
+catalog/inventory/staff — not shared like Aspire's local setup, see `docs/architecture.md`),
+a shared RabbitMQ, MongoDB, and Redis. **No TLS/mTLS between services yet** — that's Step 11
+(service mesh); every internal call is plain HTTP for now, which is why the gRPC-hosting
+services (Catalog, Inventory) and their callers (Scan Gateway, Dashboard) needed a few
+Kubernetes-specific tweaks documented inline in the manifests and in `TECH_DEBT.md`.
 
 ## Prerequisites
 
@@ -14,62 +18,106 @@ service gets the same treatment.
 - `kubectl` pointed at it (k3d does this automatically): `kubectl config current-context` should
   print `k3d-inventory-system`
 
-## Build and load the image
+## Build and load the images
 
 k3d's nodes are separate containerd instances from Docker Desktop's own image store — an image
-built with `docker build`/`dotnet publish` locally is invisible to the cluster until you import
-it explicitly (no registry needed for local dev):
+built with `dotnet publish` locally is invisible to the cluster until you import it explicitly
+(no registry needed for local dev):
 
 ```
-dotnet publish src/Services/Catalog/Catalog.Api -c Release -t:PublishContainer `
-  -p:ContainerRepository=catalog-api -p:ContainerImageTag=dev --os linux --arch x64
+dotnet publish src/Services/Catalog/Catalog.Api -c Release -t:PublishContainer -p:ContainerRepository=catalog-api -p:ContainerImageTag=dev --os linux --arch x64
+dotnet publish src/Services/Inventory/Inventory.Api -c Release -t:PublishContainer -p:ContainerRepository=inventory-api -p:ContainerImageTag=dev --os linux --arch x64
+dotnet publish src/Services/Staff/Staff.Api -c Release -t:PublishContainer -p:ContainerRepository=staff-api -p:ContainerImageTag=dev --os linux --arch x64
+dotnet publish src/Services/Notification/Notification.Api -c Release -t:PublishContainer -p:ContainerRepository=notification-api -p:ContainerImageTag=dev --os linux --arch x64
+dotnet publish src/Services/ScanGateway/ScanGateway.Api -c Release -t:PublishContainer -p:ContainerRepository=scan-gateway -p:ContainerImageTag=dev --os linux --arch x64
+dotnet publish src/Services/Dashboard/Dashboard.Api -c Release -t:PublishContainer -p:ContainerRepository=dashboard-api -p:ContainerImageTag=dev --os linux --arch x64
 
-k3d image import catalog-api:dev -c inventory-system
+k3d image import catalog-api:dev inventory-api:dev staff-api:dev notification-api:dev scan-gateway:dev dashboard-api:dev -c inventory-system
 ```
 
-Re-run both after every code change — there's no volume-mount hot reload here like Aspire's
-`dotnet run`; that's the actual cost of the "closer to production" tradeoff.
+Re-run for whichever image changed, then re-import it and `kubectl rollout restart
+deployment/<name> -n inventory-system` — there's no volume-mount hot reload here like Aspire's
+`dotnet run`; that's the actual cost of the "closer to production" tradeoff. Note that
+`kubectl port-forward` targets a specific pod, so a rollout restart breaks any port-forward
+pointed at the old pod — just re-run the `port-forward` command after a restart.
 
 ## Apply
 
 ```
 kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/secrets.yaml
-kubectl apply -f k8s/postgres.yaml
+kubectl apply -f k8s/catalog-postgres.yaml
+kubectl apply -f k8s/inventory-postgres.yaml
+kubectl apply -f k8s/staff-postgres.yaml
+kubectl apply -f k8s/rabbitmq.yaml
+kubectl apply -f k8s/mongo.yaml
+kubectl apply -f k8s/redis.yaml
 kubectl apply -f k8s/catalog-api.yaml
+kubectl apply -f k8s/inventory-api.yaml
+kubectl apply -f k8s/staff-api.yaml
+kubectl apply -f k8s/notification-api.yaml
+kubectl apply -f k8s/scan-gateway.yaml
+kubectl apply -f k8s/dashboard-api.yaml
 ```
 
 ## Verify
 
 ```
 kubectl get pods -n inventory-system
-kubectl port-forward -n inventory-system svc/catalog-api 8080:80
 ```
 
-Then, in another shell, from the repo root (needs `grpcurl`):
+All 12 pods (6 services + 6 infra) should reach `1/1 Running`. A restart count of 1 on a
+service that talks to RabbitMQ/Postgres right after first apply is expected — see the
+"no equivalent of `WaitFor()`" entry in `TECH_DEBT.md`; it self-heals.
+
+Port-forward whichever service you want to hit directly:
 
 ```
-grpcurl -plaintext -proto src/Shared/Grpc.Contracts/Protos/catalog.proto \
-  -import-path src/Shared/Grpc.Contracts/Protos \
+kubectl port-forward -n inventory-system svc/staff-api 8090:80
+kubectl port-forward -n inventory-system svc/scan-gateway 8091:80
+kubectl port-forward -n inventory-system svc/dashboard-api 8092:80
+```
+
+Then, from another shell, the same flow as testing against Aspire — log in, then use the token
+everywhere:
+
+```
+TOKEN=$(curl -s -X POST http://localhost:8090/auth/login -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"ChangeMe123!"}' | sed -E 's/.*"accessToken":"([^"]+)".*/\1/')
+
+curl -s -X POST http://localhost:8091/categories -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" -d '{"name":"Test Category"}'
+
+curl -s -X POST http://localhost:8092/graphql -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" -d '{"query":"{ items { sku name quantityOnHand } }"}'
+```
+
+To call Catalog/Inventory's gRPC directly (no REST front door for them — same as Aspire),
+`kubectl port-forward -n inventory-system svc/catalog-api 8080:80` and use `grpcurl` with the
+`.proto` file directly, since reflection isn't enabled:
+
+```
+grpcurl -plaintext -H "authorization: Bearer $TOKEN" \
+  -proto src/Shared/Grpc.Contracts/Protos/catalog.proto -import-path src/Shared/Grpc.Contracts/Protos \
   localhost:8080 catalog.CatalogGrpcService/ListItems
 ```
 
-(Every RPC requires a JWT — see Program.cs/architecture.md — so an unauthenticated `ListItems`
-call is expected to fail with `PERMISSION_DENIED`/`UNAUTHENTICATED` here; that failure mode
-itself confirms auth is enforced identically to Aspire. There's no Staff.Api in the cluster yet
-to mint a real token against.)
+## Notes / deliberate simplifications
 
-## Notes / deliberate simplifications for this POC
-
-- Postgres is a plain `Deployment` + `PersistentVolumeClaim`, not a `StatefulSet`. That's the
-  right call for how Aspire runs it too (one instance, no replication) — a `StatefulSet` earns
-  its keep once you actually need multiple identity-bearing replicas.
-- `ASPNETCORE_ENVIRONMENT=Development` is set so `/health`/`/alive` (used by the probes) and the
-  startup `Database.Migrate()` call both stay active — same dev-only gate as running locally.
-- `Kestrel__EndpointDefaults__Protocols=Http1AndHttp2` is required for gRPC to work at all here:
-  without TLS, Kestrel's plain-HTTP endpoint defaults to HTTP/1.1 only, and gRPC hard-requires
-  HTTP/2. This is the cleartext-HTTP/2 ("h2c") pattern real clusters use for internal traffic,
-  with TLS terminated at an ingress instead — not a shortcut specific to this being local.
+- **Each service has its own Postgres instance** (not shared, unlike Aspire's local setup) —
+  full storage isolation, at the cost of three small containers. See `docs/architecture.md`.
+- Postgres/Mongo are plain `Deployment`s + `PersistentVolumeClaim`s, not `StatefulSet`s. Right
+  call for one instance, no replication — same as how Aspire runs them for local dev.
+  RabbitMQ/Redis have no PVC at all — losing queued messages/cache on a restart is an accepted
+  tradeoff, same reasoning `AppHost.cs` documents for Aspire's own RabbitMQ.
+- `ASPNETCORE_ENVIRONMENT=Development` is set everywhere so `/health`/`/alive` (used by the
+  probes), the startup EF migrations, and Staff.Api's seeded dev admin all stay active — same
+  dev-only gate as running locally.
+- Catalog.Api/Inventory.Api (the two gRPC-hosting services) each run **two** Kestrel endpoints:
+  an HTTP/2-only one for gRPC traffic, a plain HTTP/1.1 one for the probes — see the Kestrel
+  entry in `TECH_DEBT.md` for why one port can't do both without TLS.
+- No TLS/mTLS between services — deliberately deferred to Step 11's service mesh. Every gRPC
+  client needs `UnsafeUseInsecureChannelCallCredentials = true` as a result — see TECH_DEBT.md.
 - Secrets here use literal local-dev-only values, same convention as `AppHost.cs`'s pinned
-  `postgres-password` parameter — never do this for a real secret; a real cluster would use
-  something like Sealed Secrets or an external secret store instead of plaintext-equivalent YAML.
+  parameters — never do this for a real secret; a real cluster would use something like Sealed
+  Secrets or an external secret store instead of plaintext-equivalent YAML.
