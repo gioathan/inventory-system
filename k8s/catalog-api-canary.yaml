@@ -1,0 +1,112 @@
+# Canary demo for Step 11: two real running versions of catalog-api, with Linkerd splitting
+# traffic between them by weight via a Gateway API GRPCRoute (not the older SMI TrafficSplit —
+# Linkerd's own traffic-splitting is Gateway-API-native since 2.15). GRPCRoute rather than
+# HTTPRoute since catalog-api is gRPC-only — it understands gRPC service/method semantics
+# instead of matching on raw HTTP paths.
+#
+# v2 here is literally the same image as v1 (CANARY_VERSION is the only difference, unused by
+# the app — purely so `kubectl get pods -o wide` / logs can tell them apart). The point of this
+# file is the routing mechanism itself, not a real code change; swap catalog-api-v2's image tag
+# for an actual new build to use this for a real rollout.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-api-v2
+  namespace: inventory-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: catalog-api
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: catalog-api
+        version: v2
+    spec:
+      containers:
+        - name: catalog-api
+          image: catalog-api:dev
+          imagePullPolicy: Never
+          ports:
+            - name: grpc
+              containerPort: 8080
+            - name: http
+              containerPort: 8081
+          env:
+            - name: CANARY_VERSION
+              value: v2
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Development
+            - name: ASPNETCORE_HTTP_PORTS
+              value: ""
+            - name: Kestrel__Endpoints__Grpc__Url
+              value: "http://+:8080"
+            - name: Kestrel__Endpoints__Grpc__Protocols
+              value: Http2
+            - name: Kestrel__Endpoints__Http__Url
+              value: "http://+:8081"
+            - name: Kestrel__Endpoints__Http__Protocols
+              value: Http1
+            - name: ConnectionStrings__catalogdb
+              valueFrom:
+                secretKeyRef:
+                  name: catalog-api-secrets
+                  key: ConnectionStrings__catalogdb
+            - name: Jwt__SigningKey
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret
+                  key: Jwt__SigningKey
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /alive
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-api-v2
+  namespace: inventory-system
+spec:
+  selector:
+    app: catalog-api
+    version: v2
+  ports:
+    - name: grpc
+      port: 80
+      targetPort: grpc
+---
+# parentRefs targets the apex "catalog-api" Service directly (a Linkerd-specific extension of
+# Gateway API for east-west/in-cluster traffic, not the usual north-south Gateway-fronted use) —
+# callers keep dialing plain "catalog-api" and never know a split is happening. Change the
+# weights and re-apply to shift traffic; delete this file (and give catalog-api-v1's Service a
+# normal selector again) to go back to a single version with zero other changes.
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: catalog-api-canary
+  namespace: inventory-system
+spec:
+  parentRefs:
+    - name: catalog-api
+      kind: Service
+      group: ""
+      port: 80
+  rules:
+    - backendRefs:
+        - name: catalog-api-v1
+          port: 80
+          weight: 80
+        - name: catalog-api-v2
+          port: 80
+          weight: 20

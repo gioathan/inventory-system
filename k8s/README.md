@@ -93,6 +93,33 @@ kubectl apply -f k8s/dashboard-api.yaml
 kubectl get pods -n inventory-system
 ```
 
+## Canary deploy (catalog-api)
+
+`k8s/catalog-api.yaml` now deploys **catalog-api-v1** (the real one) behind an apex `catalog-api`
+Service that deliberately has no selector of its own. `k8s/catalog-api-canary.yaml` is optional
+and additive: it adds `catalog-api-v2` (same image today — the point is the routing mechanism,
+not a real code difference) and a `GRPCRoute` that splits traffic between v1/v2 by weight.
+Callers (scan-gateway, dashboard-api) keep dialing plain `catalog-api` and never know a split is
+happening.
+
+```
+kubectl apply -f k8s/catalog-api-canary.yaml
+```
+
+Change the split by editing the `weight` fields in `catalog-api-canary.yaml` and re-applying —
+no pod restarts needed, Linkerd's destination controller picks up the new weights immediately.
+Verify it's actually splitting (not just configured to) by generating real traffic and checking
+both versions receive some of it — RPS is noisy over a small sample, so send a few hundred
+requests for the ratio to converge toward the configured weight:
+
+```
+linkerd viz stat deploy -n inventory-system --time-window=1m
+```
+
+To go back to a single version, delete `catalog-api-canary.yaml`'s resources and give
+`catalog-api-v1`'s Service a normal life as the apex again (or simplest: just set v2's weight to
+0 and leave the GRPCRoute in place — same effect, easy to dial back up later).
+
 All 12 pods (6 services + 6 infra) should reach `1/1 Running`. A restart count of 1 on a
 service that talks to RabbitMQ/Postgres right after first apply is expected — see the
 "no equivalent of `WaitFor()`" entry in `TECH_DEBT.md`; it self-heals.

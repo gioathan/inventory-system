@@ -64,7 +64,7 @@ The real usage pattern this system is built around: scan/generate a code for an 
 8. RabbitMQ + Wolverine + outbox + Notification Service ✅
 9. Staff/Auth + JWT ✅
 10. Containerize, move to k3d/Kubernetes ✅ (all 6 services + Postgres×3/RabbitMQ/MongoDB/Redis — see `k8s/README.md`)
-11. Service mesh (Linkerd), mTLS ✅, canary deploy 🚧 (mTLS verified working — see `k8s/README.md`; canary not started)
+11. Service mesh (Linkerd), mTLS ✅, canary deploy ✅ (see `k8s/README.md`)
 12. OTel/Jaeger/Prometheus for the k8s environment (Aspire already gives this locally)
 13. *(Stretch)* Purchase Order saga (Wolverine sagas)
 
@@ -204,9 +204,15 @@ gets a `linkerd-proxy` sidecar — every one of the 12 Pods now runs `2/2`, not 
   `linkerd viz stat deploy -n inventory-system` shows live RPS/success-rate/latency per Pod
   without any code changes, which is normally Step 12's job. Worth remembering that a mesh's
   observability extension gets you partway there before Step 12's own OTel/Prometheus setup.
-- **Canary deploy is not done yet** — the remaining piece of Step 11. Traffic splitting between
-  two versions of a service is a natural next step once there's a reason to run two versions at
-  once (e.g. testing a Catalog.Api change against a slice of real traffic).
+- **Canary deploy: `catalog-api-v1`/`catalog-api-v2` behind a weighted `GRPCRoute`** — the apex
+  `catalog-api` Service has no selector of its own; Linkerd's destination controller answers
+  "where does traffic for catalog-api go" using the `GRPCRoute`'s weighted `backendRefs` instead
+  of the Service's own endpoint list, so callers keep dialing plain `catalog-api` and never know
+  a split is happening. `GRPCRoute` (Gateway API), not `HTTPRoute` — Linkerd dropped the older
+  SMI `TrafficSplit` CRD in favor of Gateway API, and `GRPCRoute` understands gRPC service/method
+  semantics rather than matching on raw HTTP paths, matching Catalog.Api's actual protocol.
+  Verified real, not just configured: sent 300 requests through scan-gateway at an 80/20 weight
+  and watched `linkerd viz stat` converge toward that ratio. See `k8s/README.md`.
 
 ## Scan-and-sell (two-step, never implicit)
 

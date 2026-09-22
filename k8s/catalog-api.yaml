@@ -1,17 +1,22 @@
+# "v1" here is the baseline/stable version. See catalog-api-canary.yaml for v2 and the
+# GRPCRoute that splits traffic between them — this file alone is a normal single-version
+# deployment; the canary pieces are additive and can be removed without touching this file.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: catalog-api
+  name: catalog-api-v1
   namespace: inventory-system
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: catalog-api
+      version: v1
   template:
     metadata:
       labels:
         app: catalog-api
+        version: v1
     spec:
       containers:
         - name: catalog-api
@@ -74,14 +79,34 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  name: catalog-api-v1
+  namespace: inventory-system
+spec:
+  selector:
+    app: catalog-api
+    version: v1
+  ports:
+    - name: grpc
+      port: 80
+      targetPort: grpc
+---
+# The apex Service — this is the DNS name callers (scan-gateway, dashboard-api) actually dial.
+# Deliberately has NO selector of its own: with the canary GRPCRoute applied, Linkerd's
+# destination controller answers "where does traffic for catalog-api go" using the GRPCRoute's
+# weighted backendRefs instead of this Service's own endpoint list, so giving it real endpoints
+# here would just be a second, conflicting source of truth. Without catalog-api-canary.yaml
+# applied, this Service has zero endpoints and nothing works — apply that file too, even at
+# 100/0, to get a normal single-version deployment routed through it.
+apiVersion: v1
+kind: Service
+metadata:
   name: catalog-api
   namespace: inventory-system
 spec:
   selector:
     app: catalog-api
+    version: does-not-exist
   ports:
-    # Only the gRPC port is exposed here — the plain-HTTP port exists solely for kubelet's
-    # own probes and isn't meant for other pods/clients to call.
     - name: grpc
       port: 80
       targetPort: grpc
