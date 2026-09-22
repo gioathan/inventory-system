@@ -2,3 +2,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: inventory-system
+  annotations:
+    # Every Pod created in this namespace gets a linkerd-proxy sidecar automatically —
+    # see docs/architecture.md's Linkerd section and k8s/README.md for the install steps
+    # this annotation depends on (linkerd install + linkerd viz install must run first).
+    linkerd.io/inject: enabled

@@ -34,6 +34,13 @@ var inventoryApiAddress = builder.Configuration["GrpcClients:InventoryApi"] ?? "
 // internal traffic without TLS yet (see above) trips that safeguard even though it's fine here;
 // UnsafeUseInsecureChannelCallCredentials is the documented opt-out. It's a no-op for the
 // Aspire/HTTPS case, so this is safe to set unconditionally rather than branching on scheme.
+//
+// Still required even with Linkerd's mTLS installed (Step 11) — confirmed by actually removing
+// it and hitting the identical exception. Linkerd's sidecar transparently intercepts and
+// encrypts traffic at the network layer (iptables), entirely invisible to this process: the app
+// still dials plain http://catalog-api and GrpcChannel decides "is this secure?" purely from
+// that URI's scheme, with no way to know iptables is about to encrypt the packet. Real
+// encryption on the wire between nodes, zero visibility to .NET — see TECH_DEBT.md.
 builder.Services.AddGrpcClient<CatalogGrpcService.CatalogGrpcServiceClient>(o =>
 {
     o.Address = new Uri(catalogApiAddress);

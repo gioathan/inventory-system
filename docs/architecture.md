@@ -64,7 +64,7 @@ The real usage pattern this system is built around: scan/generate a code for an 
 8. RabbitMQ + Wolverine + outbox + Notification Service ✅
 9. Staff/Auth + JWT ✅
 10. Containerize, move to k3d/Kubernetes ✅ (all 6 services + Postgres×3/RabbitMQ/MongoDB/Redis — see `k8s/README.md`)
-11. Service mesh (Linkerd), mTLS, canary deploy
+11. Service mesh (Linkerd), mTLS ✅, canary deploy 🚧 (mTLS verified working — see `k8s/README.md`; canary not started)
 12. OTel/Jaeger/Prometheus for the k8s environment (Aspire already gives this locally)
 13. *(Stretch)* Purchase Order saga (Wolverine sagas)
 
@@ -147,7 +147,7 @@ e.g. 20% off 10 SKUs — without touching their base `Price`.
   "revenue uses today's Catalog price, not price-at-time-of-sale" tradeoff already in
   TECH_DEBT.md; a discount is just today's price being lower than it was.
 
-## Kubernetes (Step 10) — local k3d, no TLS/mTLS yet
+## Kubernetes (Step 10) — local k3d
 
 Every service now also runs as a plain-YAML Kubernetes deployment (`k8s/`), rehearsed locally
 against a `k3d` cluster (k3s packaged as Docker containers — see `k8s/README.md` for the
@@ -159,13 +159,16 @@ Kubernetes" rehearsal, one step closer to production than local dev, one step sh
   databases like Aspire's local setup. Full storage isolation per service (no shared blast
   radius) at the cost of three small containers instead of one — a defensible real
   microservices tradeoff, not just a k8s quirk.
-- **No TLS between services yet** — deliberately deferred to Step 11 (service mesh, mTLS), so
-  every internal call (gRPC and REST alike) is plain HTTP inside the cluster. This has two
-  concrete consequences, both documented as real bugs in TECH_DEBT.md: Catalog.Api/Inventory.Api
-  need a dedicated HTTP/2-only Kestrel endpoint for gRPC (there's no ALPN without TLS to
-  negotiate HTTP/1.1-vs-2 on one port), and every gRPC client needs
-  `UnsafeUseInsecureChannelCallCredentials = true` or `GrpcChannel` refuses to send the bearer
-  token at all over a channel it considers insecure.
+- **No TLS at the *application* level, mTLS at the *network* level since Step 11** — every
+  service still dials plain `http://` internally (Catalog.Api/Inventory.Api's gRPC endpoints are
+  genuinely cleartext HTTP/2 as far as .NET is concerned), but Linkerd now transparently encrypts
+  that traffic on the actual wire between pods. See the Service Mesh section below for why those
+  are two different, both-true statements. This still has two concrete consequences, documented
+  as real bugs in TECH_DEBT.md: Catalog.Api/Inventory.Api need a dedicated HTTP/2-only Kestrel
+  endpoint for gRPC (there's no ALPN without app-level TLS to negotiate HTTP/1.1-vs-2 on one
+  port), and every gRPC client needs `UnsafeUseInsecureChannelCallCredentials = true` — permanently,
+  confirmed by testing, not just until Step 11 — or `GrpcChannel` refuses to send the bearer token
+  at all over what it considers an insecure channel.
 - **gRPC client addresses are config-driven, not hardcoded** — `ScanGateway.Api`/`Dashboard.Api`
   read `GrpcClients:CatalogApi`/`GrpcClients:InventoryApi` from config, defaulting to Aspire's
   `https://catalog-api` shape when unset. The k8s manifests override both to `http://catalog-api`
@@ -177,6 +180,33 @@ Kubernetes" rehearsal, one step closer to production than local dev, one step sh
   explicitly yet, but the real fix (an initContainer that polls the dependency, or a Helm chart's
   dependency ordering) is worth knowing about before this ever needs to be reliable rather than
   "restarts once and then it's fine."
+
+## Service mesh (Step 11) — Linkerd, mTLS
+
+Linkerd is installed cluster-wide (`linkerd install --crds`, `linkerd install`, `linkerd viz
+install` for the observability extension), and the `inventory-system` namespace is annotated
+`linkerd.io/inject: enabled` (in `k8s/namespace.yaml`) so every Pod created there automatically
+gets a `linkerd-proxy` sidecar — every one of the 12 Pods now runs `2/2`, not `1/1`.
+
+- **mTLS is real, verified with `linkerd viz edges`** — every edge between meshed Pods
+  (`scan-gateway → catalog-api`, `catalog-api → postgres-catalog`, even Prometheus scraping every
+  Pod's metrics) shows `SECURED: √`. This is genuine encryption on the wire between nodes,
+  protecting against something like a compromised network tap.
+- **This does *not* mean the application is doing TLS.** Tested directly: removed
+  `UnsafeUseInsecureChannelCallCredentials` from Scan Gateway's gRPC clients with the mesh fully
+  installed and got the identical `InvalidOperationException` as before Linkerd existed. The
+  sidecar intercepts traffic via iptables rules *inside* the Pod's network namespace — completely
+  invisible to the .NET process, which still dials plain `http://catalog-api` and has `GrpcChannel`
+  make its secure/insecure decision purely from that URI's scheme. Real wire encryption and
+  "does the app think it's using TLS" are two independent facts; Step 10's workaround stays
+  permanent. Full writeup in TECH_DEBT.md.
+- **`linkerd viz`** (Prometheus + a small dashboard) is what makes any of this checkable at all —
+  `linkerd viz stat deploy -n inventory-system` shows live RPS/success-rate/latency per Pod
+  without any code changes, which is normally Step 12's job. Worth remembering that a mesh's
+  observability extension gets you partway there before Step 12's own OTel/Prometheus setup.
+- **Canary deploy is not done yet** — the remaining piece of Step 11. Traffic splitting between
+  two versions of a service is a natural next step once there's a reason to run two versions at
+  once (e.g. testing a Catalog.Api change against a slice of real traffic).
 
 ## Scan-and-sell (two-step, never implicit)
 

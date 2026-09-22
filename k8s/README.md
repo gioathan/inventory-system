@@ -1,4 +1,4 @@
-# Kubernetes manifests (Step 10)
+# Kubernetes manifests (Steps 10 & 11)
 
 Local-only, learning-focused Kubernetes manifests for this project, run against a `k3d` cluster
 (k3s packaged to run as Docker containers — see `docs/architecture.md`). This is **not** meant
@@ -7,16 +7,43 @@ This is for learning/rehearsing how the same services run on real Kubernetes.
 
 All 6 services now have manifests, plus their own Postgres instances (one each for
 catalog/inventory/staff — not shared like Aspire's local setup, see `docs/architecture.md`),
-a shared RabbitMQ, MongoDB, and Redis. **No TLS/mTLS between services yet** — that's Step 11
-(service mesh); every internal call is plain HTTP for now, which is why the gRPC-hosting
-services (Catalog, Inventory) and their callers (Scan Gateway, Dashboard) needed a few
-Kubernetes-specific tweaks documented inline in the manifests and in `TECH_DEBT.md`.
+a shared RabbitMQ, MongoDB, and Redis. **Linkerd is installed and every Pod in the namespace is
+meshed** (mTLS between pods, verified — see the Service Mesh section of `docs/architecture.md`);
+application code still talks plain HTTP internally regardless, since the mesh's encryption is
+invisible to it. That plaintext-at-the-app-layer reality is why the gRPC-hosting services
+(Catalog, Inventory) and their callers (Scan Gateway, Dashboard) needed a few Kubernetes-specific
+tweaks documented inline in the manifests and in `TECH_DEBT.md`.
 
 ## Prerequisites
 
 - `k3d` cluster running: `k3d cluster create inventory-system --wait`
 - `kubectl` pointed at it (k3d does this automatically): `kubectl config current-context` should
   print `k3d-inventory-system`
+- If `kubectl` hangs or can't connect after time away from this machine, see the
+  `host.docker.internal` entry in `TECH_DEBT.md` before reaching for a full Docker Desktop
+  restart — usually a one-line kubeconfig fix.
+
+## Install Linkerd (one-time per cluster)
+
+```
+linkerd check --pre
+linkerd install --crds | kubectl apply -f -
+linkerd install | kubectl apply -f -
+linkerd viz install | kubectl apply -f -
+linkerd check
+```
+
+`k8s/namespace.yaml` already carries the `linkerd.io/inject: enabled` annotation, so applying it
+(see below) is enough for every future Pod in the namespace to get meshed automatically — no
+per-manifest changes needed. If pods were already running before Linkerd was installed, mesh them
+with `kubectl rollout restart deployment -n inventory-system`.
+
+Useful commands once it's running:
+
+```
+linkerd viz stat deploy -n inventory-system      # live RPS / success rate / latency per pod
+linkerd viz edges deployment -n inventory-system # confirms SECURED: √ between every pair
+```
 
 ## Build and load the images
 
@@ -116,8 +143,10 @@ grpcurl -plaintext -H "authorization: Bearer $TOKEN" \
 - Catalog.Api/Inventory.Api (the two gRPC-hosting services) each run **two** Kestrel endpoints:
   an HTTP/2-only one for gRPC traffic, a plain HTTP/1.1 one for the probes — see the Kestrel
   entry in `TECH_DEBT.md` for why one port can't do both without TLS.
-- No TLS/mTLS between services — deliberately deferred to Step 11's service mesh. Every gRPC
-  client needs `UnsafeUseInsecureChannelCallCredentials = true` as a result — see TECH_DEBT.md.
+- Linkerd's mTLS is real but invisible to the application — every gRPC client still needs
+  `UnsafeUseInsecureChannelCallCredentials = true` permanently, mesh or no mesh, since Linkerd
+  encrypts at the network layer without the app ever seeing HTTPS. Verified by testing — see
+  TECH_DEBT.md.
 - Secrets here use literal local-dev-only values, same convention as `AppHost.cs`'s pinned
   parameters — never do this for a real secret; a real cluster would use something like Sealed
   Secrets or an external secret store instead of plaintext-equivalent YAML.
