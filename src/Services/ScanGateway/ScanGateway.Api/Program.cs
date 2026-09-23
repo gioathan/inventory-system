@@ -3,6 +3,7 @@ using InventorySystem.Grpc.Contracts.Catalog;
 using InventorySystem.Grpc.Contracts.Inventory;
 using InventorySystem.ScanGateway.Api.Clients;
 using InventorySystem.ScanGateway.Api.Endpoints;
+using InventorySystem.ScanGateway.Api.Images;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -66,6 +67,13 @@ builder.Services.AddScoped<InventoryApiClient>();
 // go through this, per the "no cache on the live-stock-read path" rule in architecture.md.
 builder.AddRedisDistributedCache("redis");
 
+// Optional feature: an admin can hand /items/intake an imageUrl from anywhere, unrelated to
+// Cloudflare, so nothing about this needs to be configured for the rest of the service to work.
+// Binding-without-validation here is deliberate — CloudflareImageUploader itself throws only
+// when actually called with the account id/token still blank, not at startup.
+builder.Services.Configure<CloudflareImagesOptions>(builder.Configuration.GetSection("CloudflareImages"));
+builder.Services.AddHttpClient<ICloudflareImageUploader, CloudflareImageUploader>();
+
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
@@ -88,5 +96,6 @@ app.MapReceivingEndpoints();
 app.MapCategoryEndpoints();
 app.MapDiscountEndpoints();
 app.MapPurchaseOrderEndpoints();
+app.MapImageEndpoints();
 
 app.Run();

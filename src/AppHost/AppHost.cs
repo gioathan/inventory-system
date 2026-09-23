@@ -25,6 +25,15 @@ var staffDb = postgres.AddDatabase("staffdb");
 // generated value. Local dev only — a real deployment would pull this from a real secret store.
 var jwtSigningKey = builder.AddParameter("jwt-signing-key", "local-dev-only-signing-key-do-not-use-in-prod", secret: true);
 
+// Optional: the "upload a raw file, get back a URL" path for Item.ImageUrl (POST /images on
+// Scan Gateway) — see architecture.md. Empty by default and deliberately not pinned to a
+// working local-dev value like the parameters above, because there's no local Cloudflare to
+// point at; the feature just reports "not configured" (502) until real values are supplied.
+// Override locally via `dotnet user-secrets set Parameters:cloudflare-api-token <token>` (from
+// src/AppHost) once you have a Cloudflare account with Images enabled.
+var cloudflareAccountId = builder.AddParameter("cloudflare-account-id", "");
+var cloudflareApiToken = builder.AddParameter("cloudflare-api-token", "", secret: true);
+
 // RabbitMQ backs Inventory's transactional outbox (see StockReceivingService) — every stock
 // movement publishes a StockMovementRecorded event here. Deliberately NOT WithDataVolume():
 // Aspire generates a fresh random password per launch, but a persisted volume keeps whatever
@@ -85,7 +94,9 @@ builder.AddProject<Projects.InventorySystem_ScanGateway_Api>("scan-gateway")
     .WaitFor(catalogApi)
     .WaitFor(inventoryApi)
     .WaitFor(redis)
-    .WithEnvironment("Jwt__SigningKey", jwtSigningKey);
+    .WithEnvironment("Jwt__SigningKey", jwtSigningKey)
+    .WithEnvironment("CloudflareImages__AccountId", cloudflareAccountId)
+    .WithEnvironment("CloudflareImages__ApiToken", cloudflareApiToken);
 
 // Dashboard.Api is the one GraphQL surface in the system (see architecture.md) — it composes
 // Catalog and Inventory into a single client-shaped query, still over REST for now.

@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- No Aspire.Hosting.Testing here on purpose — unlike tests/IntegrationTests, nothing in
+         this project spins up real infrastructure. It exists specifically for logic that can't
+         be exercised against a real dependency locally (Cloudflare Images has no Docker image
+         to spin up the way Postgres/RabbitMQ/Redis/Mongo do) — fast, no containers, no network. -->
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Services\ScanGateway\ScanGateway.Api\InventorySystem.ScanGateway.Api.csproj" />
+  </ItemGroup>
+
+</Project>
