@@ -5,7 +5,8 @@ public enum StockMovementReason
     Intake,
     Restock,
     Sale,
-    ManualAdjust
+    ManualAdjust,
+    PurchaseOrderReceipt
 }
 
 // Append-only ledger row for every quantity change — never updated or deleted. QuantityOnHand

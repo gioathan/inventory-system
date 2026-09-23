@@ -17,6 +17,17 @@ service InventoryGrpcService {
   // Dashboard's sessionReport query calls this, then joins the lines against Catalog's prices
   // to compute revenue — Inventory only ever reports quantities, never money.
   rpc GetSessionSummary (GetSessionSummaryRequest) returns (SessionSummaryReply);
+
+  // Purchase order saga (Step 13) — Create/Send/Receive/Cancel each publish a command to the
+  // Wolverine saga identified by purchase_order_id; the RPC returns once that command has been
+  // handled and the resulting state persisted, same request/response shape as everything else
+  // here even though a saga (not a one-shot handler) is doing the work underneath.
+  rpc CreatePurchaseOrder (CreatePurchaseOrderRequest) returns (PurchaseOrderReply);
+  rpc SendPurchaseOrder (PurchaseOrderIdRequest) returns (PurchaseOrderReply);
+  rpc ReceivePurchaseOrderShipment (ReceivePurchaseOrderShipmentRequest) returns (PurchaseOrderReply);
+  rpc CancelPurchaseOrder (PurchaseOrderIdRequest) returns (PurchaseOrderReply);
+  rpc GetPurchaseOrder (PurchaseOrderIdRequest) returns (PurchaseOrderReply);
+  rpc ListPurchaseOrders (ListPurchaseOrdersRequest) returns (ListPurchaseOrdersReply);
 }
 
 enum MovementReason {
@@ -67,4 +78,53 @@ message SessionSummaryLine {
 
 message SessionSummaryReply {
   repeated SessionSummaryLine lines = 1;
+}
+
+enum PurchaseOrderStatus {
+  DRAFT = 0;
+  SENT = 1;
+  PARTIALLY_RECEIVED = 2;
+  RECEIVED = 3;
+  CANCELLED = 4;
+}
+
+message PurchaseOrderLineInput {
+  string sku = 1;
+  int32 quantity = 2;
+}
+
+message CreatePurchaseOrderRequest {
+  string supplier_name = 1;
+  repeated PurchaseOrderLineInput lines = 2;
+}
+
+message PurchaseOrderIdRequest {
+  string purchase_order_id = 1;
+}
+
+message ReceivePurchaseOrderShipmentRequest {
+  string purchase_order_id = 1;
+  repeated PurchaseOrderLineInput lines = 2;
+}
+
+message ListPurchaseOrdersRequest {
+}
+
+message PurchaseOrderLineReply {
+  string sku = 1;
+  int32 ordered_quantity = 2;
+  int32 received_quantity = 3;
+}
+
+message PurchaseOrderReply {
+  string id = 1;
+  string supplier_name = 2;
+  PurchaseOrderStatus status = 3;
+  repeated PurchaseOrderLineReply lines = 4;
+  string opened_at = 5;
+  optional string closed_at = 6;
+}
+
+message ListPurchaseOrdersReply {
+  repeated PurchaseOrderReply purchase_orders = 1;
 }

@@ -19,7 +19,17 @@ builder.Services.AddInventorySystemJwtAuth(builder.Configuration);
 
 // "inventorydb" matches the name AppHost.cs gives this database resource; Aspire resolves
 // the actual connection string (host, port, credentials) from that reference at startup.
-builder.AddNpgsqlDbContext<InventoryDbContext>("inventorydb");
+//
+// Retry-on-failure is disabled here specifically because Wolverine's UseEntityFrameworkCoreTransactions
+// (below) opens its own transaction around saga persistence without wrapping it in
+// Database.CreateExecutionStrategy() the way StockReceivingService's own manual transactions do
+// — with retry enabled, that throws "the configured execution strategy does not support
+// user-initiated transactions" on every saga command. StockReceivingService's own transactions
+// are unaffected either way since they already use CreateExecutionStrategy().ExecuteAsync().
+// Trade-off: this DbContext loses automatic retry-on-transient-failure entirely, not just for
+// sagas — acceptable for local dev; revisit if Wolverine adds execution-strategy-aware EF
+// transactions, or before this ever runs anywhere failures are actually likely.
+builder.AddNpgsqlDbContext<InventoryDbContext>("inventorydb", settings => settings.DisableRetry = true);
 
 // Wolverine's own durability store (its outbox/inbox envelope tables) lives in the same
 // Postgres server as the domain data, in its own schema — a separate concern from EF's
@@ -38,6 +48,15 @@ builder.Host.UseWolverine(opts =>
     // Notification.Api is the only consumer today, but any future subscriber (Reporting) just
     // adds its own listener on the same queue/exchange, no change needed here.
     opts.PublishMessage<StockMovementRecorded>().ToRabbitQueue("stock-movements");
+
+    // StockReceivingService commits its own transaction explicitly (IDbContextOutbox.Enroll +
+    // SaveChangesAndFlushMessagesAsync), so it never needed this. The PurchaseOrder saga's
+    // Start/Handle methods don't call SaveChangesAsync themselves at all, and having
+    // InventoryDbContext registered (with a matching DbSet<PurchaseOrder>) is NOT by itself
+    // enough for Wolverine to persist saga state through it — without this call, Wolverine
+    // still runs Start/Handle, but never saves what they changed: no error, just a saga that
+    // "worked" and then silently doesn't exist. This is the actual missing piece.
+    opts.UseEntityFrameworkCoreTransactions();
 });
 
 builder.Services.AddOpenApi();

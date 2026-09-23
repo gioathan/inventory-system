@@ -87,5 +87,6 @@ app.MapScanEndpoints();
 app.MapReceivingEndpoints();
 app.MapCategoryEndpoints();
 app.MapDiscountEndpoints();
+app.MapPurchaseOrderEndpoints();
 
 app.Run();

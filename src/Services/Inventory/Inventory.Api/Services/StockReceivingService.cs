@@ -50,6 +50,50 @@ public class StockReceivingService(InventoryDbContext db, IDbContextOutbox outbo
         });
     }
 
+    // For a caller that's already inside its own ambient transaction — specifically, the
+    // PurchaseOrder saga's Handle method, running under Wolverine's UseEntityFrameworkCoreTransactions.
+    // ReceiveStockAsync above manages its own transaction + outbox publish, which collides
+    // ("connection is already in a transaction") when called from inside one that already
+    // exists. This does the same upsert and ledger write, but leaves committing and publishing
+    // to the caller: no transaction of its own, and the event is returned rather than published,
+    // so the saga can hand it back as a Wolverine cascading message — Wolverine publishes it
+    // itself once the ambient transaction commits, same delivery guarantee as the outbox gives
+    // ReceiveStockAsync's own callers, just through the saga's transaction instead of a manual one.
+    public async Task<(StockItem Item, StockMovementRecorded Event)> ReceiveStockWithinAmbientTransactionAsync(
+        string sku, int quantity, StockMovementReason reason, CancellationToken cancellationToken)
+    {
+        if (quantity <= 0)
+            throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be positive.");
+
+        var results = await db.StockItems.FromSqlInterpolated($"""
+            INSERT INTO "StockItems" ("Id", "Sku", "QuantityOnHand")
+            VALUES ({Guid.NewGuid()}, {sku}, {quantity})
+            ON CONFLICT ("Sku") DO UPDATE SET "QuantityOnHand" = "StockItems"."QuantityOnHand" + {quantity}
+            RETURNING *
+            """).AsNoTracking().ToListAsync(cancellationToken);
+
+        var item = results.Single();
+
+        var openSessionId = await db.RestockSessions
+            .Where(s => s.ClosedAt == null)
+            .Select(s => (Guid?)s.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        db.StockMovements.Add(new StockMovement
+        {
+            Id = Guid.NewGuid(),
+            Sku = sku,
+            Delta = quantity,
+            Reason = reason,
+            Timestamp = DateTimeOffset.UtcNow,
+            ResultingQuantity = item.QuantityOnHand,
+            SessionId = openSessionId
+        });
+
+        var @event = new StockMovementRecorded(sku, quantity, reason.ToString(), DateTimeOffset.UtcNow, item.QuantityOnHand, openSessionId);
+        return (item, @event);
+    }
+
     // Single atomic UPDATE with the guard in the WHERE clause: the database evaluates "would
     // this go negative?" and applies the change in the same operation, so two concurrent
     // requests (e.g. two sellers scanning the last unit at once) can never both read 1-in-stock

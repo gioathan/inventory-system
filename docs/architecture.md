@@ -66,7 +66,7 @@ The real usage pattern this system is built around: scan/generate a code for an 
 10. Containerize, move to k3d/Kubernetes ✅ (all 6 services + Postgres×3/RabbitMQ/MongoDB/Redis — see `k8s/README.md`)
 11. Service mesh (Linkerd), mTLS ✅, canary deploy ✅ (see `k8s/README.md`)
 12. OTel/Jaeger for the k8s environment ✅ (Prometheus already covered by Linkerd's `viz` extension — see below; Aspire already gives this locally)
-13. *(Stretch)* Purchase Order saga (Wolverine sagas)
+13. *(Stretch)* Purchase Order saga (Wolverine sagas) ✅
 
 ## Stock movement ledger & restock sessions
 
@@ -243,6 +243,48 @@ use persistent storage).
   meshed pod for RPS/latency/success-rate, which covers Step 12's metrics goal at the request
   level. A dedicated app-level Prometheus is worth adding once there are custom business metrics
   to scrape that Linkerd's own request-level view can't answer — not before.
+
+## Purchase Order saga (Step 13, stretch) — Wolverine sagas
+
+Everything else in this system handles one message/request and is done. A Purchase Order is the
+first thing that genuinely needs state to persist across however many messages it takes to reach
+a terminal outcome — created, sent to a supplier, then received in however many separate
+shipments it actually takes (possibly over several real-world days) before it's fully in. That's
+a saga, not a handler: `PurchaseOrder` (in `Inventory.Api`, `Data/PurchaseOrder.cs`) inherits
+Wolverine's `Saga` base class, and a static `Start(CreatePurchaseOrder)` plus instance
+`Handle(...)` methods drive it through `Draft → Sent → PartiallyReceived → Received` (or
+`Cancelled` from `Draft`/`Sent`).
+
+- **Lives inside Inventory.Api, not a new service** — a PO's entire point is driving Inventory's
+  own stock, and it reuses the Postgres/Wolverine/outbox wiring already there. A seventh service
+  wasn't proportionate for a stretch goal.
+- **Fronted the same way as everything else**: new gRPC RPCs on `InventoryGrpcService`
+  (`CreatePurchaseOrder`/`SendPurchaseOrder`/`ReceivePurchaseOrderShipment`/`CancelPurchaseOrder`/
+  `GetPurchaseOrder`/`ListPurchaseOrders`, all Admin-only), fronted by Scan Gateway's
+  `/purchase-orders` REST routes — same "Inventory is gRPC-only, Scan Gateway is the REST
+  surface" pattern as everything else. The RPC handler calls `IMessageBus.InvokeAsync(command)`
+  (runs the saga in-process and waits for it to finish, unlike `PublishAsync`'s at-least-once
+  fire-and-forget) then re-queries the saga's current state to build the reply.
+- **`opts.UseEntityFrameworkCoreTransactions()` is what actually makes saga persistence work** —
+  registering `InventoryDbContext` with a matching `DbSet<PurchaseOrder>` is necessary but not
+  sufficient; without this call Wolverine runs `Start`/`Handle` correctly but never persists what
+  they changed, silently. No error — a saga that "worked" and then doesn't exist. Full story in
+  TECH_DEBT.md, including a second, nastier issue this uncovered: Wolverine's own transaction
+  middleware collides with `StockReceivingService`'s manual transactions (`ReceiveStockAsync`)
+  when called from inside a saga's ambient transaction, and separately collides with Npgsql's
+  retry-on-failure execution strategy the way our own code already learned to avoid — Inventory's
+  `DbContext` now runs with retry disabled as a result, a real trade-off, not free.
+- **No `MarkCompleted()` on the terminal transitions** — that tells Wolverine to delete the saga
+  row once done, but a Received/Cancelled purchase order should stay queryable forever, same as
+  `RestockSession`'s own `OpenedAt`/`ClosedAt` (closed, never deleted). Nothing routes further
+  messages to a terminal PO anyway — the `Handle` methods' own guard clauses already refuse to
+  touch one — so there's nothing left for "stop persisting this" to actually protect against.
+- **Receiving returns events as Wolverine cascading messages, not via the manual outbox** — the
+  saga can't call `StockReceivingService.ReceiveStockAsync` (it opens its own transaction, which
+  collides with the saga's ambient one); a sibling method does the same upsert+ledger write
+  without owning a transaction, and hands back the `StockMovementRecorded` event for `Handle` to
+  return, which Wolverine publishes itself once the ambient transaction actually commits — same
+  delivery guarantee as the outbox gives everywhere else, just through a different mechanism.
 
 ## Scan-and-sell (two-step, never implicit)
 
