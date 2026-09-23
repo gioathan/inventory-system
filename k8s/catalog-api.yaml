@@ -63,6 +63,16 @@ spec:
                 secretKeyRef:
                   name: jwt-secret
                   key: Jwt__SigningKey
+            # Traces/metrics ship here via OTLP/gRPC — see k8s/jaeger.yaml. Same config key
+            # AddOpenTelemetryExporters() already checks for in ServiceDefaults/Extensions.cs;
+            # Aspire sets this automatically for local dev, this is the k8s equivalent.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://jaeger:4317"
+            # Without this, every service's traces show up in Jaeger as the same generic
+            # "unknown_service:dotnet" — Aspire sets this automatically per-resource locally;
+            # nothing does in plain k8s, so it has to be explicit here.
+            - name: OTEL_SERVICE_NAME
+              value: catalog-api
           readinessProbe:
             httpGet:
               path: /health

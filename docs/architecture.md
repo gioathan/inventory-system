@@ -65,7 +65,7 @@ The real usage pattern this system is built around: scan/generate a code for an 
 9. Staff/Auth + JWT ✅
 10. Containerize, move to k3d/Kubernetes ✅ (all 6 services + Postgres×3/RabbitMQ/MongoDB/Redis — see `k8s/README.md`)
 11. Service mesh (Linkerd), mTLS ✅, canary deploy ✅ (see `k8s/README.md`)
-12. OTel/Jaeger/Prometheus for the k8s environment (Aspire already gives this locally)
+12. OTel/Jaeger for the k8s environment ✅ (Prometheus already covered by Linkerd's `viz` extension — see below; Aspire already gives this locally)
 13. *(Stretch)* Purchase Order saga (Wolverine sagas)
 
 ## Stock movement ledger & restock sessions
@@ -213,6 +213,36 @@ gets a `linkerd-proxy` sidecar — every one of the 12 Pods now runs `2/2`, not 
   semantics rather than matching on raw HTTP paths, matching Catalog.Api's actual protocol.
   Verified real, not just configured: sent 300 requests through scan-gateway at an 80/20 weight
   and watched `linkerd viz stat` converge toward that ratio. See `k8s/README.md`.
+
+## Observability (Step 12) — Jaeger for traces, Linkerd's Prometheus for metrics
+
+Every service already had `OpenTelemetry` wired up in `ServiceDefaults` (it's part of the Aspire
+template) — `OTEL_EXPORTER_OTLP_ENDPOINT` just needed pointing at something real once there's no
+Aspire dashboard to receive it. `k8s/jaeger.yaml` runs Jaeger's `all-in-one` image (OTLP receiver
++ in-memory storage + query UI in one lightweight container — appropriate for local dev on a
+single-node cluster already running 13 other workloads; a real deployment would split these and
+use persistent storage).
+
+- **Two gaps found and fixed, both things Aspire quietly does for you locally:**
+  1. gRPC client calls weren't traced at all — `AddGrpcClientInstrumentation()` was commented out
+     in the ServiceDefaults template scaffold. Since gRPC is the majority of this system's actual
+     internal traffic (Scan Gateway/Dashboard → Catalog/Inventory), leaving it off meant every
+     trace stopped dead at the calling service. Enabled it (needs the still-beta-only
+     `OpenTelemetry.Instrumentation.GrpcNetClient` package — not a deliberate older pin, that's
+     genuinely the only version that exists).
+  2. Every service showed up in Jaeger as the same generic `unknown_service:dotnet` — Aspire
+     sets `OTEL_SERVICE_NAME` automatically per-resource for local dev; nothing does that in
+     plain Kubernetes, so each Deployment sets it explicitly now.
+- **Verified with a real trace, not just "traces are being sent somewhere"** — one request
+  through `GET /categories` shows up as a single connected trace: `GET /categories` (scan-gateway)
+  → `catalog.CatalogGrpcService/ListCategories` (the gRPC client call, now visible) →
+  `POST /catalog.CatalogGrpcService/ListCategories` (catalog-api's server-side span) →
+  `postgresql` (the actual query, auto-instrumented by Aspire's `Npgsql.EntityFrameworkCore`
+  component — no extra code needed).
+- **Deliberately no second Prometheus** — `linkerd-viz` (Step 11) already runs one scraping every
+  meshed pod for RPS/latency/success-rate, which covers Step 12's metrics goal at the request
+  level. A dedicated app-level Prometheus is worth adding once there are custom business metrics
+  to scrape that Linkerd's own request-level view can't answer — not before.
 
 ## Scan-and-sell (two-step, never implicit)
 

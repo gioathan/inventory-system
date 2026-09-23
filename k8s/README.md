@@ -1,4 +1,4 @@
-# Kubernetes manifests (Steps 10 & 11)
+# Kubernetes manifests (Steps 10, 11 & 12)
 
 Local-only, learning-focused Kubernetes manifests for this project, run against a `k3d` cluster
 (k3s packaged to run as Docker containers — see `docs/architecture.md`). This is **not** meant
@@ -155,6 +155,20 @@ grpcurl -plaintext -H "authorization: Bearer $TOKEN" \
   -proto src/Shared/Grpc.Contracts/Protos/catalog.proto -import-path src/Shared/Grpc.Contracts/Protos \
   localhost:8080 catalog.CatalogGrpcService/ListItems
 ```
+
+## Observability (Step 12)
+
+`k8s/jaeger.yaml` deploys Jaeger's all-in-one image; every service's `OTEL_EXPORTER_OTLP_ENDPOINT`
+points at it already. Traces and Linkerd's own metrics are both useful, for different things:
+
+```
+kubectl port-forward -n inventory-system svc/jaeger 16686:16686    # Jaeger UI at localhost:16686
+linkerd viz stat deploy -n inventory-system                        # live per-pod RPS/latency/success
+```
+
+Generate some real traffic first (see above), then open the Jaeger UI and pick `scan-gateway` or
+`dashboard-api` as the service to see a trace spanning the actual gRPC call into Catalog/Inventory
+and the Postgres query underneath it — one request, one connected trace across service boundaries.
 
 ## Notes / deliberate simplifications
 

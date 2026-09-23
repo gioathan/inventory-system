@@ -40,6 +40,12 @@ spec:
                 secretKeyRef:
                   name: jwt-secret
                   key: Jwt__SigningKey
+            # Traces/metrics ship here via OTLP/gRPC — see k8s/jaeger.yaml.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://jaeger:4317"
+            # See catalog-api.yaml for why this is needed — Aspire sets it automatically locally.
+            - name: OTEL_SERVICE_NAME
+              value: notification-api
           readinessProbe:
             httpGet:
               path: /health

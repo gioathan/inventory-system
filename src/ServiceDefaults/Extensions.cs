@@ -68,8 +68,10 @@ public static class Extensions
                             !context.Request.Path.StartsWithSegments(HealthEndpointPath)
                             && !context.Request.Path.StartsWithSegments(AlivenessEndpointPath)
                     )
-                    // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
-                    //.AddGrpcClientInstrumentation()
+                    // gRPC is the majority of this system's actual internal traffic (Scan
+                    // Gateway/Dashboard -> Catalog/Inventory) — without this, a trace stops dead
+                    // at the calling service and never shows the RPC it made.
+                    .AddGrpcClientInstrumentation()
                     .AddHttpClientInstrumentation();
             });
 
