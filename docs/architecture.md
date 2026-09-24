@@ -325,6 +325,29 @@ to Cloudflare Images and handing back the delivery URL.
   including `/items/intake`'s own `imageUrl` field — works identically whether or not Cloudflare is
   configured at all.
 
+## CORS — opt-in per service, not global
+
+Until now every caller has been curl, gRPC, or another service — nothing has ever come from a
+browser, so no service had a CORS policy. The moment a browser-based frontend (planned: Next.js)
+calls these APIs directly, that changes.
+
+- **`AddInventorySystemCors`/`UseInventorySystemCors`** (`ServiceDefaults/Extensions.cs`) — shared
+  helpers, same "opt in per service" shape as `AddInventorySystemJwtAuth`, but *not* folded into
+  `AddServiceDefaults()` itself. Only the three services a browser calls directly — Staff.Api
+  (login), Scan Gateway (scan/sell/receiving/categories/discounts/purchase-orders/images),
+  Dashboard.Api (GraphQL) — call them. Catalog.Api, Inventory.Api, and Notification.Api are
+  internal gRPC-only services a browser never reaches, so they're deliberately left out rather
+  than given a CORS policy that would never apply to anything.
+- **Allowed origin(s) come from `Cors:AllowedOrigins`**, comma-separated, wired through a new
+  AppHost parameter (`frontend-origin`) so it's configured once and passed identically to all
+  three services — same pattern as `jwt-signing-key`. Defaults to `http://localhost:3000` (Next.js's
+  own default dev port), so local frontend work needs no extra setup; a real deployment overrides
+  it to the frontend's actual URL.
+- **No `AllowCredentials`** — auth here is a bearer token in the `Authorization` header, not a
+  cookie, so CORS's credentials mode never comes into play. If the frontend later moves to an
+  httpOnly-cookie session pattern instead, this policy would need revisiting (credentials mode
+  requires an exact origin match, no wildcards).
+
 ## Scan-and-sell (two-step, never implicit)
 
 The seller-facing UX is: scan a barcode, see current quantity in a popup, then either close

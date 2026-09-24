@@ -19,6 +19,7 @@ builder.Services.AddSingleton<IPasswordHasher<StaffUser>, PasswordHasher<StaffUs
 builder.Services.AddScoped<AuthService>();
 
 builder.Services.AddInventorySystemJwtAuth(builder.Configuration);
+builder.Services.AddInventorySystemCors(builder.Configuration);
 
 var app = builder.Build();
 
@@ -46,6 +47,7 @@ if (app.Environment.IsDevelopment())
 
 // Deliberately no UseHttpsRedirection() — see architecture.md / TECH_DEBT.md: it strips the
 // Authorization header on the redirect it issues for any plain-HTTP request.
+app.UseInventorySystemCors();
 app.UseAuthentication();
 app.UseAuthorization();
 

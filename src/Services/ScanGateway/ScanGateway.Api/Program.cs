@@ -74,6 +74,8 @@ builder.AddRedisDistributedCache("redis");
 builder.Services.Configure<CloudflareImagesOptions>(builder.Configuration.GetSection("CloudflareImages"));
 builder.Services.AddHttpClient<ICloudflareImageUploader, CloudflareImageUploader>();
 
+builder.Services.AddInventorySystemCors(builder.Configuration);
+
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
@@ -88,6 +90,7 @@ if (app.Environment.IsDevelopment())
 
 // Deliberately no UseHttpsRedirection() — see architecture.md / TECH_DEBT.md: it strips the
 // Authorization header on the redirect it issues for any plain-HTTP request.
+app.UseInventorySystemCors();
 app.UseAuthentication();
 app.UseAuthorization();
 

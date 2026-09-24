@@ -34,6 +34,13 @@ var jwtSigningKey = builder.AddParameter("jwt-signing-key", "local-dev-only-sign
 var cloudflareAccountId = builder.AddParameter("cloudflare-account-id", "");
 var cloudflareApiToken = builder.AddParameter("cloudflare-api-token", "", secret: true);
 
+// The origin(s) a browser-based frontend is allowed to call Staff/Scan Gateway/Dashboard from.
+// Pinned to Next.js's own default dev port so local frontend work needs zero extra setup; a real
+// deployment overrides this to the frontend's actual deployed URL (comma-separated if it needs
+// to allow more than one, e.g. a preview URL alongside production). Not secret — it's public
+// information, the same as any other CORS allowlist.
+var frontendOrigin = builder.AddParameter("frontend-origin", "http://localhost:3000");
+
 // RabbitMQ backs Inventory's transactional outbox (see StockReceivingService) — every stock
 // movement publishes a StockMovementRecorded event here. Deliberately NOT WithDataVolume():
 // Aspire generates a fresh random password per launch, but a persisted volume keeps whatever
@@ -53,7 +60,8 @@ var notificationDb = mongo.AddDatabase("notificationdb");
 builder.AddProject<Projects.InventorySystem_Staff_Api>("staff-api")
     .WithReference(staffDb)
     .WaitFor(staffDb)
-    .WithEnvironment("Jwt__SigningKey", jwtSigningKey);
+    .WithEnvironment("Jwt__SigningKey", jwtSigningKey)
+    .WithEnvironment("Cors__AllowedOrigins", frontendOrigin);
 
 // WithReference injects the resolved connection string into Inventory.Api's config at the
 // key "inventorydb", which builder.AddNpgsqlDbContext<InventoryDbContext>("inventorydb")
@@ -96,7 +104,8 @@ builder.AddProject<Projects.InventorySystem_ScanGateway_Api>("scan-gateway")
     .WaitFor(redis)
     .WithEnvironment("Jwt__SigningKey", jwtSigningKey)
     .WithEnvironment("CloudflareImages__AccountId", cloudflareAccountId)
-    .WithEnvironment("CloudflareImages__ApiToken", cloudflareApiToken);
+    .WithEnvironment("CloudflareImages__ApiToken", cloudflareApiToken)
+    .WithEnvironment("Cors__AllowedOrigins", frontendOrigin);
 
 // Dashboard.Api is the one GraphQL surface in the system (see architecture.md) — it composes
 // Catalog and Inventory into a single client-shaped query, still over REST for now.
@@ -105,6 +114,7 @@ builder.AddProject<Projects.InventorySystem_Dashboard_Api>("dashboard-api")
     .WithReference(inventoryApi)
     .WaitFor(catalogApi)
     .WaitFor(inventoryApi)
-    .WithEnvironment("Jwt__SigningKey", jwtSigningKey);
+    .WithEnvironment("Jwt__SigningKey", jwtSigningKey)
+    .WithEnvironment("Cors__AllowedOrigins", frontendOrigin);
 
 builder.Build().Run();

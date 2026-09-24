@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,7 @@ public static class Extensions
 {
     private const string HealthEndpointPath = "/health";
     private const string AlivenessEndpointPath = "/alive";
+    private const string CorsPolicyName = "Frontend";
 
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
@@ -106,6 +108,32 @@ public static class Extensions
             .AddCheck("self", () => HealthCheckResult.Healthy(), ["live"]);
 
         return builder;
+    }
+
+    // Opt-in, not part of AddServiceDefaults: only the services a browser calls directly (Staff,
+    // Scan Gateway, Dashboard) need this — Catalog/Inventory/Notification are internal gRPC-only
+    // services a browser never reaches, so they're left out rather than given a CORS policy that
+    // would never apply to anything. Comma-separated so a real deployment can allow both a local
+    // dev origin and a deployed frontend URL at once. No AllowCredentials: auth is a bearer token
+    // in the Authorization header, not a cookie, so CORS's credentials mode never comes into play.
+    public static IServiceCollection AddInventorySystemCors(this IServiceCollection services, IConfiguration configuration)
+    {
+        var allowedOrigins = (configuration["Cors:AllowedOrigins"] ?? "http://localhost:3000")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        services.AddCors(options =>
+        {
+            options.AddPolicy(CorsPolicyName, policy =>
+                policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod());
+        });
+
+        return services;
+    }
+
+    public static WebApplication UseInventorySystemCors(this WebApplication app)
+    {
+        app.UseCors(CorsPolicyName);
+        return app;
     }
 
     public static WebApplication MapDefaultEndpoints(this WebApplication app)

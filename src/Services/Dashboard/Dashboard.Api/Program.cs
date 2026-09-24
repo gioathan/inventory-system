@@ -59,10 +59,13 @@ builder.Services
     .AddAuthorization() // enables [Authorize] on Query resolvers below
     .AddQueryType<Query>();
 
+builder.Services.AddInventorySystemCors(builder.Configuration);
+
 var app = builder.Build();
 
 app.MapDefaultEndpoints();
 
+app.UseInventorySystemCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
