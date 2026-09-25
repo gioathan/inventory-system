@@ -179,4 +179,9 @@ Track anything done quick-and-dirty here the moment you do it — future you wil
 - **Why:** Intake was built around the "no pre-existing barcode" case. Not an oversight in Catalog, just unexposed at the gateway.
 - **Fix later by:** Add an optional `barcode` to `IntakeNewItemRequest` and pass it through `CatalogApiClient.CreateItemAsync` — a small change, worth doing before the New SKU form (Phase 3).
 
+## [2026-09-25] Stock screen loads the entire catalog and filters in the browser
+- **What:** `StockLookup` fetches every item in one GraphQL call and does search, filtering and counts client-side. The dev database currently holds ~145 items (mostly leftovers from integration test runs) and it's instant.
+- **Why:** For a shop-sized catalog it's the simplest thing that gives instant filtering and accurate live counts, and the Dashboard `items` query has no paging/search arguments to use anyway.
+- **Fix later by:** When the catalog reaches a few thousand items, add search/filter/paging arguments to the Dashboard query (and Catalog's `ListItems`) and drive the filter chips' counts server-side. The component's data shape wouldn't need to change much.
+
 <!-- Add new entries above this line as you go -->

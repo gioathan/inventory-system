@@ -1,7 +1,7 @@
 "use client";
 
-import { Loader2, Minus, PackageX, Plus, ShoppingBag, Tag } from "lucide-react";
-import { useState } from "react";
+import { Loader2, Minus, Plus, ShoppingBag, Tag } from "lucide-react";
+import { ItemImage } from "@/components/item-image";
 import { StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
 import { formatMoney, formatPercent } from "@/lib/format";
@@ -15,30 +15,6 @@ interface ProductCardProps {
   onConfirm: () => void;
   onClear: () => void;
   selling: boolean;
-}
-
-function ItemImage({ src, alt }: { src: string | null; alt: string }) {
-  const [failed, setFailed] = useState(false);
-  if (!src || failed) {
-    return (
-      <div className="flex size-20 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-        <PackageX className="size-6" />
-      </div>
-    );
-  }
-  return (
-    // A plain <img>, not next/image: image URLs are whatever an admin pasted or uploaded (any
-    // host), so there's no fixed allowlist to give the optimizer.
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src}
-      alt={alt}
-      loading="lazy"
-      referrerPolicy="no-referrer"
-      onError={() => setFailed(true)}
-      className="size-20 shrink-0 rounded-xl bg-muted object-cover"
-    />
-  );
 }
 
 export function ProductCard({ item, quantity, onQuantityChange, onConfirm, onClear, selling }: ProductCardProps) {

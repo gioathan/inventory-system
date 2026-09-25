@@ -1,4 +1,4 @@
-import { LayoutDashboard, ScanBarcode, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, PackagePlus, PackageSearch, ScanBarcode, type LucideIcon } from "lucide-react";
 
 export interface NavItem {
   href: string;
@@ -19,8 +19,14 @@ export const ADMIN_NAV: NavGroup[] = [
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { href: "/scan", label: "Scan Terminal", icon: ScanBarcode },
+      { href: "/receive", label: "Receive Stock", icon: PackagePlus },
+      { href: "/stock", label: "Stock Lookup", icon: PackageSearch },
     ],
   },
 ];
 
-export const SELLER_NAV: NavItem[] = [{ href: "/scan", label: "Scan", icon: ScanBarcode }];
+export const SELLER_NAV: NavItem[] = [
+  { href: "/scan", label: "Scan", icon: ScanBarcode },
+  { href: "/receive", label: "Receive", icon: PackagePlus },
+  { href: "/stock", label: "Stock", icon: PackageSearch },
+];

@@ -1,8 +1,10 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
-import { CheckCircle2, ScanLine, TriangleAlert } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ScanLine } from "lucide-react";
 import { useState } from "react";
+import { NoticeBanner } from "@/components/notice-banner";
+import { scanPath, useItemLookup } from "@/hooks/use-item-lookup";
 import { ApiError, apiFetch } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import type { ScanItem } from "@/lib/types";
@@ -17,34 +19,11 @@ interface Sale {
   at: Date;
 }
 
-type Notice = { kind: "success" | "error"; text: string };
-
-const scanPath = (barcode: string) => `scan/${encodeURIComponent(barcode)}`;
-
-function lookupMessage(error: unknown, barcode: string): string {
-  if (error instanceof ApiError && error.status === 404) return `No item found for barcode ${barcode}.`;
-  return error instanceof Error ? error.message : "Couldn't look that up. Try again.";
-}
-
 export function ScanAndSell() {
-  const [item, setItem] = useState<ScanItem | null>(null);
+  const queryClient = useQueryClient();
+  const { item, setItem, notice, setNotice, lookup, clear } = useItemLookup();
   const [quantity, setQuantity] = useState(1);
-  const [notice, setNotice] = useState<Notice | null>(null);
   const [sales, setSales] = useState<Sale[]>([]);
-
-  // GET /scan/{barcode} is a pure lookup — safe to run on every scan; it never changes stock.
-  const lookup = useMutation({
-    mutationFn: (barcode: string) => apiFetch<ScanItem>("gateway", scanPath(barcode)),
-    onMutate: () => setNotice(null),
-    onSuccess: (found) => {
-      setItem(found);
-      setQuantity(1);
-    },
-    onError: (error, barcode) => {
-      setItem(null);
-      setNotice({ kind: "error", text: lookupMessage(error, barcode) });
-    },
-  });
 
   // The only call that reduces stock, and only fires from the explicit Confirm button.
   const sell = useMutation({
@@ -63,6 +42,8 @@ export function ScanAndSell() {
         text: `Sold ${sold.quantity} × ${updated.name} · ${updated.quantityOnHand ?? 0} left`,
       });
       setItem(null);
+      // Stock changed, so any cached stock list is now stale.
+      queryClient.invalidateQueries({ queryKey: ["items"] });
     },
     onError: async (error, sold) => {
       setNotice({ kind: "error", text: error instanceof Error ? error.message : "The sale didn't go through." });
@@ -85,7 +66,7 @@ export function ScanAndSell() {
 
   function handleScan(code: string) {
     if (busy) return;
-    lookup.mutate(code);
+    lookup.mutate(code, { onSuccess: () => setQuantity(1) });
   }
 
   return (
@@ -99,23 +80,7 @@ export function ScanAndSell() {
         <ScanInput onScan={handleScan} disabled={busy} />
 
         <div className="flex flex-col gap-4" aria-live="polite">
-          {notice && (
-            <div
-              role={notice.kind === "error" ? "alert" : "status"}
-              className={
-                notice.kind === "error"
-                  ? "flex items-start gap-3 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive"
-                  : "flex items-start gap-3 rounded-xl bg-success/10 px-4 py-3 text-sm text-success"
-              }
-            >
-              {notice.kind === "error" ? (
-                <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-              ) : (
-                <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
-              )}
-              {notice.text}
-            </div>
-          )}
+          {notice && <NoticeBanner notice={notice} />}
 
           {lookup.isPending ? (
             <div className="h-80 animate-pulse rounded-2xl border bg-muted/40" aria-label="Looking up item" />
@@ -125,10 +90,7 @@ export function ScanAndSell() {
               quantity={quantity}
               onQuantityChange={setQuantity}
               onConfirm={() => sell.mutate({ barcode: item.barcode, quantity })}
-              onClear={() => {
-                setItem(null);
-                setNotice(null);
-              }}
+              onClear={clear}
               selling={sell.isPending}
             />
           ) : (

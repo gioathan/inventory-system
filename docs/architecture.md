@@ -375,8 +375,8 @@ AppHost starts the whole system including the frontend.
 - **Integration tests skip it** (`--Web:Enabled=false`) so they don't start a Node dev server they
   never use.
 
-Built so far: auth BFF, both shells, login, role routing (Phase 0) and Scan & Sell (Phase 1).
-Receive, stock lookup, catalog, POs, dashboard and the rest follow the phase plan.
+Built so far: auth BFF, both shells, login, role routing (Phase 0), Scan & Sell (Phase 1), and
+Receive + Stock lookup (Phase 2). Catalog, POs, dashboard and the rest follow the phase plan.
 
 ### Scan & Sell and the shared scanner (`components/scan/`)
 
@@ -396,6 +396,22 @@ The sale flow keeps the backend's two-step rule: `GET /scan/{barcode}` is a pure
 on every scan; `POST /scan/{barcode}/sell` only fires from an explicit Confirm tap, disabled while
 in flight (selling isn't idempotent). A 409 (someone else sold it first) refetches and shows the
 real stock instead of leaving a stale number.
+
+### Receive and Stock lookup
+
+- **Receive** reuses `<ScanInput>` and the shared `useItemLookup` hook (the scan -> pure GET lookup
+  step that Scan & Sell also uses), then an explicit "Add N to stock". Each confirm posts
+  immediately rather than staging a batch: nothing is lost if a phone dies mid-delivery, and there
+  is no half-committed batch to reconcile. The on-screen list is history, not a cart. Quantity has
+  quick-add presets (+1/+5/+10/+20), rejects non-digits, and is capped at 99,999 to catch typos.
+  The backend has no restock-session routes at the gateway, so this is per-call by necessity too.
+- **Stock** reads the whole catalog through the Dashboard GraphQL `items` query (sellers are
+  allowed) and searches/filters client-side (name, SKU, barcode; All / Low / Out / On promo with
+  live counts). A hardware scanner works in the search box because it just types the code. Each
+  card's "Receive" button opens `/receive?barcode=…` with the item already looked up. Sales and
+  receipts invalidate the `["items"]` query, so stock is fresh when you switch screens.
+- `gql()` turns GraphQL's HTTP-200-with-`errors` failures into the same `ApiError` the REST calls
+  throw, so there is one error path (including "don't retry a 403").
 
 Generated barcodes are 12-digit numeric strings. Labels for them must be **Code128, not
 EAN/UPC** — arbitrary 12 digits don't carry a valid UPC check digit. (Decoding existing

@@ -15,3 +15,26 @@ export interface ScanItem {
   quantityOnHand: number | null;
   imageUrl: string | null;
 }
+
+/** Reply from POST /scan/{barcode}/receive and POST /items/intake. */
+export interface ReceiveResult {
+  sku: string;
+  name: string;
+  barcode: string;
+  price: number;
+  quantityOnHand: number;
+}
+
+/** One row from the Dashboard `items` query: catalog data joined with live stock. */
+export interface CatalogEntry {
+  sku: string;
+  name: string;
+  barcode: string;
+  price: number;
+  discountPercentage: number | null;
+  effectivePrice: number;
+  imageUrl: string | null;
+  categoryId: string | null;
+  /** Null when the item exists in the catalog but has never been stocked. */
+  quantityOnHand: number | null;
+}
