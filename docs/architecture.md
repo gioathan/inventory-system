@@ -376,7 +376,8 @@ AppHost starts the whole system including the frontend.
   never use.
 
 Built so far: auth BFF, both shells, login, role routing (Phase 0), Scan & Sell (Phase 1), and
-Receive + Stock lookup (Phase 2). Catalog, POs, dashboard and the rest follow the phase plan.
+Receive + Stock lookup (Phase 2), and the admin Catalog, labels, New SKU, categories and discounts
+(Phase 3). Purchase orders, the dashboard, staff and audit log follow the phase plan.
 
 ### Scan & Sell and the shared scanner (`components/scan/`)
 
@@ -412,6 +413,33 @@ real stock instead of leaving a stale number.
   receipts invalidate the `["items"]` query, so stock is fresh when you switch screens.
 - `gql()` turns GraphQL's HTTP-200-with-`errors` failures into the same `ApiError` the REST calls
   throw, so there is one error path (including "don't retry a 403").
+
+### Catalog, labels and discounts (admin)
+
+- **Items & SKUs** (`/catalog`): a sortable, paginated table (TanStack Table v8) with search,
+  filter chips, row selection, and CSV export. Image, name and SKU share one "Item" cell so the
+  table still fits beside the detail panel. The open item lives in the URL (`?sku=`), so it's
+  linkable and survives a refresh; it docks as a right column from `lg` and becomes a sheet below
+  that. Below `md` the same rows render as cards, since a wide table would scroll sideways on a
+  phone. CSV export neutralises cells that start with `= + - @` (formula injection).
+- **Labels** are drawn as SVG at their real size (2in x 1in), black on white whatever the theme.
+  Code128 via `jsbarcode`; the QR is built from the `qrcode` module matrix as one `<path>`, never
+  injected HTML. `NEXT_PUBLIC_LABEL_FORMAT` (`code128 | qr | both`, default both) is a deploy-time
+  choice for what gets printed; scanning is symbology-agnostic. Verified by decoding the rendered
+  images with a real barcode reader, not just by looking at them.
+- **Printing** (`/labels/print?sku=…&sku=…`): the admin shell hides itself under `@media print`.
+  "Label printer" mode sets `@page` to the label size so each label is its own page (verified by
+  generating a PDF: 6 labels = 6 pages of 2in x 1in); "sheet" mode packs labels onto normal paper.
+- **New SKU** (`/catalog/new`): react-hook-form + zod, strings converted to numbers only after
+  validation. Barcode is optional: blank generates one, a value registers goods under the barcode
+  they already carry (gateway intake now passes it through; a duplicate is a 409, unsafe
+  characters a 400, since the code becomes part of a `/scan/{barcode}` URL). Image is a pasted URL
+  or an upload; while Cloudflare isn't configured the upload's 502 is turned into "paste an
+  address instead" rather than an error page.
+- **Categories** (create/list, with item counts) and **Discounts & Promos**. A discount goes
+  through one shared dialog whether it comes from selected catalog rows or a whole category: the
+  backend takes a fraction strictly between 0 and 1 and never touches the list price, so removal
+  restores it exactly. The dialog states how many items it will change.
 
 Generated barcodes are 12-digit numeric strings. Labels for them must be **Code128, not
 EAN/UPC** — arbitrary 12 digits don't carry a valid UPC check digit. (Decoding existing

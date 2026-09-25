@@ -44,10 +44,11 @@ public class CatalogApiClient(CatalogGrpcService.CatalogGrpcServiceClient grpcCl
         return item;
     }
 
-    // Intake never supplies a barcode/sku — Catalog always auto-generates one, which is the
-    // whole point of "system-generated code" for items with no pre-existing manufacturer barcode.
+    // With no barcode, Catalog auto-generates one — the "system-generated code" path for items
+    // with no pre-existing manufacturer barcode. With one, Catalog uses exactly that value (and
+    // reuses it as the SKU), so goods that already carry a UPC/EAN can be registered under it.
     public async Task<CatalogItem> CreateItemAsync(
-        string name, decimal price, Guid? categoryId, string? imageUrl, CancellationToken cancellationToken)
+        string name, decimal price, Guid? categoryId, string? imageUrl, string? barcode, CancellationToken cancellationToken)
     {
         var request = new CreateItemRequest
         {
@@ -59,9 +60,18 @@ public class CatalogApiClient(CatalogGrpcService.CatalogGrpcServiceClient grpcCl
             request.CategoryId = id.ToString();
         if (imageUrl is not null)
             request.ImageUrl = imageUrl;
+        if (barcode is not null)
+            request.Barcode = barcode;
 
-        var reply = await grpcClient.CreateItemAsync(request, cancellationToken: cancellationToken);
-        return ToCatalogItem(reply);
+        try
+        {
+            var reply = await grpcClient.CreateItemAsync(request, cancellationToken: cancellationToken);
+            return ToCatalogItem(reply);
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
+        {
+            throw new ItemAlreadyExistsException(ex.Status.Detail);
+        }
     }
 
     public async Task<Category> CreateCategoryAsync(string name, CancellationToken cancellationToken)
@@ -149,4 +159,5 @@ public record CatalogItem(
 public record Category(Guid Id, string Name);
 
 public class CategoryAlreadyExistsException(string name) : Exception($"Category '{name}' already exists.");
+public class ItemAlreadyExistsException(string message) : Exception(message);
 public class CatalogItemsNotFoundException(string message) : Exception(message);

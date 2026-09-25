@@ -1,16 +1,20 @@
+using System.Text.RegularExpressions;
 using InventorySystem.Auth.Contracts;
 using InventorySystem.Grpc.Contracts.Inventory;
 using InventorySystem.ScanGateway.Api.Clients;
 
 namespace InventorySystem.ScanGateway.Api.Endpoints;
 
-public static class ReceivingEndpoints
+public static partial class ReceivingEndpoints
 {
+    [GeneratedRegex("^[A-Za-z0-9._-]{1,64}$")]
+    private static partial Regex SafeBarcode { get; }
+
     public static void MapReceivingEndpoints(this WebApplication app)
     {
-        // New item intake: no barcode from the caller — Catalog always generates one, since
-        // that's the whole point of auto-generating a code for items with no pre-existing
-        // manufacturer barcode. Response includes the generated barcode.
+        // New item intake. Omit Barcode and Catalog generates one (for items with no pre-existing
+        // manufacturer barcode); supply one to register goods under the UPC/EAN they already
+        // carry. Response includes the barcode either way.
         app.MapPost("/items/intake", async (
             IntakeNewItemRequest request,
             CatalogApiClient catalog,
@@ -20,10 +24,23 @@ public static class ReceivingEndpoints
             if (request.Quantity <= 0)
                 return Results.BadRequest("Quantity must be positive.");
 
-            var item = await catalog.CreateItemAsync(request.Name, request.Price, request.CategoryId, request.ImageUrl, cancellationToken);
-            var stock = await inventory.ReceiveStockAsync(item.Sku, request.Quantity, MovementReason.Intake, cancellationToken);
+            // The barcode becomes part of a URL path (/scan/{barcode}), so a supplied one is held
+            // to characters that can't break routing. Blank means "generate one".
+            var barcode = string.IsNullOrWhiteSpace(request.Barcode) ? null : request.Barcode.Trim();
+            if (barcode is not null && !SafeBarcode.IsMatch(barcode))
+                return Results.BadRequest("Barcode may only contain letters, digits, '.', '_' and '-' (max 64 characters).");
 
-            return Results.Ok(new ReceiveResponse(item.Sku, item.Name, item.Barcode, item.Price, stock.QuantityOnHand));
+            try
+            {
+                var item = await catalog.CreateItemAsync(request.Name, request.Price, request.CategoryId, request.ImageUrl, barcode, cancellationToken);
+                var stock = await inventory.ReceiveStockAsync(item.Sku, request.Quantity, MovementReason.Intake, cancellationToken);
+
+                return Results.Ok(new ReceiveResponse(item.Sku, item.Name, item.Barcode, item.Price, stock.QuantityOnHand));
+            }
+            catch (ItemAlreadyExistsException ex)
+            {
+                return Results.Conflict(ex.Message);
+            }
         }).RequireAuthorization(AuthPolicies.SellerOrAdmin);
 
         // Restock an existing item by its already-assigned barcode — the "I scanned something
@@ -50,6 +67,6 @@ public static class ReceivingEndpoints
     }
 }
 
-public record IntakeNewItemRequest(string Name, decimal Price, Guid? CategoryId, string? ImageUrl, int Quantity);
+public record IntakeNewItemRequest(string Name, decimal Price, Guid? CategoryId, string? ImageUrl, int Quantity, string? Barcode = null);
 public record RestockRequest(int Quantity);
 public record ReceiveResponse(string Sku, string Name, string Barcode, decimal Price, int QuantityOnHand);

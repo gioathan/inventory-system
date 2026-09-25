@@ -38,3 +38,8 @@ export interface CatalogEntry {
   /** Null when the item exists in the catalog but has never been stocked. */
   quantityOnHand: number | null;
 }
+
+export interface Category {
+  id: string;
+  name: string;
+}

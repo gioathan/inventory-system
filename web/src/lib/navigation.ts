@@ -1,4 +1,4 @@
-import { LayoutDashboard, PackagePlus, PackageSearch, ScanBarcode, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, PackagePlus, PackageSearch, Percent, ScanBarcode, Shapes, Tags, type LucideIcon } from "lucide-react";
 
 export interface NavItem {
   href: string;
@@ -21,6 +21,14 @@ export const ADMIN_NAV: NavGroup[] = [
       { href: "/scan", label: "Scan Terminal", icon: ScanBarcode },
       { href: "/receive", label: "Receive Stock", icon: PackagePlus },
       { href: "/stock", label: "Stock Lookup", icon: PackageSearch },
+    ],
+  },
+  {
+    label: "Catalog",
+    items: [
+      { href: "/catalog", label: "Items & SKUs", icon: Tags },
+      { href: "/categories", label: "Categories", icon: Shapes },
+      { href: "/discounts", label: "Discounts & Promos", icon: Percent },
     ],
   },
 ];

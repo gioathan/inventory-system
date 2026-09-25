@@ -174,14 +174,29 @@ Track anything done quick-and-dirty here the moment you do it — future you wil
 - **Why:** ZXing is the mature option that decodes both 1D barcodes and QR everywhere; the native `BarcodeDetector` API lacks Safari and desktop coverage. Verified end to end with a simulated camera feed (QR and Code128 both decode), but not on physical phone hardware.
 - **Fix later by:** Test on a real phone via `npm run dev:https` (added for this). If ZXing becomes a problem, put `BarcodeDetector` first with ZXing as the fallback — the swap is contained in `camera-scanner.tsx`.
 
-## [2026-09-25] Gateway intake doesn't accept a manufacturer barcode, though Catalog does
+## [2026-09-25] Gateway intake doesn't accept a manufacturer barcode, though Catalog does — RESOLVED 2026-09-26
 - **What:** `POST /items/intake` always lets Catalog generate the barcode, but `ItemCreationService` already accepts a caller-supplied one (and reuses it as the SKU). So scanning goods that already carry a UPC/EAN, and registering them under that code, isn't possible through the API today.
 - **Why:** Intake was built around the "no pre-existing barcode" case. Not an oversight in Catalog, just unexposed at the gateway.
-- **Fix later by:** Add an optional `barcode` to `IntakeNewItemRequest` and pass it through `CatalogApiClient.CreateItemAsync` — a small change, worth doing before the New SKU form (Phase 3).
+- **Fix later by:** Done in Phase 3: `IntakeNewItemRequest` takes an optional `Barcode`, validated to `[A-Za-z0-9._-]{1,64}` (it becomes part of a `/scan/{barcode}` URL) and passed through; a duplicate returns 409. Covered by two new integration tests.
 
 ## [2026-09-25] Stock screen loads the entire catalog and filters in the browser
 - **What:** `StockLookup` fetches every item in one GraphQL call and does search, filtering and counts client-side. The dev database currently holds ~145 items (mostly leftovers from integration test runs) and it's instant.
 - **Why:** For a shop-sized catalog it's the simplest thing that gives instant filtering and accurate live counts, and the Dashboard `items` query has no paging/search arguments to use anyway.
 - **Fix later by:** When the catalog reaches a few thousand items, add search/filter/paging arguments to the Dashboard query (and Catalog's `ListItems`) and drive the filter chips' counts server-side. The component's data shape wouldn't need to change much.
+
+## [2026-09-26] Catalog items can't be edited after creation
+- **What:** The catalog is create-and-view only. There is no update endpoint (no `UpdateItem` RPC, no gateway route), so name, price, category and image can't be changed once an item exists, and categories can't be renamed or deleted.
+- **Why:** Phase 3 was scoped to what the backend supports; adding update RPCs, gateway routes and tests is its own piece of work. The item panel is deliberately read-only rather than showing a Save button that can't work.
+- **Fix later by:** Add `UpdateItem` to `catalog.proto` and `CatalogGrpcServiceImpl`, a `PUT /items/{sku}` gateway route (invalidating the barcode cache in Scan Gateway), and an edit form reusing `NewItemForm`'s schema.
+
+## [2026-09-26] Long alphanumeric barcodes get dense on a 2in x 1in label
+- **What:** Generated 12-digit codes use Code128's compact numeric mode (about 101 modules) and print comfortably. A 12-character alphanumeric manufacturer barcode needs about 167 modules in the same ~1.2in, roughly 0.18 mm per bar at 300 dpi — at the edge of what cheap laser scanners read reliably. It decodes fine at 3x render, but hasn't been tried on paper.
+- **Why:** The label shares its width between the barcode and the QR.
+- **Fix later by:** For long alphanumeric codes, print QR-only (`NEXT_PUBLIC_LABEL_FORMAT=qr`) or use a wider label. Worth a real print test with the actual scanner before relying on dense 1D codes.
+
+## [2026-09-26] shadcn's `add dialog` hung, so `ui/dialog.tsx` is hand-written
+- **What:** `npx shadcn add dialog` stalled while the machine was loaded, so the Dialog wrapper was written by hand on the same Base UI primitive the generated Sheet uses.
+- **Why:** Not worth blocking on a hung CLI; the component is small and mirrors the generated ones' structure.
+- **Fix later by:** Nothing needed. If a future `shadcn add` regenerates it, prefer the generated file, and re-check that it doesn't reintroduce the bad `from "cn"` import (see the earlier entry).
 
 <!-- Add new entries above this line as you go -->

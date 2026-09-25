@@ -1,43 +1,19 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import { Loader2, PackageSearch, RefreshCw, Search, Tag, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { FilterChips } from "@/components/filter-chips";
 import { ItemImage } from "@/components/item-image";
 import { StatusPill } from "@/components/status-pill";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useItems } from "@/hooks/use-items";
 import { formatMoney, formatPercent } from "@/lib/format";
-import { gql } from "@/lib/graphql";
+import { ITEM_FILTERS as FILTERS, matchesSearch, type ItemFilter as Filter } from "@/lib/item-filters";
 import { stockLevel } from "@/lib/stock";
 import type { CatalogEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-const ITEMS_QUERY = /* GraphQL */ `
-  query StockItems {
-    items {
-      sku
-      name
-      barcode
-      price
-      discountPercentage
-      effectivePrice
-      imageUrl
-      categoryId
-      quantityOnHand
-    }
-  }
-`;
-
-type Filter = "all" | "low" | "out" | "promo";
-
-const FILTERS: { id: Filter; label: string; matches: (item: CatalogEntry) => boolean }[] = [
-  { id: "all", label: "All", matches: () => true },
-  { id: "low", label: "Low stock", matches: (item) => stockLevel(item.quantityOnHand) === "low" },
-  { id: "out", label: "Out of stock", matches: (item) => stockLevel(item.quantityOnHand) === "out" },
-  { id: "promo", label: "On promo", matches: (item) => item.discountPercentage !== null },
-];
 
 function StockCard({ item }: { item: CatalogEntry }) {
   const level = stockLevel(item.quantityOnHand);
@@ -85,10 +61,7 @@ export function StockLookup() {
   const [filter, setFilter] = useState<Filter>("all");
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const items = useQuery({
-    queryKey: ["items"],
-    queryFn: async () => (await gql<{ items: CatalogEntry[] }>(ITEMS_QUERY)).items,
-  });
+  const items = useItems();
 
   // Desktop only: focusing on a touch device would pop the keyboard over the results.
   useEffect(() => {
@@ -103,11 +76,10 @@ export function StockLookup() {
   );
 
   const visible = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    const active = FILTERS.find((f) => f.id === filter)!;
+        const active = FILTERS.find((f) => f.id === filter)!;
     return all
       .filter(active.matches)
-      .filter((item) => !term || [item.name, item.sku, item.barcode].some((field) => field.toLowerCase().includes(term)))
+      .filter((item) => matchesSearch(item, search))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [all, filter, search]);
 
@@ -158,23 +130,7 @@ export function StockLookup() {
         )}
       </div>
 
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0" role="group" aria-label="Filter">
-        {FILTERS.map((f) => (
-          <button
-            key={f.id}
-            type="button"
-            aria-pressed={filter === f.id}
-            onClick={() => setFilter(f.id)}
-            className={cn(
-              "flex h-10 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors",
-              filter === f.id ? "border-primary bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {f.label}
-            <span className="tabular-nums opacity-80">{counts[f.id]}</span>
-          </button>
-        ))}
-      </div>
+      <FilterChips value={filter} onChange={setFilter} counts={counts} />
 
       {items.isPending ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Loading stock">

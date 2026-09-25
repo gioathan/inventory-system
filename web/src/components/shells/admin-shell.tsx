@@ -61,7 +61,7 @@ export function AdminShell({
   return (
     <div className="flex min-h-dvh">
       {/* Persistent sidebar from lg up; below that the same nav lives in a drawer. */}
-      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col gap-6 border-r border-sidebar-border bg-sidebar py-4 lg:flex">
+      <aside className="sticky top-0 hidden h-dvh w-64 print:hidden! shrink-0 flex-col gap-6 border-r border-sidebar-border bg-sidebar py-4 lg:flex">
         <div className="px-6 pb-2">
           <Wordmark />
         </div>
@@ -79,7 +79,7 @@ export function AdminShell({
       </Sheet>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/85 px-3 backdrop-blur sm:px-6">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/85 px-3 backdrop-blur print:hidden sm:px-6">
           <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open navigation" onClick={() => setDrawerOpen(true)}>
             <Menu className="size-5" />
           </Button>
@@ -90,7 +90,7 @@ export function AdminShell({
             <UserMenu username={username} role={role} />
           </div>
         </header>
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main className="flex-1 px-4 py-6 print:p-0 sm:px-6 lg:px-8">{children}</main>
       </div>
     </div>
   );

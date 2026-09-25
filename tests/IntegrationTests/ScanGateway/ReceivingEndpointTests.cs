@@ -54,6 +54,55 @@ public class ReceivingEndpointTests
     }
 
     [Fact]
+    public async Task Intake_WithSuppliedBarcode_RegistersUnderThatBarcodeAndRejectsDuplicates()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+        var (app, scanGateway) = await StartAsync(cts.Token);
+        await using var _ = app;
+
+        // A goods-that-already-carry-a-UPC case: the caller's barcode is used verbatim.
+        var manufacturerBarcode = $"MFR{Guid.NewGuid():N}"[..20];
+
+        var first = await scanGateway.PostAsJsonAsync(
+            "/items/intake",
+            new { Name = "Manufacturer Barcode Item", Price = 9.99m, CategoryId = (Guid?)null, ImageUrl = (string?)null, Quantity = 4, Barcode = manufacturerBarcode },
+            cts.Token);
+        first.EnsureSuccessStatusCode();
+        var created = await first.Content.ReadFromJsonAsync<ReceiveResponse>(cts.Token);
+        Assert.Equal(manufacturerBarcode, created!.Barcode);
+
+        var scanned = await scanGateway.GetFromJsonAsync<ReceiveResponse>($"/scan/{manufacturerBarcode}", cts.Token);
+        Assert.Equal(created.Sku, scanned!.Sku);
+        Assert.Equal(4, scanned.QuantityOnHand);
+
+        // Registering a second item under the same barcode is a real conflict, not a silent overwrite.
+        var duplicate = await scanGateway.PostAsJsonAsync(
+            "/items/intake",
+            new { Name = "Same Barcode Again", Price = 1.00m, CategoryId = (Guid?)null, ImageUrl = (string?)null, Quantity = 1, Barcode = manufacturerBarcode },
+            cts.Token);
+        Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
+    }
+
+    [Fact]
+    public async Task Intake_WithBarcodeThatCouldBreakRouting_ReturnsBadRequest()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+        var (app, scanGateway) = await StartAsync(cts.Token);
+        await using var _ = app;
+
+        // A loop rather than a [Theory]: each theory case would boot the whole AppHost again.
+        foreach (var barcode in new[] { "has/slash", "has space", "query?x=1", new string('9', 65) })
+        {
+            var response = await scanGateway.PostAsJsonAsync(
+                "/items/intake",
+                new { Name = "Unsafe Barcode Item", Price = 1.00m, CategoryId = (Guid?)null, ImageUrl = (string?)null, Quantity = 1, Barcode = barcode },
+                cts.Token);
+
+            Assert.True(response.StatusCode == HttpStatusCode.BadRequest, $"'{barcode}' should be rejected but got {response.StatusCode}");
+        }
+    }
+
+    [Fact]
     public async Task Intake_ThenRestock_AddsToExistingQuantity()
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));

@@ -146,3 +146,12 @@
     @apply font-sans;
   }
 }
+
+/* Paper is white with black ink whatever the app theme; labels are drawn that way already. */
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+}
