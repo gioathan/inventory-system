@@ -169,4 +169,14 @@ Track anything done quick-and-dirty here the moment you do it — future you wil
 - **Why:** Framework change, not ours. Read the bundled docs in `web/node_modules/next/dist/docs/` before writing framework-facing code rather than relying on memory of older versions.
 - **Fix later by:** Nothing — just a habit for anyone (including future sessions) touching `web/`.
 
+## [2026-09-25] Camera scanning depends on an unmaintained library and needs HTTPS on phones
+- **What:** `@zxing/browser` (last released 2022) does the camera decoding. Its typings for the track-capability getters are wrong (they claim to take a mapper but call `Array.find`), so torch support is detected by the presence of `switchTorch` instead. Separately, `getUserMedia` only exists in a secure context, so a phone reaching the dev machine over plain `http://<LAN-ip>` gets no camera at all (the scanner shows a clear message rather than failing silently).
+- **Why:** ZXing is the mature option that decodes both 1D barcodes and QR everywhere; the native `BarcodeDetector` API lacks Safari and desktop coverage. Verified end to end with a simulated camera feed (QR and Code128 both decode), but not on physical phone hardware.
+- **Fix later by:** Test on a real phone via `npm run dev:https` (added for this). If ZXing becomes a problem, put `BarcodeDetector` first with ZXing as the fallback — the swap is contained in `camera-scanner.tsx`.
+
+## [2026-09-25] Gateway intake doesn't accept a manufacturer barcode, though Catalog does
+- **What:** `POST /items/intake` always lets Catalog generate the barcode, but `ItemCreationService` already accepts a caller-supplied one (and reuses it as the SKU). So scanning goods that already carry a UPC/EAN, and registering them under that code, isn't possible through the API today.
+- **Why:** Intake was built around the "no pre-existing barcode" case. Not an oversight in Catalog, just unexposed at the gateway.
+- **Fix later by:** Add an optional `barcode` to `IntakeNewItemRequest` and pass it through `CatalogApiClient.CreateItemAsync` — a small change, worth doing before the New SKU form (Phase 3).
+
 <!-- Add new entries above this line as you go -->

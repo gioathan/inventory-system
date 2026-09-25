@@ -375,8 +375,31 @@ AppHost starts the whole system including the frontend.
 - **Integration tests skip it** (`--Web:Enabled=false`) so they don't start a Node dev server they
   never use.
 
-Built so far (Phase 0): auth BFF, both shells, login, role routing, placeholder home pages. Scan,
-receive, catalog, POs, dashboard and the rest follow the phase plan.
+Built so far: auth BFF, both shells, login, role routing (Phase 0) and Scan & Sell (Phase 1).
+Receive, stock lookup, catalog, POs, dashboard and the rest follow the phase plan.
+
+### Scan & Sell and the shared scanner (`components/scan/`)
+
+`<ScanInput>` is the one scanning surface (Receiving will reuse it). Three inputs, one output —
+`onScan(code)` — so callers never know which was used:
+- **Phone camera** (`camera-scanner.tsx`): ZXing decodes Code128, Code39, EAN, UPC and QR from the
+  live feed. Loaded on demand, since the decoder is large. Identical consecutive reads within 2s
+  are dropped (a label sits in frame for many frames), and an in-flight camera start is cancelled
+  cleanly if the panel closes or React remounts it.
+- **Hardware scanner** (`use-keyboard-wedge.ts`): scanners "type" the code then press Enter, so a
+  fast keystroke burst is captured anywhere on the page, even with nothing focused. This also
+  closes a real hazard: if focus is on the "Confirm sale" button when a scan arrives, the trailing
+  Enter would otherwise press it and sell something. Verified by test.
+- **Typed by hand**, in the visible box.
+
+The sale flow keeps the backend's two-step rule: `GET /scan/{barcode}` is a pure lookup that runs
+on every scan; `POST /scan/{barcode}/sell` only fires from an explicit Confirm tap, disabled while
+in flight (selling isn't idempotent). A 409 (someone else sold it first) refetches and shows the
+real stock instead of leaving a stale number.
+
+Generated barcodes are 12-digit numeric strings. Labels for them must be **Code128, not
+EAN/UPC** — arbitrary 12 digits don't carry a valid UPC check digit. (Decoding existing
+manufacturer UPC/EAN barcodes works regardless.)
 
 ## Scan-and-sell (two-step, never implicit)
 
