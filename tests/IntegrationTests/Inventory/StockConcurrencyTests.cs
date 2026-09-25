@@ -18,7 +18,7 @@ public class StockConcurrencyTests
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
 
-        var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.InventorySystem_AppHost>();
+        var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.InventorySystem_AppHost>(["--Web:Enabled=false"]);
         await using var app = await appHost.BuildAsync(cts.Token);
         await app.StartAsync(cts.Token);
         await app.ResourceNotifications.WaitForResourceHealthyAsync("inventory-api", cts.Token);

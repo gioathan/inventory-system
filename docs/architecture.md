@@ -348,6 +348,36 @@ calls these APIs directly, that changes.
   httpOnly-cookie session pattern instead, this policy would need revisiting (credentials mode
   requires an exact origin match, no wildcards).
 
+## Frontend (Next.js, `web/`) — backend-for-frontend
+
+One Next.js 16 app (App Router, TypeScript, Tailwind v4, shadcn/ui) serves both roles: sellers on
+phones/tablets, admins on desktop. Aspire runs it via `AddNextJsApp`, so `dotnet run` on the
+AppHost starts the whole system including the frontend.
+
+- **The browser never talks to the backend.** Login and every API call go through this app's own
+  server: `/api/auth/login` exchanges credentials with Staff.Api and stores the JWT in an
+  **httpOnly cookie** (unreadable from JS, so an XSS bug can't steal it); `/api/backend/<service>/…`
+  is a narrow proxy that attaches the cookie's token as a bearer header and forwards to `gateway`,
+  `staff` or `dashboard`. Upstream hosts are fixed per service (never derived from the request),
+  and paths that could climb out of them are rejected.
+- **`proxy.ts` (Next 16's renamed middleware) is an optimistic gate only** — it redirects
+  signed-out and wrong-role users so they don't load a page they can't use. Real enforcement is
+  the backend, which verifies the JWT and role on every call. Verified: a Seller hitting the
+  admin-only `/staff` through the proxy gets the backend's own 403.
+- **Consequence for CORS:** the browser never calls those APIs directly, so the CORS policy added
+  earlier is unused by this frontend. It stays as a safe allowlist for any direct browser client.
+- **Server-to-server URLs are plain HTTP** (`SCAN_GATEWAY_URL` etc., injected by Aspire from each
+  project's `http` endpoint) — there's no browser in that hop, so no dev-certificate trust to sort out.
+- **Responsive by shell, not by squeezing one layout.** Seller: bottom tab bar on phones (thumb
+  reach, safe-area aware), left rail from `md`. Admin: persistent sidebar from `lg`, the same nav
+  as a drawer below that. Theme is dark-first with a light alternative; every color is a semantic
+  token in `globals.css`, so retuning the Apex emerald is a one-place change.
+- **Integration tests skip it** (`--Web:Enabled=false`) so they don't start a Node dev server they
+  never use.
+
+Built so far (Phase 0): auth BFF, both shells, login, role routing, placeholder home pages. Scan,
+receive, catalog, POs, dashboard and the rest follow the phase plan.
+
 ## Scan-and-sell (two-step, never implicit)
 
 The seller-facing UX is: scan a barcode, see current quantity in a popup, then either close

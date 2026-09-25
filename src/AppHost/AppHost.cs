@@ -57,7 +57,7 @@ var notificationDb = mongo.AddDatabase("notificationdb");
 
 // Staff.Api issues and validates JWTs (it's also a caller of its own /staff and /audit-log
 // endpoints, hence needing the signing key itself too). Every other service only validates.
-builder.AddProject<Projects.InventorySystem_Staff_Api>("staff-api")
+var staffApi = builder.AddProject<Projects.InventorySystem_Staff_Api>("staff-api")
     .WithReference(staffDb)
     .WaitFor(staffDb)
     .WithEnvironment("Jwt__SigningKey", jwtSigningKey)
@@ -95,7 +95,7 @@ var redis = builder.AddRedis("redis");
 // Scan Gateway has no database of its own — it's a stateless orchestrator. WithReference here
 // (on the project resources, not a database) is what makes "https+http://catalog-api" and
 // "https+http://inventory-api" resolvable from inside ScanGateway.Api via service discovery.
-builder.AddProject<Projects.InventorySystem_ScanGateway_Api>("scan-gateway")
+var scanGateway = builder.AddProject<Projects.InventorySystem_ScanGateway_Api>("scan-gateway")
     .WithReference(catalogApi)
     .WithReference(inventoryApi)
     .WithReference(redis)
@@ -109,12 +109,40 @@ builder.AddProject<Projects.InventorySystem_ScanGateway_Api>("scan-gateway")
 
 // Dashboard.Api is the one GraphQL surface in the system (see architecture.md) — it composes
 // Catalog and Inventory into a single client-shaped query, still over REST for now.
-builder.AddProject<Projects.InventorySystem_Dashboard_Api>("dashboard-api")
+var dashboardApi = builder.AddProject<Projects.InventorySystem_Dashboard_Api>("dashboard-api")
     .WithReference(catalogApi)
     .WithReference(inventoryApi)
     .WaitFor(catalogApi)
     .WaitFor(inventoryApi)
     .WithEnvironment("Jwt__SigningKey", jwtSigningKey)
     .WithEnvironment("Cors__AllowedOrigins", frontendOrigin);
+
+// The Next.js frontend (web/). It's a backend-for-frontend: the browser only ever talks to this
+// app, and this app's server calls Staff/Scan Gateway/Dashboard on the browser's behalf, with
+// the JWT held in an httpOnly cookie. That's why it takes plain-HTTP server-to-server URLs:
+// there's no browser in this hop, so no certificate trust to sort out for the dev cert.
+//
+// Note this makes the CORS policy above unused by the frontend itself — the browser never calls
+// those APIs directly — but it stays as a safe allowlist for any direct browser client.
+//
+// On by default; the integration tests pass --Web:Enabled=false because they only exercise the
+// APIs, and starting a Node dev server per test class would add load and a Node dependency to
+// every environment that runs them.
+if (!string.Equals(builder.Configuration["Web:Enabled"], "false", StringComparison.OrdinalIgnoreCase))
+{
+    // AddNextJsApp is marked evaluation-only ("subject to change") in Aspire 13.4; suppressed here
+    // deliberately and only for this call. If a future Aspire upgrade changes it, this is the
+    // one place to adjust.
+#pragma warning disable ASPIREJAVASCRIPT001
+    builder.AddNextJsApp("web", "../../web")
+#pragma warning restore ASPIREJAVASCRIPT001
+        .WithEnvironment("SCAN_GATEWAY_URL", scanGateway.GetEndpoint("http"))
+        .WithEnvironment("STAFF_API_URL", staffApi.GetEndpoint("http"))
+        .WithEnvironment("DASHBOARD_API_URL", dashboardApi.GetEndpoint("http"))
+        .WaitFor(staffApi)
+        .WaitFor(scanGateway)
+        .WaitFor(dashboardApi)
+        .WithExternalHttpEndpoints();
+}
 
 builder.Build().Run();

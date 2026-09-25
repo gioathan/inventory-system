@@ -13,7 +13,7 @@ public class ReceivingEndpointTests
 {
     private static async Task<(DistributedApplication App, HttpClient ScanGateway)> StartAsync(CancellationToken token)
     {
-        var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.InventorySystem_AppHost>();
+        var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.InventorySystem_AppHost>(["--Web:Enabled=false"]);
         var app = await appHost.BuildAsync(token);
         await app.StartAsync(token);
         await app.ResourceNotifications.WaitForResourceHealthyAsync("scan-gateway", token);

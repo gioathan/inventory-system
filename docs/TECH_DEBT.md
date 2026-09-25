@@ -154,4 +154,19 @@ Track anything done quick-and-dirty here the moment you do it — future you wil
 - **Why:** Non-obvious framework behavior — `IFormFile`/`IFormFileCollection` parameters are special-cased by minimal APIs to read the form as part of binding, unlike ordinary parameter types, so "the parameter is null" and "the request had no form body" aren't actually the same failure path the way they look like they should be.
 - **Fix later by:** Nothing to fix — reworked the endpoint to take `HttpRequest` directly, check `HasFormContentType` first, and read `Form.Files` manually, so every invalid shape (no body, wrong body, missing file field) goes through the endpoint's own validation instead of the framework's. Worth remembering for any future multipart endpoint: don't bind `IFormFile` as a plain parameter if you want full control over the 400 response for a missing/malformed request.
 
+## [2026-09-25] `AddNextJsApp` is evaluation-only in Aspire 13.4, suppressed with a pragma
+- **What:** `AppHost.cs` wraps the `AddNextJsApp` call in `#pragma warning disable ASPIREJAVASCRIPT001` because Aspire marks it "for evaluation purposes only and subject to change or removal."
+- **Why:** It's the first-class way to run and later publish a Next.js app from the AppHost, and the alternative (a raw npm resource) loses the standalone-build/Dockerfile integration we want for k8s. Suppressed on that one call only.
+- **Fix later by:** Re-check on each Aspire upgrade; if the API changes or graduates, that call is the one place to adjust.
+
+## [2026-09-25] shadcn CLI generated a bad `cn` import and a third-party `cn` dependency
+- **What:** `shadcn init` produced `import { cn } from "cn"` in every generated component and a `utils.ts` that re-exported `cn` from a small npm package, added as a top-level dependency.
+- **Why:** Not something we chose — a quirk of the CLI version. Owning the one-liner beats depending on an obscure package for it.
+- **Fix later by:** Nothing — replaced `utils.ts` with the standard `clsx` + `tailwind-merge` implementation, pointed the six generated files at `@/lib/utils`, and uninstalled `cn`. Re-check after any future `shadcn add` in case it regenerates the same import.
+
+## [2026-09-25] Next.js 16 renamed `middleware` to `proxy`; APIs differ from older docs
+- **What:** The scaffold's `AGENTS.md` warns that this Next.js has breaking changes. Concretely hit: route protection lives in `src/proxy.ts` (exported `proxy`, not `middleware`), `cookies()` is async, and route/page `params`/`searchParams` are promises.
+- **Why:** Framework change, not ours. Read the bundled docs in `web/node_modules/next/dist/docs/` before writing framework-facing code rather than relying on memory of older versions.
+- **Fix later by:** Nothing — just a habit for anyone (including future sessions) touching `web/`.
+
 <!-- Add new entries above this line as you go -->
