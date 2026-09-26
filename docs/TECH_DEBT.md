@@ -204,4 +204,19 @@ Track anything done quick-and-dirty here the moment you do it — future you wil
 - **Why:** The saga models an order as `ordered` versus `received` per line; per-shipment records and editable lines weren't part of it, and this phase built the UI the backend supports rather than inventing fields the designs showed (shipment manifests, vendor terms, unit costs).
 - **Fix later by:** If a receiving audit trail is wanted, add a `PurchaseOrderShipment` table written inside the same receive transaction, and expose it on `GetPurchaseOrder`. Costs and a Supplier entity are a separate, larger design.
 
+## [2026-09-26] The audit log is dominated by routine sign-ins and can only show the latest 200
+- **What:** `GET /audit-log` returns the 200 most recent entries with no filtering or paging. Every successful sign-in is an entry, so on a busy shop the rare, important ones (account creation, failed logins) scroll out of the window quickly. The UI filters and searches within those 200 only.
+- **Why:** The endpoint predates any frontend; a plain "latest N" was enough for curl. The UI is honest about the cap ("the most recent 200 are kept").
+- **Fix later by:** Add `action`, `username`, `from`/`to` and paging parameters to the endpoint and query them server-side, and consider not logging routine successful sign-ins at the same level as security events.
+
+## [2026-09-26] Staff accounts can't be removed, disabled, or have their password or role changed
+- **What:** The backend only creates and lists staff. A departed employee's account stays active, a forgotten password can't be reset, and a Seller can't be promoted; the only fix today is editing the database.
+- **Why:** Account lifecycle wasn't part of the original auth step. The Staff screen states the limitation rather than offering buttons that can't work.
+- **Fix later by:** Add disable (preferred over delete, to keep audit entries meaningful), password reset, and role change endpoints, each audited, plus the matching UI. Disabling should also invalidate live tokens, which today can't be revoked before their ~8 hour expiry.
+
+## [2026-09-26] The dashboard has no sales or stock-over-time view
+- **What:** Nothing records sales or stock levels over time in a queryable form, so there are no revenue, velocity or trend charts, and "today's sales" doesn't exist.
+- **Why:** Inventory's movement ledger holds the raw events but has no aggregation endpoint. The designs showed these charts; drawing them without data would mean inventing numbers.
+- **Fix later by:** Add a daily-totals query over the stock movement ledger (units sold and received per day, joined to price for revenue), expose it through the Dashboard GraphQL, then add charts.
+
 <!-- Add new entries above this line as you go -->

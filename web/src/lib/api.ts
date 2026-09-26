@@ -1,6 +1,6 @@
 // Browser-side API client. Everything goes through this app's own /api/backend proxy, which
 // attaches the session token — so nothing here ever handles credentials.
-export type BackendService = "gateway" | "staff" | "dashboard";
+export type BackendService = "gateway" | "staff" | "dashboard" | "notification";
 
 export class ApiError extends Error {
   constructor(

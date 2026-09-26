@@ -44,7 +44,10 @@ public class AuthService(StaffDbContext db, IPasswordHasher<StaffUser> hasher, I
         if (role != StaffRoles.Admin && role != StaffRoles.Seller)
             throw new ArgumentException($"Unknown role '{role}'. Must be '{StaffRoles.Admin}' or '{StaffRoles.Seller}'.", nameof(role));
 
-        if (await db.StaffUsers.AnyAsync(u => u.Username == username, cancellationToken))
+        // Case-insensitive on purpose: "Admin" and "admin" as two accounts would let one impersonate
+        // the other in an audit trail. (Login still matches the exact spelling.)
+        var lowered = username.ToLower();
+        if (await db.StaffUsers.AnyAsync(u => u.Username.ToLower() == lowered, cancellationToken))
             throw new InvalidOperationException($"Username '{username}' already exists.");
 
         var user = new StaffUser

@@ -377,7 +377,9 @@ AppHost starts the whole system including the frontend.
 
 Built so far: auth BFF, both shells, login, role routing (Phase 0), Scan & Sell (Phase 1), and
 Receive + Stock lookup (Phase 2), and the admin Catalog, labels, New SKU, categories and discounts
-(Phase 3), and purchase orders (Phase 4). The dashboard, staff and audit log follow the phase plan.
+(Phase 3), purchase orders (Phase 4), and the dashboard, staff accounts and audit log (Phase 5).
+The remaining work is polish: a responsive and accessibility pass, browser tests in the repo, and
+a container image.
 
 ### Scan & Sell and the shared scanner (`components/scan/`)
 
@@ -468,6 +470,30 @@ per order. Purchase orders stay admin-only, matching the backend policy on the w
 - **Status colors:** Draft neutral, Sent blue (the new `info` tone), Partially received amber,
   Received green, Cancelled red. Sent has its own hue because the accent is the same green as
   "success", and an order that's merely in progress must not look finished.
+
+### Dashboard, staff accounts and audit log (admin)
+
+- **Dashboard** (`/dashboard`): every number is derived from data the backend really has: the
+  catalog with live stock (Dashboard GraphQL), the purchase orders, and the Notification service's
+  low-stock alerts. KPIs are items, units on hand (with retail value: stock at current prices, not
+  cost, since the backend has none), low stock, and open orders with units still due. There are
+  deliberately no sales or velocity charts: nothing records sales over time, so drawing one would
+  be inventing data. Each panel loads and fails independently, so one broken service doesn't blank
+  the page. "Needs attention" lists low items lowest-first, then items that hit zero; items that
+  were never stocked are excluded, because they're catalog entries awaiting a first delivery, not
+  shortages, and would bury the real ones.
+- **Notification is now a fourth proxied service** (`NOTIFICATION_API_URL`), for `/alerts`. Alerts
+  are only raised by a *decrease* that lands at or below the threshold (a sale), never by an intake.
+- **Staff accounts** (`/staff`): a list plus an Add dialog whose rules match the backend's. Those
+  backend rules are new this phase: previously **Staff.Api accepted any username and password**, so
+  a blank name or a one-character password created a real, loginable account. Now the HTTP boundary
+  requires a 3–50 character username (letters, digits, `.` `_` `-`) and an 8–128 character password,
+  and usernames are unique **case-insensitively**, so "Admin" can't shadow "admin" in an audit
+  trail. The response never echoes a credential.
+- **Audit log** (`/audit-log`): the backend records successful and failed sign-ins and account
+  creation, newest first, capped at the latest 200. Filter chips are built from the actions
+  actually present, so a new kind of entry needs no frontend change, and a failed sign-in is drawn
+  in red. Sales, price and stock changes aren't recorded, and the page says so.
 
 Generated barcodes are 12-digit numeric strings. Labels for them must be **Code128, not
 EAN/UPC** — arbitrary 12 digits don't carry a valid UPC check digit. (Decoding existing

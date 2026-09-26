@@ -43,3 +43,26 @@ export interface Category {
   id: string;
   name: string;
 }
+
+export interface StaffUser {
+  id: string;
+  username: string;
+  role: "Admin" | "Seller";
+  createdAt: string;
+}
+
+export interface AuditEntry {
+  id: string;
+  username: string;
+  action: string;
+  timestamp: string;
+  details: string | null;
+}
+
+/** A low-stock alert raised when a stock movement left an item at or under its threshold. */
+export interface StockAlert {
+  sku: string;
+  quantityOnHand: number;
+  threshold: number;
+  timestamp: string;
+}

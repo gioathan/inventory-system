@@ -73,7 +73,7 @@ var inventoryApi = builder.AddProject<Projects.InventorySystem_Inventory_Api>("i
     .WaitFor(rabbitmq)
     .WithEnvironment("Jwt__SigningKey", jwtSigningKey);
 
-builder.AddProject<Projects.InventorySystem_Notification_Api>("notification-api")
+var notificationApi = builder.AddProject<Projects.InventorySystem_Notification_Api>("notification-api")
     .WithReference(notificationDb)
     .WithReference(rabbitmq)
     .WaitFor(notificationDb)
@@ -139,9 +139,11 @@ if (!string.Equals(builder.Configuration["Web:Enabled"], "false", StringComparis
         .WithEnvironment("SCAN_GATEWAY_URL", scanGateway.GetEndpoint("http"))
         .WithEnvironment("STAFF_API_URL", staffApi.GetEndpoint("http"))
         .WithEnvironment("DASHBOARD_API_URL", dashboardApi.GetEndpoint("http"))
+        .WithEnvironment("NOTIFICATION_API_URL", notificationApi.GetEndpoint("http"))
         .WaitFor(staffApi)
         .WaitFor(scanGateway)
         .WaitFor(dashboardApi)
+        .WaitFor(notificationApi)
         .WithExternalHttpEndpoints();
 }
 
