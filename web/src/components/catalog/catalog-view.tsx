@@ -256,7 +256,7 @@ export function CatalogView() {
             </button>
           )}
         </div>
-        <FilterChips value={filter} onChange={setFilter} counts={counts} />
+        <FilterChips options={ITEM_FILTERS} value={filter} onChange={setFilter} counts={counts} />
       </div>
 
       {selectedSkus.length > 0 && (

@@ -377,7 +377,7 @@ AppHost starts the whole system including the frontend.
 
 Built so far: auth BFF, both shells, login, role routing (Phase 0), Scan & Sell (Phase 1), and
 Receive + Stock lookup (Phase 2), and the admin Catalog, labels, New SKU, categories and discounts
-(Phase 3). Purchase orders, the dashboard, staff and audit log follow the phase plan.
+(Phase 3), and purchase orders (Phase 4). The dashboard, staff and audit log follow the phase plan.
 
 ### Scan & Sell and the shared scanner (`components/scan/`)
 
@@ -440,6 +440,34 @@ real stock instead of leaving a stale number.
   through one shared dialog whether it comes from selected catalog rows or a whole category: the
   backend takes a fraction strictly between 0 and 1 and never touches the list price, so removal
   restores it exactly. The dialog states how many items it will change.
+
+### Purchase orders (admin, `/purchase-orders`)
+
+A list (search, status filter chips with counts, progress bars), a New PO form, and a detail screen
+per order. Purchase orders stay admin-only, matching the backend policy on the whole route group.
+
+- **The buttons mirror the saga's own guards** (`lib/po.ts`): Send only from Draft; Record shipment
+  from Sent or PartiallyReceived; Cancel from anything not yet closed. So the UI never offers an
+  action the backend would refuse. If the order changed underneath the user (someone else sent it),
+  the backend's 409 message is shown and the screen reloads to the real status.
+- **Over-receipt is allowed, with a warning.** The saga doesn't cap receipts at the ordered
+  quantity (suppliers over-ship), and blocking a real delivery would be worse than flagging it:
+  the receive form shows "Over the order by N" before submit, and the line is marked afterwards.
+  This behavior is pinned by an integration test so the UI and backend can't drift apart.
+- **Receiving posts one call per shipment**, with only the lines that arrived, and the result
+  updates stock (the `["items"]` cache is invalidated, so Stock and Catalog are fresh).
+- **New PO** uses a search-to-add item picker (not a dropdown, which can't scale to a large
+  catalog) and react-hook-form's field array. Enter in the picker adds the first match and never
+  submits the order.
+- **Gateway validation was added for this phase**, because the saga and receiving service reject
+  bad input only as unhandled errors deep inside a transaction (a 500): blank or over-long
+  supplier, no lines, quantity outside 1–99,999, duplicate SKUs, and SKUs not in the catalog (an
+  order for an unknown SKU would otherwise stock a phantom item on delivery) are all a clear 400.
+- **`GET /purchase-orders/{unknown-id}` was a 500**, not a 404: the client throws on not-found, and
+  that one handler didn't go through the wrapper that maps it. Found by the browser test; fixed.
+- **Status colors:** Draft neutral, Sent blue (the new `info` tone), Partially received amber,
+  Received green, Cancelled red. Sent has its own hue because the accent is the same green as
+  "success", and an order that's merely in progress must not look finished.
 
 Generated barcodes are 12-digit numeric strings. Labels for them must be **Code128, not
 EAN/UPC** — arbitrary 12 digits don't carry a valid UPC check digit. (Decoding existing

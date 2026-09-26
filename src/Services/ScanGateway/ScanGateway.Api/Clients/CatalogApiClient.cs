@@ -87,6 +87,12 @@ public class CatalogApiClient(CatalogGrpcService.CatalogGrpcServiceClient grpcCl
         }
     }
 
+    public async Task<List<CatalogItem>> GetAllItemsAsync(CancellationToken cancellationToken)
+    {
+        var reply = await grpcClient.ListItemsAsync(new ListItemsRequest(), cancellationToken: cancellationToken);
+        return reply.Items.Select(ToCatalogItem).ToList();
+    }
+
     public async Task<List<Category>> GetAllCategoriesAsync(CancellationToken cancellationToken)
     {
         var reply = await grpcClient.ListCategoriesAsync(new ListCategoriesRequest(), cancellationToken: cancellationToken);

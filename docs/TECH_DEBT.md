@@ -199,4 +199,9 @@ Track anything done quick-and-dirty here the moment you do it — future you wil
 - **Why:** Not worth blocking on a hung CLI; the component is small and mirrors the generated ones' structure.
 - **Fix later by:** Nothing needed. If a future `shadcn add` regenerates it, prefer the generated file, and re-check that it doesn't reintroduce the bad `from "cn"` import (see the earlier entry).
 
+## [2026-09-26] Purchase orders have no shipment history, and lines can't change after creation
+- **What:** A PO tracks only cumulative received quantity per line. There's no record of individual shipments (when, by whom, tracking number), no way to add, remove or re-quantity lines once created, no cost or supplier entity, and no way to delete an order. The dev database also accumulates test POs, since they can't be removed.
+- **Why:** The saga models an order as `ordered` versus `received` per line; per-shipment records and editable lines weren't part of it, and this phase built the UI the backend supports rather than inventing fields the designs showed (shipment manifests, vendor terms, unit costs).
+- **Fix later by:** If a receiving audit trail is wanted, add a `PurchaseOrderShipment` table written inside the same receive transaction, and expose it on `GetPurchaseOrder`. Costs and a Supplier entity are a separate, larger design.
+
 <!-- Add new entries above this line as you go -->

@@ -130,7 +130,7 @@ export function StockLookup() {
         )}
       </div>
 
-      <FilterChips value={filter} onChange={setFilter} counts={counts} />
+      <FilterChips options={FILTERS} value={filter} onChange={setFilter} counts={counts} />
 
       {items.isPending ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Loading stock">
