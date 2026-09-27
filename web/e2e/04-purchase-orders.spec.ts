@@ -149,7 +149,13 @@ test("a purchase order from draft to received, cancelled, and stale", async () =
     await page.getByRole("dialog").getByRole("button", { name: "Cancel order" }).click();
     check("cancel: order shows Cancelled", (await visible(page, "Order cancelled.")) && (await visible(page, "This order was cancelled")));
     check("cancel: received stock stays (C 1+3=4)", (await stockOf(C.barcode)) === 4, `stock=${await stockOf(C.barcode)}`);
-    check("cancel: no actions remain", (await page.getByRole("button", { name: /Record shipment|Cancel order|Send to supplier/ }).count()) === 0);
+    // The dialog's own close animation and the page's re-fetch of the order both take a moment
+    // after the click resolves, so poll instead of taking one snapshot of the button count.
+    const noActionsLeft = await page
+      .getByRole("button", { name: /Record shipment|Cancel order|Send to supplier/ })
+      .waitFor({ state: "detached", timeout: 8000 })
+      .then(() => true, () => false);
+    check("cancel: no actions remain", noActionsLeft);
   }
 
   // ---- list ------------------------------------------------------------------------------------
