@@ -1,15 +1,17 @@
 "use client";
 
-import { Percent, Tag } from "lucide-react";
+import { ListFilter, Percent, Tag } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Checkbox } from "@/components/checkbox";
 import { ItemImage } from "@/components/item-image";
 import { StatusPill } from "@/components/status-pill";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { useCategories, useItems } from "@/hooks/use-items";
 import { formatMoney, formatPercent } from "@/lib/format";
 import type { CatalogEntry } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { DiscountDialog } from "./discount-dialog";
 
 export function DiscountsView() {
@@ -54,9 +56,18 @@ export function DiscountsView() {
 
       <section aria-label="Apply a discount" className="flex flex-col gap-4 rounded-2xl border bg-card p-4 sm:flex-row sm:items-end sm:p-5">
         <div className="flex flex-1 flex-col gap-2">
-          <label htmlFor="discount-target" className="text-sm font-medium">
-            Apply to
-          </label>
+          <div className="flex items-center justify-between gap-2">
+            <label htmlFor="discount-target" className="text-sm font-medium">
+              Apply to
+            </label>
+            <Link
+              href="/catalog"
+              className={cn(buttonVariants({ variant: "link" }), "h-auto gap-1.5 p-0 text-sm text-muted-foreground hover:text-foreground")}
+            >
+              <ListFilter className="size-3.5" />
+              Pick specific items instead
+            </Link>
+          </div>
           <Combobox
             id="discount-target"
             value={target}
