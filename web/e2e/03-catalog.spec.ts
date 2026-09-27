@@ -182,7 +182,9 @@ test("catalog, labels that really scan, printing, new SKUs, categories and disco
     check("form: bad image address is rejected", await visible(page, "Enter a full web address"));
 
     await page.getByLabel("Image", { exact: true }).fill("");
-    await page.getByLabel("Category").selectOption({ label: `Cat ${tag}` });
+    await page.getByLabel("Category").click();
+    await page.getByLabel("Category").fill(`Cat ${tag}`);
+    await page.getByRole("option", { name: `Cat ${tag}`, exact: true }).click();
     await page.getByLabel("Starting stock").fill("7");
     await page.screenshot({ path: `${SCREENS}/p3-desktop-new.png` });
     await page.getByRole("button", { name: "Create item" }).click();
@@ -227,11 +229,13 @@ test("catalog, labels that really scan, printing, new SKUs, categories and disco
     await page.goto(`${baseUrl}/discounts`);
     // The category list loads asynchronously; selecting before it arrives silently leaves the target
     // on "All items", which is how an earlier version of this test discounted the whole catalog.
-    await page.getByLabel("Apply to").locator("option", { hasText: `Cat ${tag} ` }).waitFor({ state: "attached", timeout: 15000 });
-    const options = await page.getByLabel("Apply to").locator("option").allInnerTexts();
+    await page.getByLabel("Apply to").click();
+    await page.getByLabel("Apply to").fill(`Cat ${tag} `);
+    await page.getByRole("option", { name: new RegExp(`^Cat ${tag} \\(`) }).waitFor({ state: "visible", timeout: 15000 });
+    const options = await page.getByRole("option").allInnerTexts();
     const target = options.find((o) => o.startsWith(`Cat ${tag} `));
     if (!target) throw new Error("category option never appeared; refusing to continue");
-    await page.getByLabel("Apply to").selectOption({ label: target });
+    await page.getByRole("option", { name: target, exact: true }).click();
     const setBtn = page.getByRole("button", { name: /^Set discount for/ });
     const btnText = await setBtn.innerText();
     const targeted = Number(btnText.match(/for (\d+) item/)?.[1]);

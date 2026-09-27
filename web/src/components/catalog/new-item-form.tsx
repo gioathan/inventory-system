@@ -10,8 +10,8 @@ import { z } from "zod";
 import { FormField } from "@/components/form-field";
 import { ItemImage } from "@/components/item-image";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
-import { NativeSelect } from "@/components/ui/native-select";
 import { useCategories } from "@/hooks/use-items";
 import { ApiError, apiFetch } from "@/lib/api";
 import type { ReceiveResult } from "@/lib/types";
@@ -66,6 +66,7 @@ export function NewItemForm() {
   const { register, handleSubmit, setValue, setError, control, formState } = form;
   const { errors } = formState;
   const imageUrl = useWatch({ control, name: "imageUrl" });
+  const categoryId = useWatch({ control, name: "categoryId" });
 
   const create = useMutation({
     mutationFn: (values: FormValues) =>
@@ -152,14 +153,13 @@ export function NewItemForm() {
           label="Category"
           hint={categories.isError ? "Couldn't load categories. You can still create the item without one." : "Optional."}
         >
-          <NativeSelect id="categoryId" aria-describedby="categoryId-msg" {...register("categoryId")}>
-            <option value="">No category</option>
-            {(categories.data ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </NativeSelect>
+          <Combobox
+            id="categoryId"
+            aria-describedby="categoryId-msg"
+            value={categoryId}
+            onValueChange={(v) => setValue("categoryId", v, { shouldValidate: true, shouldDirty: true })}
+            options={[{ value: "", label: "No category" }, ...(categories.data ?? []).map((c) => ({ value: c.id, label: c.name }))]}
+          />
         </FormField>
 
         <FormField

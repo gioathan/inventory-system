@@ -60,6 +60,11 @@
   Neutrals carry a slight cool hue (286) rather than pure gray, matching the designs.
 */
 :root {
+  /* Tells the browser which native-chrome palette (scrollbars, and — short of an explicit
+     background/color on the element — form control popups) to draw with, so anything we don't
+     style ourselves still lands on the right side of light/dark instead of defaulting to light. */
+  color-scheme: light;
+
   /* Light theme accents are one step darker than the dark theme's: white text on the brighter emerald
      is only 3.5:1, and body text needs 4.5:1. Same reasoning for the amber and red text colors. */
   --background: oklch(0.985 0.002 286);
@@ -102,6 +107,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.145 0.003 286);
   --foreground: oklch(0.97 0.002 286);
   --card: oklch(0.185 0.004 286);

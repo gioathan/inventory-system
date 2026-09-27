@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/checkbox";
 import { ItemImage } from "@/components/item-image";
 import { StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
-import { NativeSelect } from "@/components/ui/native-select";
+import { Combobox } from "@/components/ui/combobox";
 import { useCategories, useItems } from "@/hooks/use-items";
 import { formatMoney, formatPercent } from "@/lib/format";
 import type { CatalogEntry } from "@/lib/types";
@@ -57,14 +57,16 @@ export function DiscountsView() {
           <label htmlFor="discount-target" className="text-sm font-medium">
             Apply to
           </label>
-          <NativeSelect id="discount-target" value={target} onChange={(event) => setTarget(event.target.value)} disabled={items.isPending}>
-            <option value="all">All items ({all.length})</option>
-            {(categories.data ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({categoryCounts.get(c.id) ?? 0})
-              </option>
-            ))}
-          </NativeSelect>
+          <Combobox
+            id="discount-target"
+            value={target}
+            onValueChange={setTarget}
+            disabled={items.isPending}
+            options={[
+              { value: "all", label: `All items (${all.length})` },
+              ...(categories.data ?? []).map((c) => ({ value: c.id, label: `${c.name} (${categoryCounts.get(c.id) ?? 0})` })),
+            ]}
+          />
         </div>
         <Button type="button" className="h-11 gap-2" disabled={targetItems.length === 0} onClick={() => setDialogItems(targetItems)}>
           <Percent className="size-4" />
