@@ -377,9 +377,52 @@ AppHost starts the whole system including the frontend.
 
 Built so far: auth BFF, both shells, login, role routing (Phase 0), Scan & Sell (Phase 1), and
 Receive + Stock lookup (Phase 2), and the admin Catalog, labels, New SKU, categories and discounts
-(Phase 3), purchase orders (Phase 4), and the dashboard, staff accounts and audit log (Phase 5).
-The remaining work is polish: a responsive and accessibility pass, browser tests in the repo, and
-a container image.
+(Phase 3), purchase orders (Phase 4), the dashboard, staff accounts and audit log (Phase 5), and
+polish — light-theme contrast, an accessibility sweep, a container image and a Kubernetes manifest,
+and browser tests in the repo (Phase 6).
+
+### Phase 6 — polish: contrast, accessibility, container, e2e tests
+
+- **Light theme deepened.** The light palette's `--primary`/`--success`/`--ring`/`--destructive`/
+  `--warning`/`--info` tokens (`globals.css`) were originally lifted straight from the brand hue at
+  too high a lightness; axe's `color-contrast` check failed on several pill/button combinations.
+  Deepened each token (still the same hue, lower `oklch` lightness) until both themes pass
+  WCAG 2.0/2.1 A and AA with zero violations. Status pills (`status-pill.tsx`) also moved from a
+  flat tint to a `/10`-opacity background of the token color, which keeps them legible on both
+  light and dark grounds without a second set of tint tokens.
+- **`e2e/06-accessibility.spec.ts`** drives axe-core (`@axe-core/playwright`) over every route —
+  admin and seller, signed-in and the login page — at two viewports (1280×800 desktop, 390×844
+  phone) and both themes (forced via `localStorage.theme`, read by the app's theme script before
+  paint), 15 admin routes + 3 seller routes + login, ~120 page audits per run. Failing checks are
+  collected and asserted together (`expect.soft`) so one run reports every violation instead of
+  stopping at the first.
+- **Browser tests moved into the repo** (`web/e2e/`, Playwright Test, not the ad-hoc scratchpad
+  scripts used to develop each phase). `web/playwright.config.ts` runs everything serially
+  (`workers: 1`, `fullyParallel: false`) against the real running stack — tests share one dev
+  database, so they must not race each other — with an 8-minute per-test timeout to cover camera
+  decode loops and PO-alert polling. `e2e/support/` holds shared plumbing: `env.ts` (base URL,
+  admin credentials, screenshot dirs), `check.ts` (soft-assert helper matching the scratchpad
+  scripts' original style), `seller.ts` (`ensureSeller()` — creates one fresh Seller account per
+  run via the admin API, cached, so specs never collide on a shared login), `cleanup.ts`
+  (`removeDiscountsFor()` — specs that create discounts remove them again by name fragment so nothing
+  leaks into the shared database), `camera.ts` (`makeY4m()` — generates a Y4M video of a rendered
+  barcode/QR code with bwip-js, fed to Chromium's fake camera device so the camera-scanning path is
+  exercised for real, not mocked). Six specs port the five phase-by-phase scratchpad scripts
+  1:1 (Scan & Sell, Receive + Stock, Catalog/labels/printing, Purchase Orders, Dashboard/Staff/
+  Audit) plus the new accessibility sweep — `npm run e2e` from `web/` against a running AppHost.
+- **Container image.** `web/Dockerfile` is a multi-stage Node build producing a `output: "standalone"`
+  Next.js server; `GET /api/health` returns `{status:"ok"}` for the container/Kubernetes probes.
+  `web/src/lib/session.ts` gained `cookieSecure()`, which honors a `SESSION_COOKIE_SECURE` env var
+  (defaults to secure) so the cookie can be marked non-secure for a plain-HTTP in-cluster smoke
+  test without touching code.
+- **`k8s/web.yaml`** — Deployment (`web:dev`, `imagePullPolicy: Never` so it uses the image already
+  imported into the local k3d cluster rather than pulling one) wired to the four backend service
+  names as `ClusterIP` DNS (`SCAN_GATEWAY_URL=http://scan-gateway`, etc.), liveness/readiness
+  probes on `/api/health`, and a `Service` exposing port 80 → the container's `http` port. Same
+  shape as every other service's manifest in `k8s/`.
+- **`AppHost.cs` pins the frontend to port 3000** (`.WithEndpoint("http", e => e.Port = 3000)`)
+  instead of Aspire's normal random dev port, so `E2E_BASE_URL`'s default and any hardcoded
+  frontend URL stay correct across runs.
 
 ### Scan & Sell and the shared scanner (`components/scan/`)
 

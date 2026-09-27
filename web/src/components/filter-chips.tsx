@@ -31,7 +31,7 @@ export function FilterChips<T extends string>({
           )}
         >
           {option.label}
-          <span className="tabular-nums opacity-80">{counts[option.id]}</span>
+          <span className="tabular-nums">{counts[option.id]}</span>
         </button>
       ))}
     </div>

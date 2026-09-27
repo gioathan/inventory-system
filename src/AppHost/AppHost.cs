@@ -136,6 +136,9 @@ if (!string.Equals(builder.Configuration["Web:Enabled"], "false", StringComparis
 #pragma warning disable ASPIREJAVASCRIPT001
     builder.AddNextJsApp("web", "../../web")
 #pragma warning restore ASPIREJAVASCRIPT001
+        // A fixed, well-known port (Next.js's own default) instead of a random one each launch, so the URL
+        // is bookmarkable, matches the CORS default above, and the browser tests know where to point.
+        .WithEndpoint("http", endpoint => endpoint.Port = 3000)
         .WithEnvironment("SCAN_GATEWAY_URL", scanGateway.GetEndpoint("http"))
         .WithEnvironment("STAFF_API_URL", staffApi.GetEndpoint("http"))
         .WithEnvironment("DASHBOARD_API_URL", dashboardApi.GetEndpoint("http"))

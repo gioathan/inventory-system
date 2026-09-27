@@ -93,7 +93,13 @@ export function ItemPanel({
         </div>
         {/* Rendered at its real size then scaled, so proportions match what will print. The scale
             steps down on narrow screens so the whole label stays visible instead of clipping. */}
-        <div className="overflow-x-auto rounded-xl border bg-muted/40 p-3 [--scale:1.15] min-[420px]:[--scale:1.5]">
+        {/* tabIndex + a name: a scrollable area must be reachable by keyboard, or its overflow is unreachable for anyone not using a mouse. */}
+        <div
+          tabIndex={0}
+          role="region"
+          aria-label="Label preview"
+          className="overflow-x-auto rounded-xl border bg-muted/40 p-3 [--scale:1.15] focus-visible:outline-2 focus-visible:outline-ring min-[420px]:[--scale:1.5]"
+        >
           <div style={{ width: `calc(${LABEL_WIDTH_IN}in * var(--scale))`, height: `calc(${LABEL_HEIGHT_IN}in * var(--scale))` }}>
             <div style={{ transform: "scale(var(--scale))", transformOrigin: "top left" }}>
               <Label item={item} format={LABEL_FORMAT} className="shadow-sm" />

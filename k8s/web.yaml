@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: inventory-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: web:dev
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            # The browser only ever talks to this app; its server calls these on the browser's
+            # behalf (see docs/architecture.md, "Frontend"). Plain HTTP, since nothing in the
+            # cluster terminates TLS between services.
+            - name: SCAN_GATEWAY_URL
+              value: "http://scan-gateway"
+            - name: STAFF_API_URL
+              value: "http://staff-api"
+            - name: DASHBOARD_API_URL
+              value: "http://dashboard-api"
+            - name: NOTIFICATION_API_URL
+              value: "http://notification-api"
+            # The session cookie is Secure by default in production, and a browser won't send a
+            # Secure cookie back over plain http to anything but localhost. There's no TLS in front
+            # of this deployment, so without this override sign-in would appear to succeed and
+            # then immediately bounce back to /login. Remove it once an ingress terminates TLS.
+            - name: SESSION_COOKIE_SECURE
+              value: "false"
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: inventory-system
+spec:
+  selector:
+    app: web
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

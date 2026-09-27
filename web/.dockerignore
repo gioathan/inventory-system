@@ -1,0 +1,10 @@
+node_modules
+.next
+.git
+e2e
+test-results
+playwright-report
+Dockerfile
+.dockerignore
+*.md
+.env*

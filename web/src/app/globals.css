@@ -60,13 +60,15 @@
   Neutrals carry a slight cool hue (286) rather than pure gray, matching the designs.
 */
 :root {
+  /* Light theme accents are one step darker than the dark theme's: white text on the brighter emerald
+     is only 3.5:1, and body text needs 4.5:1. Same reasoning for the amber and red text colors. */
   --background: oklch(0.985 0.002 286);
   --foreground: oklch(0.16 0.01 286);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.16 0.01 286);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.16 0.01 286);
-  --primary: oklch(0.596 0.145 163.225);
+  --primary: oklch(0.47 0.108 166);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.96 0.004 286);
   --secondary-foreground: oklch(0.21 0.01 286);
@@ -74,15 +76,15 @@
   --muted-foreground: oklch(0.5 0.012 286);
   --accent: oklch(0.95 0.02 165);
   --accent-foreground: oklch(0.3 0.06 165);
-  --destructive: oklch(0.577 0.245 27.325);
-  --success: oklch(0.596 0.145 163.225);
+  --destructive: oklch(0.5 0.23 27);
+  --success: oklch(0.47 0.108 166);
   --success-foreground: oklch(0.985 0 0);
-  --warning: oklch(0.666 0.179 58.318);
+  --warning: oklch(0.505 0.135 50);
   --warning-foreground: oklch(0.985 0 0);
-  --info: oklch(0.52 0.16 255);
+  --info: oklch(0.48 0.16 255);
   --border: oklch(0.92 0.004 286);
   --input: oklch(0.9 0.005 286);
-  --ring: oklch(0.596 0.145 163.225);
+  --ring: oklch(0.47 0.108 166);
   --chart-1: oklch(0.696 0.17 162.48);
   --chart-2: oklch(0.596 0.145 163.225);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -91,12 +93,12 @@
   --radius: 0.625rem;
   --sidebar: oklch(0.975 0.003 286);
   --sidebar-foreground: oklch(0.16 0.01 286);
-  --sidebar-primary: oklch(0.596 0.145 163.225);
+  --sidebar-primary: oklch(0.47 0.108 166);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.94 0.01 165);
   --sidebar-accent-foreground: oklch(0.25 0.05 165);
   --sidebar-border: oklch(0.92 0.004 286);
-  --sidebar-ring: oklch(0.596 0.145 163.225);
+  --sidebar-ring: oklch(0.47 0.108 166);
 }
 
 .dark {

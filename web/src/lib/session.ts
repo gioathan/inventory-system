@@ -4,11 +4,19 @@ import { cache } from "react";
 import { SESSION_COOKIE } from "./constants";
 import { decodeSessionToken, type SessionClaims } from "./jwt";
 
+// Secure in production by default, so the token only ever travels over HTTPS. SESSION_COOKIE_SECURE
+// overrides it for a deployment with no TLS in front (the local k8s cluster): a Secure cookie is
+// never sent back over plain http to anything but localhost, so sign-in would silently not stick.
+function cookieSecure() {
+  const override = process.env.SESSION_COOKIE_SECURE;
+  return override === undefined ? process.env.NODE_ENV === "production" : override === "true";
+}
+
 export async function setSessionCookie(token: string, expiresAt: Date) {
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true, // unreadable from JS, so an XSS bug can't lift the token
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: cookieSecure(),
     path: "/",
     expires: expiresAt,
   });

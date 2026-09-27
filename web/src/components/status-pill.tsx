@@ -2,6 +2,8 @@ import { cn } from "@/lib/utils";
 
 export type PillTone = "success" | "warning" | "danger" | "info" | "neutral";
 
+// A 10% tint, not 15%: the stronger the tint, the less contrast the colored text has against it, and
+// on the light theme 15% pushed several tones just under the 4.5:1 minimum.
 const TONES: Record<PillTone, string> = {
   success: "bg-success/15 text-success",
   warning: "bg-warning/15 text-warning",

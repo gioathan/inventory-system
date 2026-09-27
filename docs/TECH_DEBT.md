@@ -219,4 +219,14 @@ Track anything done quick-and-dirty here the moment you do it — future you wil
 - **Why:** Inventory's movement ledger holds the raw events but has no aggregation endpoint. The designs showed these charts; drawing them without data would mean inventing numbers.
 - **Fix later by:** Add a daily-totals query over the stock movement ledger (units sold and received per day, joined to price for revenue), expose it through the Dashboard GraphQL, then add charts.
 
+## [2026-09-27] `k8s/web.yaml` has never actually been deployed to the local k3d cluster
+- **What:** The frontend's Deployment/Service manifest was written to match the shape of every other service's manifest in `k8s/`, and the Docker image builds and passes a local smoke test, but the image has not been `k3d image import`ed or the manifest `kubectl apply`d against the running cluster in this session.
+- **Why:** k3d was stopped for most of Phase 6 so the frontend's own dev server (Aspire, port 3000) could be iterated on quickly; switching to the cluster and back for each polish change would have slowed the phase down for no verification benefit until the manifest itself was finished.
+- **Fix later by:** `docker build -t web:dev web/`, `k3d image import web:dev -c inventory-system`, `kubectl apply -f k8s/web.yaml`, then port-forward and click through login → one page per role, the way the other services' manifests were verified when they were added.
+
+## [2026-09-27] The e2e suite runs against the shared dev database with no isolation
+- **What:** `web/e2e/*.spec.ts` all point at whatever AppHost instance is running locally (`E2E_BASE_URL`, default `http://localhost:3000`) and its already-seeded Postgres/Mongo. Specs that create data tag it distinctively and a couple explicitly clean up after themselves (`cleanup.ts`), but there's no per-run database reset, so a spec with a bug can still leave junk behind (as one did once during development — see the "mass discount" incident, fixed but not literally prevented at the infrastructure level).
+- **Why:** Standing up a disposable database per test run (a fresh Aspire instance, or Postgres/Mongo containers reset between runs) is a real chunk of infrastructure work on its own, and the specs were built to verify features as they were written, not as a hermetic CI suite yet.
+- **Fix later by:** Either give the suite its own AppHost profile with fresh containers (`docker compose`-style ephemeral stack) or add a reset endpoint/script that truncates test-tagged rows before a run; either way, wire `npm run e2e` into CI once that exists rather than "run it by hand against your dev stack."
+
 <!-- Add new entries above this line as you go -->
