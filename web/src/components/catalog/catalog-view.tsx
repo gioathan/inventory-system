@@ -9,7 +9,7 @@ import {
   type RowSelectionState,
   type SortingState,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Download, Loader2, PackagePlus, Percent, Plus, Printer, Search, Tag, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Download, ListPlus, Loader2, PackagePlus, Percent, Plus, Printer, Search, Tag, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -239,6 +239,10 @@ export function CatalogView() {
             <Download className="size-4" />
             Export CSV
           </Button>
+          <Link href="/catalog/bulk" className={cn(buttonVariants({ variant: "outline" }), "h-10 gap-2")}>
+            <ListPlus className="size-4" />
+            Add multiple
+          </Link>
           <Link href="/catalog/new" className={cn(buttonVariants(), "h-10 gap-2")}>
             <Plus className="size-4" />
             New SKU

@@ -21,6 +21,7 @@ export function Combobox({
   className,
   "aria-describedby": ariaDescribedby,
   "aria-invalid": ariaInvalid,
+  "aria-label": ariaLabel,
 }: {
   id?: string;
   options: ComboboxOption[];
@@ -31,6 +32,7 @@ export function Combobox({
   className?: string;
   "aria-describedby"?: string;
   "aria-invalid"?: boolean;
+  "aria-label"?: string;
 }) {
   const selected = options.find((o) => o.value === value) ?? null;
 
@@ -48,6 +50,7 @@ export function Combobox({
           placeholder={placeholder}
           aria-describedby={ariaDescribedby}
           aria-invalid={ariaInvalid}
+          aria-label={ariaLabel}
           className={cn(
             "h-11 w-full rounded-lg border border-input bg-popover px-3 pr-9 text-sm text-popover-foreground outline-none transition-colors",
             "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",

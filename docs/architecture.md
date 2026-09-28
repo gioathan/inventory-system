@@ -505,6 +505,24 @@ real stock instead of leaving a stale number.
   characters a 400, since the code becomes part of a `/scan/{barcode}` URL). Image is a pasted URL
   or an upload; while Cloudflare isn't configured the upload's 502 is turned into "paste an
   address instead" rather than an error page.
+- **Add multiple items** (`/catalog/bulk`, "Add multiple" next to "New SKU"): no new backend —
+  `/items/intake` already creates one item at a time, so bulk is the browser sending several
+  requests, each posted and resolved independently (like the bulk-receive dialog: row 6 failing
+  never loses rows 1–5 or 7–10). Rows can be typed by hand or come from a CSV
+  (`lib/csv.ts`'s `parseCsvAsObjects`, RFC 4180 quoting/escaping, BOM-stripped) — either way they
+  land in the same editable table for review before anything is created; nothing is ever created
+  straight from an uploaded file. CSV columns: `name, price, quantity, category, barcode`
+  (category/barcode optional). Category is matched by name against the real list — **fetched
+  fresh via `queryClient.ensureQueryData`, not read from the hook's render-time snapshot**: an
+  early version read `categories.isPending`/`categories.data` as captured in the file-input's
+  `onChange` closure, which could be a beat stale of the actual query state right after the page
+  mounts, silently treating every category as unmatched (or, worse, permanently dropping the file
+  if the snapshot said "still loading" with no retry once it wasn't) — `ensureQueryData` sidesteps
+  the snapshot entirely by asking the query client for the real data, waiting out an in-flight
+  fetch if there is one. An unmatched name is flagged and left uncategorized, never silently
+  guessed or auto-created. A row whose barcode collides with another item is flagged and skipped;
+  every other row still gets created (the user's choice over blocking the whole import). A blank
+  trailing row (untouched placeholders from "Add row") is silently skipped, not an error.
 - **Categories** (create/list, with item counts) and **Discounts & Promos**. A discount goes
   through one shared dialog whether it comes from selected catalog rows or a whole category: the
   backend takes a fraction strictly between 0 and 1 and never touches the list price, so removal

@@ -57,6 +57,7 @@ test("no accessibility violations across the app, both themes, desktop and phone
     "/catalog",
     `/catalog?sku=${firstSku}`,
     "/catalog/new",
+    "/catalog/bulk",
     "/categories",
     "/discounts",
     "/restock-sessions",
