@@ -105,6 +105,21 @@ test("restock sessions: starting one closes the last, and each report covers onl
   check("page: the first session's report lists the item", (await row.innerText()).replace(/\s+/g, " ").includes("0 +8 −2 6 $20.00"), await row.innerText());
   check("page: the first session reads as closed", (await firstReport.innerText()).includes("→") && !(await firstReport.innerText()).includes("still open"));
 
+  // ---- compare: latest vs the one before (the defaults) ------------------------------------------------
+  await page.goto(`${baseUrl}/restock-sessions?tab=compare`);
+  await page.getByRole("region", { name: "Comparison" }).waitFor();
+  const selectedB = await page.getByLabel("Second session").inputValue();
+  const selectedA = await page.getByLabel("First session").inputValue();
+  check("compare: defaults to the latest session against the one before", selectedB === second.id && selectedA === first.id, `${selectedA} → ${selectedB}`);
+  await page.getByLabel("Search items").fill(`Session Item ${tag}`);
+  const cmpRow = page.getByRole("region", { name: "Comparison" }).locator("tr", { hasText: `Session Item ${tag}` });
+  const cmpText = (await cmpRow.innerText()).replace(/\s+/g, " ");
+  check("compare: the item sold 2 then 0 and is flagged as stopped selling", cmpText.includes("Stopped selling") && /2 0 down 2/.test(cmpText), cmpText);
+  await page.getByRole("button", { name: /^Stopped selling/ }).click();
+  check("compare: the Stopped selling filter keeps it", (await cmpRow.count()) === 1);
+  await page.getByRole("button", { name: "By category" }).click();
+  check("compare: by-category view lists No category (our item has none)", await visible(page, "No category"));
+
   // ---- a seller sees the session but can't run them ---------------------------------------------------
   {
     const s = await login(browser, seller.username, seller.password, "/scan");

@@ -7,6 +7,7 @@ import { StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
 import { useCloseSession, useRestockSessions, useSessionReport } from "@/hooks/use-restock-sessions";
 import { formatMoney } from "@/lib/format";
+import { numberSessions } from "@/lib/restock";
 import { formatDateTime } from "@/lib/time";
 import type { RestockSession } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -29,24 +30,16 @@ export function SessionsView() {
   const [closeOpen, setCloseOpen] = useState(false);
   const closeSession = useCloseSession();
 
-  // Numbered oldest-first so "#7" stays #7 as new sessions are added.
-  const numbered = useMemo(() => {
-    const list = sessions.data ?? [];
-    return list.map((s, index) => ({ ...s, number: list.length - index }));
-  }, [sessions.data]);
+  const numbered = useMemo(() => numberSessions(sessions.data ?? []), [sessions.data]);
   const current = numbered.find((s) => s.closedAt === null) ?? null;
   const selected = numbered.find((s) => s.id === selectedId) ?? numbered[0] ?? null;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Restock sessions</h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            A session is one restocking period. Starting a new one ends the previous one, and everything received or sold in
-            between is counted in that session&apos;s report.
-          </p>
-        </div>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          {current ? `Session #${current.number} is open.` : "No session is open right now."}
+        </p>
         <Button type="button" className="h-10 gap-2" onClick={() => setStartOpen(true)}>
           <Plus className="size-4" />
           {current ? "Start new session" : "Start session"}

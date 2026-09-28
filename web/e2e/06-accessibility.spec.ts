@@ -60,6 +60,7 @@ test("no accessibility violations across the app, both themes, desktop and phone
     "/categories",
     "/discounts",
     "/restock-sessions",
+    "/restock-sessions?tab=compare",
     "/staff",
     "/audit-log",
     `/labels/print?sku=${firstSku}`,

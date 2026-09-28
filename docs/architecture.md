@@ -542,6 +542,16 @@ Replaces Purchase Orders in the "Supply chain" nav group (see below).
   write — the backend enforces admin-only on start/close/list regardless.
 - **Dashboard:** the fourth KPI is "This session" (units received in the open session), and the
   "Current restock session" panel lists what came in most, linking to all sessions.
+- **Tabs** (`?tab=` in the URL, read by the server page): Sessions and Compare.
+- **Compare** (Phase 2 of the sales-visibility plan) pits two sessions against each other,
+  defaulting to the latest vs the one before. Computed in the browser from two `sessionReport`
+  calls (`lib/restock.ts`, pure functions), so no backend changes were needed.
+  - **Overview:** units sold, revenue, units received and distinct items sold, each with the change
+    and % change. Green/red only where up is good; received is neutral.
+  - **Breakdown by item or by category**, with filters: selling more / less, new sellers (sold in B
+    only), stopped selling (sold in A only), sold out in B (ended at zero stock).
+  - **Per-day toggle** divides by each session's length. Anything under a day counts as one day,
+    so a 10-minute test session doesn't read as hundreds a day.
 
 ### Purchase orders — hidden from the frontend (2026-09-28)
 
