@@ -42,7 +42,7 @@ public static class ScanEndpoints
             if (item is null)
                 return Results.NotFound($"No catalog item found for barcode '{barcode}'.");
 
-            var result = await inventory.SellStockAsync(item.Sku, request.Quantity, cancellationToken);
+            var result = await inventory.SellStockAsync(item.Sku, request.Quantity, item.EffectivePrice, cancellationToken);
 
             return result.Outcome switch
             {

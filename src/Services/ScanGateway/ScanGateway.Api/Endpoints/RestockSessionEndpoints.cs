@@ -18,6 +18,12 @@ public static class RestockSessionEndpoints
             Results.Ok(new CurrentRestockSessionResponse(await inventory.GetCurrentRestockSessionAsync(cancellationToken))))
             .RequireAuthorization(AuthPolicies.SellerOrAdmin);
 
+        // Units sold/received per item in the open session — counts only, no revenue, so sellers
+        // can see what's moving. Lines are empty (and session null) when no session is open.
+        app.MapGet("/restock-sessions/current/sales", async (InventoryApiClient inventory, CancellationToken cancellationToken) =>
+            Results.Ok(await inventory.GetCurrentSessionSalesAsync(cancellationToken)))
+            .RequireAuthorization(AuthPolicies.SellerOrAdmin);
+
         var admin = app.MapGroup("/restock-sessions").RequireAuthorization(AuthPolicies.AdminOnly);
 
         admin.MapGet("", async (InventoryApiClient inventory, CancellationToken cancellationToken) =>

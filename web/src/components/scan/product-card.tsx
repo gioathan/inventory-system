@@ -15,9 +15,11 @@ interface ProductCardProps {
   onConfirm: () => void;
   onClear: () => void;
   selling: boolean;
+  /** Units sold in the open restock session; null when no session is open. */
+  soldThisSession?: number | null;
 }
 
-export function ProductCard({ item, quantity, onQuantityChange, onConfirm, onClear, selling }: ProductCardProps) {
+export function ProductCard({ item, quantity, onQuantityChange, onConfirm, onClear, selling, soldThisSession = null }: ProductCardProps) {
   const level = stockLevel(item.quantityOnHand);
   const inStock = item.quantityOnHand ?? 0;
   const discounted = item.discountPercentage !== null;
@@ -32,6 +34,7 @@ export function ProductCard({ item, quantity, onQuantityChange, onConfirm, onCle
         )}
         {level === "low" && <StatusPill tone="warning">Low stock · {inStock} left</StatusPill>}
         {level === "ok" && <StatusPill tone="success">In stock · {inStock} units</StatusPill>}
+        {soldThisSession !== null && <span className="text-xs text-muted-foreground">{soldThisSession} sold this session</span>}
         <span className="ml-auto font-mono text-xs text-muted-foreground">{item.sku}</span>
       </div>
 

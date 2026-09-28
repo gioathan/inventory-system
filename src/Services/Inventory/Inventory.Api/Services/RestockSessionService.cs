@@ -3,7 +3,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace InventorySystem.Inventory.Api.Services;
 
-public record SessionSummaryLine(string Sku, int Restocked, int Sold, int NetDelta);
+public record SessionSummaryLine(
+    string Sku, int Restocked, int Sold, int NetDelta, int OpeningQuantity, int ClosingQuantity,
+    decimal RecordedRevenue, int UnpricedSold);
 
 // Shared by both the REST endpoints (direct/admin use) and the gRPC service (Dashboard's
 // sessionReport query) so the aggregation logic exists exactly once.
@@ -98,11 +100,30 @@ public class RestockSessionService(InventoryDbContext db)
                 Sku = g.Key,
                 Restocked = g.Where(m => m.Delta > 0).Sum(m => m.Delta),
                 Sold = g.Where(m => m.Reason == StockMovementReason.Sale && m.Delta < 0).Sum(m => -m.Delta),
-                NetDelta = g.Sum(m => m.Delta)
+                NetDelta = g.Sum(m => m.Delta),
+                // Sales that carry the price actually paid, and the units sold before prices were
+                // recorded — the caller estimates those from today's price and says so.
+                RecordedRevenue = g.Where(m => m.Reason == StockMovementReason.Sale && m.Delta < 0 && m.UnitPrice != null)
+                    .Sum(m => -m.Delta * m.UnitPrice!.Value),
+                UnpricedSold = g.Where(m => m.Reason == StockMovementReason.Sale && m.Delta < 0 && m.UnitPrice == null)
+                    .Sum(m => -m.Delta)
             })
             .ToListAsync(cancellationToken);
 
-        return grouped.Select(g => new SessionSummaryLine(g.Sku, g.Restocked, g.Sold, g.NetDelta)).ToList();
+        // Stock at the end of the period is the ResultingQuantity of each item's last movement in
+        // it; stock at the start follows as end − net change, since every quantity change is in
+        // the ledger. (A correlated NOT EXISTS, served by the Sku+Timestamp index.)
+        var lastMovements = await inSession
+            .Where(m => !inSession.Any(later => later.Sku == m.Sku && later.Timestamp > m.Timestamp))
+            .Select(m => new { m.Sku, m.ResultingQuantity })
+            .ToListAsync(cancellationToken);
+        var closingBySku = lastMovements.GroupBy(m => m.Sku).ToDictionary(g => g.Key, g => g.First().ResultingQuantity);
+
+        return grouped.Select(g =>
+        {
+            var closing = closingBySku.GetValueOrDefault(g.Sku);
+            return new SessionSummaryLine(g.Sku, g.Restocked, g.Sold, g.NetDelta, closing - g.NetDelta, closing, g.RecordedRevenue, g.UnpricedSold);
+        }).ToList();
     }
 
     public Task<List<StockMovement>> GetMovementsAsync(

@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { gql } from "@/lib/graphql";
-import type { RestockSession, SessionReportLine } from "@/lib/types";
+import type { CurrentSessionSales, RestockSession, SessionReportLine } from "@/lib/types";
 
 // Readable by sellers too: the Receive screen shows which session their receives land in.
 export function useCurrentSession() {
@@ -11,6 +11,30 @@ export function useCurrentSession() {
     queryKey: ["restock-sessions", "current"],
     queryFn: async () => (await apiFetch<{ session: RestockSession | null }>("gateway", "restock-sessions/current")).session,
   });
+}
+
+// Units sold/received per item in the open session, keyed by SKU. Counts only, so sellers can
+// use it (Stock, Scan). Empty map when no session is open.
+export function useCurrentSessionSales() {
+  return useQuery({
+    queryKey: ["restock-sessions", "current", "sales"],
+    queryFn: async () => {
+      const data = await apiFetch<CurrentSessionSales>("gateway", "restock-sessions/current/sales");
+      return { session: data.session, bySku: new Map(data.lines.map((l) => [l.sku, l])) };
+    },
+  });
+}
+
+// The current session's full report (with revenue) keyed by SKU, for admin screens.
+export function useCurrentSessionReport() {
+  const current = useCurrentSession();
+  const report = useSessionReport(current.data?.id ?? null);
+  return {
+    session: current.data ?? null,
+    isPending: current.isPending || (!!current.data && report.isPending),
+    error: current.error ?? report.error,
+    bySku: new Map((report.data ?? []).map((l) => [l.sku, l])),
+  };
 }
 
 // Everything below is admin-only in the backend.
@@ -26,10 +50,14 @@ const REPORT_QUERY = /* GraphQL */ `
     sessionReport(sessionId: $sessionId) {
       sku
       name
+      categoryId
       restocked
       sold
       netDelta
+      openingQuantity
+      closingQuantity
       revenue
+      revenueEstimated
     }
   }
 `;

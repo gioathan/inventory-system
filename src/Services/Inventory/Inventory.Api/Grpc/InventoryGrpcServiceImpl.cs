@@ -57,7 +57,15 @@ public class InventoryGrpcServiceImpl(
     // same atomic floor-at-zero guard as the REST /adjust endpoint, just reachable internally.
     public override async Task<StockReply> AdjustStock(AdjustStockRequest request, ServerCallContext context)
     {
-        var result = await receiving.AdjustStockAsync(request.Sku, request.Delta, ToDomainReason(request.Reason), context.CancellationToken);
+        decimal? unitPrice = null;
+        if (request.HasUnitPrice)
+        {
+            if (!decimal.TryParse(request.UnitPrice, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var parsed) || parsed < 0)
+                throw new RpcException(new Status(StatusCode.InvalidArgument, $"'{request.UnitPrice}' is not a valid unit price."));
+            unitPrice = parsed;
+        }
+
+        var result = await receiving.AdjustStockAsync(request.Sku, request.Delta, ToDomainReason(request.Reason), context.CancellationToken, unitPrice);
 
         return result.Outcome switch
         {
@@ -83,8 +91,27 @@ public class InventoryGrpcServiceImpl(
             Sku = l.Sku,
             Restocked = l.Restocked,
             Sold = l.Sold,
-            NetDelta = l.NetDelta
+            NetDelta = l.NetDelta,
+            OpeningQuantity = l.OpeningQuantity,
+            ClosingQuantity = l.ClosingQuantity,
+            RecordedRevenue = l.RecordedRevenue.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            UnpricedSold = l.UnpricedSold
         }));
+        return reply;
+    }
+
+    // Stays at the class-level SellerOrAdmin floor on purpose: counts only, no revenue, so the
+    // Stock and Scan screens can show sellers what's moving in the current session.
+    public override async Task<CurrentSessionSalesReply> GetCurrentSessionSales(GetCurrentSessionSalesRequest request, ServerCallContext context)
+    {
+        var reply = new CurrentSessionSalesReply();
+        var current = await sessions.GetCurrentAsync(context.CancellationToken);
+        if (current is null)
+            return reply;
+
+        reply.Session = ToReply(current);
+        var lines = await sessions.GetSummaryAsync(current.Id, context.CancellationToken) ?? [];
+        reply.Lines.AddRange(lines.Select(l => new SessionSalesLine { Sku = l.Sku, Sold = l.Sold, Restocked = l.Restocked }));
         return reply;
     }
 

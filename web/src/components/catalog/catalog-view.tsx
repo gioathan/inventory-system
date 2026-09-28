@@ -21,6 +21,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useCategories, useItems } from "@/hooks/use-items";
+import { useCurrentSessionSales } from "@/hooks/use-restock-sessions";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { toCsv, downloadCsv } from "@/lib/csv";
 import { formatMoney, formatPercent } from "@/lib/format";
@@ -71,7 +72,10 @@ export function CatalogView() {
   const params = useSearchParams();
   const items = useItems();
   const categories = useCategories();
+  const sessionSales = useCurrentSessionSales();
   const isWide = useMediaQuery("(min-width: 1024px)");
+  const soldBySku = sessionSales.data?.bySku;
+  const sessionOpen = !!sessionSales.data?.session;
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ItemFilter>("all");
@@ -157,10 +161,17 @@ export function CatalogView() {
         meta: { align: "right" },
         cell: ({ row }) => <StockPill item={row.original} />,
       }),
+      // Sort by this to see what's selling right now. Only shown while a session is open.
+      columnHelper.accessor((item) => soldBySku?.get(item.sku)?.sold ?? 0, {
+        id: "sessionSold",
+        header: "Sold this session",
+        meta: { align: "right" },
+        cell: ({ getValue }) => <span className={getValue() > 0 ? "font-medium tabular-nums" : "tabular-nums text-muted-foreground"}>{getValue()}</span>,
+      }),
     ],
     // openItem/nameOf are recreated each render but only read current state via closures.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [categoryName],
+    [categoryName, soldBySku],
   );
 
   // Known, documented incompatibility (see the "use no memo" note above); this component is opted out.
@@ -172,7 +183,7 @@ export function CatalogView() {
     // TanStack sorts numeric columns descending on the first click; people expect low-to-high first.
     sortDescFirst: false,
     // The panel takes a third of the width, so the least essential column steps aside while it is open.
-    state: { sorting, rowSelection, columnVisibility: { category: !(isWide && openEntry) } },
+    state: { sorting, rowSelection, columnVisibility: { category: !(isWide && openEntry), sessionSold: sessionOpen } },
     initialState: { pagination: { pageSize: PAGE_SIZE } },
     onSortingChange: setSorting,
     onRowSelectionChange: setRowSelection,
@@ -375,6 +386,9 @@ export function CatalogView() {
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-medium">{item.name}</span>
                           <span className="block truncate font-mono text-xs text-muted-foreground">{item.sku}</span>
+                          {sessionOpen && (soldBySku?.get(item.sku)?.sold ?? 0) > 0 && (
+                            <span className="block text-xs text-muted-foreground">{soldBySku!.get(item.sku)!.sold} sold this session</span>
+                          )}
                         </span>
                         <span className="flex shrink-0 flex-col items-end gap-1">
                           <PriceCell item={item} />

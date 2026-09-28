@@ -20,10 +20,14 @@ public class InventoryApiClient(InventoryGrpcService.InventoryGrpcServiceClient 
             cancellationToken: cancellationToken);
 
         return reply.Lines
-            .Select(l => new SessionSummaryLine(l.Sku, l.Restocked, l.Sold, l.NetDelta))
+            .Select(l => new SessionSummaryLine(
+                l.Sku, l.Restocked, l.Sold, l.NetDelta, l.OpeningQuantity, l.ClosingQuantity,
+                decimal.Parse(l.RecordedRevenue, System.Globalization.CultureInfo.InvariantCulture), l.UnpricedSold))
             .ToList();
     }
 }
 
 public record StockLevel(string Sku, int QuantityOnHand);
-public record SessionSummaryLine(string Sku, int Restocked, int Sold, int NetDelta);
+public record SessionSummaryLine(
+    string Sku, int Restocked, int Sold, int NetDelta, int OpeningQuantity, int ClosingQuantity,
+    decimal RecordedRevenue, int UnpricedSold);

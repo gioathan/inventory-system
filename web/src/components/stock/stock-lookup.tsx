@@ -9,13 +9,14 @@ import { StatusPill } from "@/components/status-pill";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useItems } from "@/hooks/use-items";
+import { useCurrentSessionSales } from "@/hooks/use-restock-sessions";
 import { formatMoney, formatPercent } from "@/lib/format";
 import { ITEM_FILTERS as FILTERS, matchesSearch, type ItemFilter as Filter } from "@/lib/item-filters";
 import { stockLevel } from "@/lib/stock";
 import type { CatalogEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-function StockCard({ item }: { item: CatalogEntry }) {
+function StockCard({ item, soldThisSession }: { item: CatalogEntry; soldThisSession: number | null }) {
   const level = stockLevel(item.quantityOnHand);
   return (
     <li className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
@@ -24,6 +25,7 @@ function StockCard({ item }: { item: CatalogEntry }) {
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-semibold leading-tight">{item.name}</h3>
           <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{item.sku}</p>
+          {soldThisSession !== null && <p className="mt-0.5 text-xs text-muted-foreground">{soldThisSession} sold this session</p>}
           <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2">
             <span className="text-lg font-semibold tabular-nums">{formatMoney(item.effectivePrice)}</span>
             {item.discountPercentage !== null && (
@@ -62,6 +64,9 @@ export function StockLookup() {
   const searchRef = useRef<HTMLInputElement>(null);
 
   const items = useItems();
+  // Counts only, readable by sellers; null per item when no session is open.
+  const sessionSales = useCurrentSessionSales();
+  const soldOf = (sku: string) => (sessionSales.data?.session ? (sessionSales.data.bySku.get(sku)?.sold ?? 0) : null);
 
   // Desktop only: focusing on a touch device would pop the keyboard over the results.
   useEffect(() => {
@@ -158,7 +163,7 @@ export function StockLookup() {
           </p>
           <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {visible.map((item) => (
-              <StockCard key={item.sku} item={item} />
+              <StockCard key={item.sku} item={item} soldThisSession={soldOf(item.sku)} />
             ))}
           </ul>
         </>

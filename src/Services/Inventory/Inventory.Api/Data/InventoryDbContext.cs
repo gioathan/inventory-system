@@ -26,6 +26,9 @@ public class InventoryDbContext(DbContextOptions<InventoryDbContext> options) : 
             // Every report/history query filters by Sku+time or by SessionId — index both access paths.
             entity.HasIndex(e => new { e.Sku, e.Timestamp });
             entity.HasIndex(e => e.SessionId);
+            // Discounted prices aren't whole cents (9.99 × 0.85 = 8.4915), and revenue is summed
+            // before it's rounded for display, so keep more than two decimals.
+            entity.Property(e => e.UnitPrice).HasPrecision(18, 4);
         });
 
         modelBuilder.Entity<RestockSession>(entity =>

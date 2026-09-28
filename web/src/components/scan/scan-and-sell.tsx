@@ -5,6 +5,7 @@ import { ScanLine } from "lucide-react";
 import { useState } from "react";
 import { NoticeBanner } from "@/components/notice-banner";
 import { scanPath, useItemLookup } from "@/hooks/use-item-lookup";
+import { useCurrentSessionSales } from "@/hooks/use-restock-sessions";
 import { ApiError, apiFetch } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import type { ScanItem } from "@/lib/types";
@@ -21,6 +22,7 @@ interface Sale {
 
 export function ScanAndSell() {
   const queryClient = useQueryClient();
+  const sessionSales = useCurrentSessionSales();
   const { item, setItem, notice, setNotice, lookup, clear } = useItemLookup();
   const [quantity, setQuantity] = useState(1);
   const [sales, setSales] = useState<Sale[]>([]);
@@ -42,8 +44,9 @@ export function ScanAndSell() {
         text: `Sold ${sold.quantity} × ${updated.name} · ${updated.quantityOnHand ?? 0} left`,
       });
       setItem(null);
-      // Stock changed, so any cached stock list is now stale.
+      // Stock changed, so any cached stock list — and the session's counts — are now stale.
       queryClient.invalidateQueries({ queryKey: ["items"] });
+      queryClient.invalidateQueries({ queryKey: ["restock-sessions"] });
     },
     onError: async (error, sold) => {
       setNotice({ kind: "error", text: error instanceof Error ? error.message : "The sale didn't go through." });
@@ -92,6 +95,7 @@ export function ScanAndSell() {
               onConfirm={() => sell.mutate({ barcode: item.barcode, quantity })}
               onClear={clear}
               selling={sell.isPending}
+              soldThisSession={sessionSales.data?.session ? (sessionSales.data.bySku.get(item.sku)?.sold ?? 0) : null}
             />
           ) : (
             <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">

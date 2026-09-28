@@ -79,9 +79,22 @@ export interface RestockSession {
 export interface SessionReportLine {
   sku: string;
   name: string | null;
+  /** The item's current category, not the one it had at the time. */
+  categoryId: string | null;
   restocked: number;
   sold: number;
   netDelta: number;
-  /** Units sold × today's price; null if the item no longer exists in the catalog. */
+  /** Stock when the session's period began, and when it ended (or now, while open). */
+  openingQuantity: number;
+  closingQuantity: number;
+  /** What was paid. Null only if older, unpriced sales exist for an item that no longer has a price. */
   revenue: number | null;
+  /** True when some units were sold before prices were recorded and are valued at today's price. */
+  revenueEstimated: boolean;
+}
+
+/** Counts-only view of the open session, readable by sellers (no revenue). */
+export interface CurrentSessionSales {
+  session: RestockSession | null;
+  lines: { sku: string; sold: number; restocked: number }[];
 }

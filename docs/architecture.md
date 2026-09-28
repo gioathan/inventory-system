@@ -95,7 +95,22 @@ service) since it only needs Inventory's own data, not cross-service events yet.
 - **Scan Gateway exposes them** (`GET /restock-sessions/current` for any signed-in user;
   list/start/close admin-only) via four Inventory RPCs (`OpenRestockSession`,
   `CloseRestockSession`, `GetCurrentRestockSession`, `ListRestockSessions`). "No session open" is
-  a normal 200 with a null session, not a 404.
+  a normal 200 with a null session, not a 404. `GET /restock-sessions/current/sales`
+  (`GetCurrentSessionSales`) gives per-item sold/received **counts only, no money**, so sellers'
+  Stock and Scan screens can show "N sold this session".
+- **Sale price is recorded at the sale** (2026-09-28). Scan Gateway passes the effective price it
+  already looked up (discount included) on `AdjustStock`, stored as `StockMovement.UnitPrice`.
+  Inventory stores it but never computes it. The summary returns recorded revenue plus the units
+  sold before prices existed; Dashboard values only those at today's price and flags the line
+  `revenueEstimated`.
+- **Stock at the start and end of a session** comes from the ledger: end = the
+  `ResultingQuantity` of each item's last movement in the period, start = end − net change (every
+  quantity change is logged, so this is exact). `sessionReport` also carries each item's current
+  `categoryId`, joined from Catalog.
+- **Where items show it** (Phase 1 of the sales-visibility plan): the item panel's "This session"
+  block (start → received → sold → now, revenue, sell-through = sold ÷ (start + received)); a
+  sortable "Sold this session" column in Items & SKUs while a session is open; "N sold this
+  session" on Stock cards and the Scan & Sell card.
 - **Revenue lives in Dashboard, not Inventory** — Inventory's ledger only ever knows quantities,
   never money (same boundary as everywhere else: Inventory owns stock truth, Catalog owns
   price). Dashboard's new `sessionReport(sessionId)` GraphQL query is the join point: it calls

@@ -13,6 +13,7 @@ import { stockLevel } from "@/lib/stock";
 import type { CatalogEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { EditItemDialog } from "./edit-item-dialog";
+import { ItemSession } from "./item-session";
 
 const FORMAT_NOTE = {
   both: "Code128 + QR",
@@ -86,6 +87,8 @@ export function ItemPanel({
         </Field>
         <Field label="List price">{formatMoney(item.price)}</Field>
       </dl>
+
+      <ItemSession item={item} />
 
       <section aria-label="Label preview" className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between">

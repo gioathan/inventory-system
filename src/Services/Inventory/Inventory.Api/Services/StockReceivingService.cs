@@ -100,7 +100,7 @@ public class StockReceivingService(InventoryDbContext db, IDbContextOutbox outbo
     // and both decrement to -1. Shared by the REST /adjust endpoint and Scan Gateway's
     // scan-to-sell RPC — one implementation of the guard, not two copies that could drift.
     public async Task<AdjustStockResult> AdjustStockAsync(
-        string sku, int delta, StockMovementReason reason, CancellationToken cancellationToken)
+        string sku, int delta, StockMovementReason reason, CancellationToken cancellationToken, decimal? unitPrice = null)
     {
         var strategy = db.Database.CreateExecutionStrategy();
         return await strategy.ExecuteAsync(async () =>
@@ -119,7 +119,9 @@ public class StockReceivingService(InventoryDbContext db, IDbContextOutbox outbo
             }
 
             var updated = await db.StockItems.AsNoTracking().FirstAsync(s => s.Sku == sku, cancellationToken);
-            await LogMovementAsync(sku, delta, reason, updated.QuantityOnHand, cancellationToken);
+            // The price only means something on a sale; ignore it on any other adjustment.
+            await LogMovementAsync(sku, delta, reason, updated.QuantityOnHand, cancellationToken,
+                reason == StockMovementReason.Sale ? unitPrice : null);
 
             return new AdjustStockResult(AdjustStockOutcome.Adjusted, updated);
         });
@@ -129,7 +131,8 @@ public class StockReceivingService(InventoryDbContext db, IDbContextOutbox outbo
     // quantity change — no matter which path caused it — ends up in the same ledger, tagged
     // with whichever session (if any) is currently open.
     public async Task LogMovementAsync(
-        string sku, int delta, StockMovementReason reason, int resultingQuantity, CancellationToken cancellationToken)
+        string sku, int delta, StockMovementReason reason, int resultingQuantity, CancellationToken cancellationToken,
+        decimal? unitPrice = null)
     {
         var openSessionId = await db.RestockSessions
             .Where(s => s.ClosedAt == null)
@@ -144,7 +147,8 @@ public class StockReceivingService(InventoryDbContext db, IDbContextOutbox outbo
             Reason = reason,
             Timestamp = DateTimeOffset.UtcNow,
             ResultingQuantity = resultingQuantity,
-            SessionId = openSessionId
+            SessionId = openSessionId,
+            UnitPrice = unitPrice
         });
 
         // Enroll ties this publish to `db`: the outbound event is staged in Wolverine's

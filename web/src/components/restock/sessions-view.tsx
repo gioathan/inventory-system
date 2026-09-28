@@ -132,8 +132,13 @@ function SessionReport({ session, number, onClose }: { session: RestockSession; 
   const totals = useMemo(
     () =>
       lines.reduce(
-        (t, l) => ({ restocked: t.restocked + l.restocked, sold: t.sold + l.sold, revenue: t.revenue + (l.revenue ?? 0) }),
-        { restocked: 0, sold: 0, revenue: 0 },
+        (t, l) => ({
+          restocked: t.restocked + l.restocked,
+          sold: t.sold + l.sold,
+          revenue: t.revenue + (l.revenue ?? 0),
+          estimated: t.estimated || l.revenueEstimated,
+        }),
+        { restocked: 0, sold: 0, revenue: 0, estimated: false },
       ),
     [lines],
   );
@@ -159,7 +164,7 @@ function SessionReport({ session, number, onClose }: { session: RestockSession; 
         {[
           { label: "Received", value: totals.restocked.toLocaleString() },
           { label: "Sold", value: totals.sold.toLocaleString() },
-          { label: "Revenue", value: formatMoney(totals.revenue) },
+          { label: "Revenue", value: `${totals.estimated ? "≈ " : ""}${formatMoney(totals.revenue)}` },
         ].map((stat) => (
           <div key={stat.label} className="rounded-xl border px-3 py-2.5">
             <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{stat.label}</dt>
@@ -192,9 +197,10 @@ function SessionReport({ session, number, onClose }: { session: RestockSession; 
             <thead>
               <tr className="border-b text-left text-xs uppercase tracking-wider text-muted-foreground">
                 <th className="py-2 pr-3 font-medium">Item</th>
+                <th className="px-3 py-2 text-right font-medium">Start</th>
                 <th className="px-3 py-2 text-right font-medium">Received</th>
                 <th className="px-3 py-2 text-right font-medium">Sold</th>
-                <th className="px-3 py-2 text-right font-medium">Net</th>
+                <th className="px-3 py-2 text-right font-medium">End</th>
                 <th className="py-2 pl-3 text-right font-medium">Revenue</th>
               </tr>
             </thead>
@@ -205,19 +211,25 @@ function SessionReport({ session, number, onClose }: { session: RestockSession; 
                     <div className="truncate font-medium">{line.name ?? "Removed item"}</div>
                     <div className="truncate font-mono text-xs text-muted-foreground">{line.sku}</div>
                   </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{line.restocked}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{line.sold}</td>
-                  <td className={cn("px-3 py-2.5 text-right tabular-nums", line.netDelta < 0 && "text-destructive")}>
-                    {line.netDelta > 0 ? `+${line.netDelta}` : line.netDelta}
+                  <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{line.openingQuantity}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">+{line.restocked}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">−{line.sold}</td>
+                  <td className={cn("px-3 py-2.5 text-right font-medium tabular-nums", line.closingQuantity === 0 && "text-destructive")}>
+                    {line.closingQuantity}
                   </td>
-                  <td className="py-2.5 pl-3 text-right tabular-nums">{line.revenue === null ? "—" : formatMoney(line.revenue)}</td>
+                  <td className="py-2.5 pl-3 text-right tabular-nums">
+                    {line.revenue === null ? "—" : `${line.revenueEstimated ? "≈ " : ""}${formatMoney(line.revenue)}`}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-      <p className="text-xs text-muted-foreground">Revenue uses today&apos;s price for each item, not the price at the time of sale.</p>
+      <p className="text-xs text-muted-foreground">
+        Revenue is what customers paid at each sale.
+        {totals.estimated && " ≈ marks items with sales from before prices were recorded, valued at today's price."}
+      </p>
     </section>
   );
 }

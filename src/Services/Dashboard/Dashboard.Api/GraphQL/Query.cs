@@ -33,9 +33,10 @@ public class Query
             stockBySku.TryGetValue(item.Sku, out var quantity) ? quantity : null));
     }
 
-    // Answers "how much did I sell / restock between two points in time, and what's that worth."
-    // Inventory only knows quantities (its ledger has no concept of price); this resolver is
-    // the join point that turns "sold 4" into "sold 4, that's $X" using Catalog's price.
+    // Answers "what came in, what sold and what was it worth" for one session's period, per item.
+    // Revenue is what was actually paid for sales that recorded their price (since 2026-09-28);
+    // units sold before that are priced at today's effective price and the line is flagged
+    // RevenueEstimated. Category is the item's current one, joined from Catalog here.
     // Admin-only: this is revenue data, not a day-to-day seller action.
     [Authorize(Policy = AuthPolicies.AdminOnly)]
     public async Task<IEnumerable<SessionReportLine>> SessionReport(
@@ -53,19 +54,24 @@ public class Query
         return summaryTask.Result.Select(line =>
         {
             itemsBySku.TryGetValue(line.Sku, out var item);
-            // EffectivePrice, not Price: if a discount is active right now, revenue for a sale
-            // that happened during the session reflects what's actually being charged today —
-            // same "uses current Catalog price, not price-at-time-of-sale" tradeoff already
-            // documented in TECH_DEBT.md, just carried through the discount on top of it.
-            var price = item?.EffectivePrice;
+            var estimated = line.UnpricedSold > 0;
+            // Unpriced (older) sales can only be valued at today's price; without the item there's
+            // no price at all, so the total is unknown rather than silently too low.
+            decimal? revenue = !estimated
+                ? line.RecordedRevenue
+                : item is null ? null : line.RecordedRevenue + item.EffectivePrice * line.UnpricedSold;
 
             return new SessionReportLine(
                 line.Sku,
                 item?.Name,
+                item?.CategoryId,
                 line.Restocked,
                 line.Sold,
                 line.NetDelta,
-                price is null ? null : price * line.Sold);
+                line.OpeningQuantity,
+                line.ClosingQuantity,
+                revenue,
+                estimated);
         });
     }
 }
@@ -73,4 +79,6 @@ public class Query
 public record DashboardItem(
     string Sku, string Name, string Barcode, decimal Price, double? DiscountPercentage, decimal EffectivePrice,
     string? ImageUrl, Guid? CategoryId, int? QuantityOnHand);
-public record SessionReportLine(string Sku, string? Name, int Restocked, int Sold, int NetDelta, decimal? Revenue);
+public record SessionReportLine(
+    string Sku, string? Name, Guid? CategoryId, int Restocked, int Sold, int NetDelta,
+    int OpeningQuantity, int ClosingQuantity, decimal? Revenue, bool RevenueEstimated);

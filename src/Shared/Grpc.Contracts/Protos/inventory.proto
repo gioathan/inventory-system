@@ -25,6 +25,8 @@ service InventoryGrpcService {
   rpc CloseRestockSession (RestockSessionIdRequest) returns (RestockSessionReply);
   rpc GetCurrentRestockSession (GetCurrentRestockSessionRequest) returns (CurrentRestockSessionReply);
   rpc ListRestockSessions (ListRestockSessionsRequest) returns (ListRestockSessionsReply);
+  // What's moved in the open session, as unit counts per item — no revenue, so sellers can see it.
+  rpc GetCurrentSessionSales (GetCurrentSessionSalesRequest) returns (CurrentSessionSalesReply);
 
   // Purchase order saga (Step 13) — Create/Send/Receive/Cancel each publish a command to the
   // Wolverine saga identified by purchase_order_id; the RPC returns once that command has been
@@ -71,6 +73,10 @@ message AdjustStockRequest {
   string sku = 1;
   int32 delta = 2;
   MovementReason reason = 3;
+  // Sales only: price per unit actually charged (discount included), as an invariant-culture
+  // decimal string like every other money value here. Stored on the ledger row so later reports
+  // use what was paid, not whatever the price is by then.
+  optional string unit_price = 4;
 }
 
 message GetSessionSummaryRequest {
@@ -82,6 +88,25 @@ message SessionSummaryLine {
   int32 restocked = 2;
   int32 sold = 3;
   int32 net_delta = 4;
+  int32 opening_quantity = 5; // stock when the session's period began
+  int32 closing_quantity = 6; // stock when it ended (or now, while open)
+  string recorded_revenue = 7; // decimal string: sum of units × price paid, for sales that carry a price
+  int32 unpriced_sold = 8; // units sold before prices were recorded; the caller estimates those
+}
+
+message GetCurrentSessionSalesRequest {
+}
+
+message SessionSalesLine {
+  string sku = 1;
+  int32 sold = 2;
+  int32 restocked = 3;
+}
+
+// Counts only, no money — readable by sellers. Session is unset when none is open.
+message CurrentSessionSalesReply {
+  RestockSessionReply session = 1;
+  repeated SessionSalesLine lines = 2;
 }
 
 message SessionSummaryReply {

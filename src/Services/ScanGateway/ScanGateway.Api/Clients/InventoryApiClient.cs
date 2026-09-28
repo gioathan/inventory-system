@@ -28,12 +28,20 @@ public class InventoryApiClient(InventoryGrpcService.InventoryGrpcServiceClient 
 
     // Scan-to-sell: quantity is always sent as a negative delta here so the caller (the /sell
     // endpoint) only ever deals in positive "how many did they sell" numbers.
-    public async Task<SellResult> SellStockAsync(string sku, int quantity, CancellationToken cancellationToken)
+    // unitPrice is what the customer is charged per unit right now (discount included), recorded
+    // on the sale so reports use what was actually paid rather than a later price.
+    public async Task<SellResult> SellStockAsync(string sku, int quantity, decimal unitPrice, CancellationToken cancellationToken)
     {
         try
         {
             var reply = await grpcClient.AdjustStockAsync(
-                new AdjustStockRequest { Sku = sku, Delta = -quantity, Reason = MovementReason.Sale },
+                new AdjustStockRequest
+                {
+                    Sku = sku,
+                    Delta = -quantity,
+                    Reason = MovementReason.Sale,
+                    UnitPrice = unitPrice.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                },
                 cancellationToken: cancellationToken);
             return new SellResult(SellOutcome.Sold, new StockLevel(reply.Sku, reply.QuantityOnHand));
         }
@@ -127,6 +135,14 @@ public class InventoryApiClient(InventoryGrpcService.InventoryGrpcServiceClient 
         return reply.Sessions.Select(ToRestockSession).ToList();
     }
 
+    public async Task<CurrentSessionSales> GetCurrentSessionSalesAsync(CancellationToken cancellationToken)
+    {
+        var reply = await grpcClient.GetCurrentSessionSalesAsync(new GetCurrentSessionSalesRequest(), cancellationToken: cancellationToken);
+        return new CurrentSessionSales(
+            reply.Session is null ? null : ToRestockSession(reply.Session),
+            reply.Lines.Select(l => new SessionSalesCount(l.Sku, l.Sold, l.Restocked)).ToList());
+    }
+
     private static RestockSession ToRestockSession(RestockSessionReply reply) => new(
         Guid.Parse(reply.Id),
         DateTimeOffset.Parse(reply.OpenedAt),
@@ -176,6 +192,8 @@ public class PurchaseOrderOperationException(StatusCode statusCode, string messa
 }
 
 public record RestockSession(Guid Id, DateTimeOffset OpenedAt, DateTimeOffset? ClosedAt, string? Note);
+public record SessionSalesCount(string Sku, int Sold, int Restocked);
+public record CurrentSessionSales(RestockSession? Session, List<SessionSalesCount> Lines);
 
 public class RestockSessionOperationException(StatusCode statusCode, string message) : Exception(message)
 {

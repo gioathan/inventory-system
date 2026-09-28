@@ -20,4 +20,10 @@ public class StockMovement
     public DateTimeOffset Timestamp { get; set; }
     public int ResultingQuantity { get; set; }
     public Guid? SessionId { get; set; }
+
+    // Sales only: the price per unit the customer actually paid (discount included), handed over
+    // by Scan Gateway at the moment of sale. Inventory stores it but never computes it — Catalog
+    // still owns pricing. Null for non-sale movements and for sales recorded before this existed,
+    // whose revenue can only be estimated from today's price.
+    public decimal? UnitPrice { get; set; }
 }

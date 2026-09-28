@@ -70,6 +70,15 @@ test("restock sessions: starting one closes the last, and each report covers onl
   check("report: counts the sale", firstLine?.sold === 2);
   check("report: revenue is units sold × price", firstLine?.revenue === 20, String(firstLine?.revenue));
 
+  // ---- the item itself shows what's happening in the session -----------------------------------------
+  await page.goto(`${baseUrl}/catalog?sku=${item.sku}`);
+  const block = page.getByRole("region", { name: "This session" });
+  await block.waitFor();
+  const blockText = (await block.innerText()).replace(/\s+/g, " ");
+  check("item: session block shows start → received → sold → now (0, +8, −2, 6)", /Start 0 Received \+8 Sold −2 Now 6/i.test(blockText), blockText);
+  check("item: session block shows revenue and sell-through (2 of 8 = 25%)", blockText.includes("$20.00") && blockText.includes("25%"), blockText);
+  check("catalog: a Sold this session column appears while a session is open", (await page.getByRole("columnheader", { name: /Sold this session/ }).count()) === 1);
+
   // ---- receive screen banner -------------------------------------------------------------------------
   await page.goto(`${baseUrl}/receive`);
   check("receive: banner names the open session", await visible(page, `e2e first ${tag}`));
@@ -93,7 +102,7 @@ test("restock sessions: starting one closes the last, and each report covers onl
   await page.getByRole("button", { name: new RegExp(`e2e first ${tag}`) }).click();
   const firstReport = page.getByRole("region", { name: /Session #\d+ report/ });
   const row = firstReport.locator("tr", { hasText: `Session Item ${tag}` });
-  check("page: the first session's report lists the item", (await row.innerText()).replace(/\s+/g, " ").includes("8 2 +6 $20.00"), await row.innerText());
+  check("page: the first session's report lists the item", (await row.innerText()).replace(/\s+/g, " ").includes("0 +8 −2 6 $20.00"), await row.innerText());
   check("page: the first session reads as closed", (await firstReport.innerText()).includes("→") && !(await firstReport.innerText()).includes("still open"));
 
   // ---- a seller sees the session but can't run them ---------------------------------------------------
@@ -102,6 +111,10 @@ test("restock sessions: starting one closes the last, and each report covers onl
     await s.page.goto(`${baseUrl}/receive`);
     check("seller: sees which session is open", await visible(s.page, `e2e second ${tag}`));
     check("seller: gets no Start button", (await s.page.getByRole("button", { name: /Start (new )?session/ }).count()) === 0);
+    await s.page.goto(`${baseUrl}/stock`);
+    await s.page.getByLabel("Search items").fill(`Session Item ${tag}`);
+    // The second session is open now: the 2 earlier sales belong to the first one.
+    check("seller: stock card shows this session's sold count (0 in the new session)", await visible(s.page, "0 sold this session"));
     await s.page.goto(`${baseUrl}/restock-sessions`);
     check("seller: bounced from the sessions page", new URL(s.page.url()).pathname === "/scan");
     const denied = await call(s.page, "restock-sessions", { note: "nope" });

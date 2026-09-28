@@ -51,6 +51,7 @@ export function ReceiveStock({ initialCode, isAdmin = false }: { initialCode?: s
       setNotice({ kind: "success", text: `Added ${added.quantity} × ${updated.name} · now ${updated.quantityOnHand} on hand` });
       setItem(null);
       queryClient.invalidateQueries({ queryKey: ["items"] });
+      queryClient.invalidateQueries({ queryKey: ["restock-sessions"] });
     },
     onError: (error) => {
       setNotice({ kind: "error", text: error instanceof Error ? error.message : "Couldn't add that stock. Try again." });
