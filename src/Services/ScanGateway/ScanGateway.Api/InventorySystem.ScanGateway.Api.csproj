@@ -8,6 +8,9 @@
 
   <ItemGroup>
     <PackageReference Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.4.6" />
+    <!-- R2 is Cloudflare's S3-compatible object storage — the AWS SDK talks to it the same way
+         it talks to real S3, just pointed at R2's endpoint (see R2ImageUploader). -->
+    <PackageReference Include="AWSSDK.S3" Version="4.0.103.4" />
     <PackageReference Include="Grpc.Net.ClientFactory" Version="2.83.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.16.18" />

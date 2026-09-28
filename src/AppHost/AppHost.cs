@@ -27,12 +27,18 @@ var jwtSigningKey = builder.AddParameter("jwt-signing-key", "local-dev-only-sign
 
 // Optional: the "upload a raw file, get back a URL" path for Item.ImageUrl (POST /images on
 // Scan Gateway) — see architecture.md. Empty by default and deliberately not pinned to a
-// working local-dev value like the parameters above, because there's no local Cloudflare to
-// point at; the feature just reports "not configured" (502) until real values are supplied.
-// Override locally via `dotnet user-secrets set Parameters:cloudflare-api-token <token>` (from
-// src/AppHost) once you have a Cloudflare account with Images enabled.
-var cloudflareAccountId = builder.AddParameter("cloudflare-account-id", "");
-var cloudflareApiToken = builder.AddParameter("cloudflare-api-token", "", secret: true);
+// working local-dev value like the parameters above, because there's no local R2 to point at;
+// the feature just reports "not configured" (502) until real values are supplied. R2 is
+// Cloudflare's S3-compatible object storage — talked to via the AWS SDK pointed at R2's own
+// endpoint, not Cloudflare's REST API. Override locally via `dotnet user-secrets set
+// Parameters:r2-access-key-id <key>` etc. (from src/AppHost) once a real R2 bucket exists, with
+// its own R2 API token (R2 → Manage R2 API Tokens — NOT a general Cloudflare API token, which
+// isn't the right shape for R2's S3-compatible auth) and "Public access" turned on for the bucket.
+var r2AccountId = builder.AddParameter("r2-account-id", "");
+var r2AccessKeyId = builder.AddParameter("r2-access-key-id", "");
+var r2SecretAccessKey = builder.AddParameter("r2-secret-access-key", "", secret: true);
+var r2BucketName = builder.AddParameter("r2-bucket-name", "");
+var r2PublicBaseUrl = builder.AddParameter("r2-public-base-url", "");
 
 // The origin(s) a browser-based frontend is allowed to call Staff/Scan Gateway/Dashboard from.
 // Pinned to Next.js's own default dev port so local frontend work needs zero extra setup; a real
@@ -103,8 +109,11 @@ var scanGateway = builder.AddProject<Projects.InventorySystem_ScanGateway_Api>("
     .WaitFor(inventoryApi)
     .WaitFor(redis)
     .WithEnvironment("Jwt__SigningKey", jwtSigningKey)
-    .WithEnvironment("CloudflareImages__AccountId", cloudflareAccountId)
-    .WithEnvironment("CloudflareImages__ApiToken", cloudflareApiToken)
+    .WithEnvironment("R2Images__AccountId", r2AccountId)
+    .WithEnvironment("R2Images__AccessKeyId", r2AccessKeyId)
+    .WithEnvironment("R2Images__SecretAccessKey", r2SecretAccessKey)
+    .WithEnvironment("R2Images__BucketName", r2BucketName)
+    .WithEnvironment("R2Images__PublicBaseUrl", r2PublicBaseUrl)
     .WithEnvironment("Cors__AllowedOrigins", frontendOrigin);
 
 // Dashboard.Api is the one GraphQL surface in the system (see architecture.md) — it composes

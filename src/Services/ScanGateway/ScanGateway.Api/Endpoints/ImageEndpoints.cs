@@ -13,7 +13,7 @@ public static class ImageEndpoints
         // passes it straight into intake's existing imageUrl field; this only exists for the
         // "I have a raw file, not a link yet" case. Admin-only, same as categories/discounts —
         // admin-managed setup, not a day-to-day seller action.
-        app.MapPost("/images", async (HttpRequest request, ICloudflareImageUploader uploader, CancellationToken cancellationToken) =>
+        app.MapPost("/images", async (HttpRequest request, IImageUploader uploader, CancellationToken cancellationToken) =>
         {
             // Binding straight from HttpRequest instead of an IFormFile parameter is
             // deliberate: minimal APIs bind IFormFile by reading the form during argument
@@ -42,9 +42,9 @@ public static class ImageEndpoints
             }
             catch (ImageUploadException ex)
             {
-                // 502: this service is a proxy to Cloudflare here, and the failure is on
-                // Cloudflare's side (or in how this service is configured to reach it) — not a
-                // problem with the caller's request, once it's passed the checks above.
+                // 502: this service is a proxy to R2 here, and the failure is on R2's side (or
+                // in how this service is configured to reach it) — not a problem with the
+                // caller's request, once it's passed the checks above.
                 return Results.Problem(ex.Message, statusCode: StatusCodes.Status502BadGateway);
             }
         }).RequireAuthorization(AuthPolicies.AdminOnly).DisableAntiforgery();

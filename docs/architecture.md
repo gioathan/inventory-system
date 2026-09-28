@@ -45,7 +45,7 @@ Inventory Service owns stock truth. It is queried live (gRPC, direct to Postgres
 
 The real usage pattern this system is built around: scan/generate a code for an item, give it a category/name/price/image, and add quantity — if the code already exists, just add to its quantity instead.
 
-- **`Item` (Catalog)** — `Sku`, `Name`, `Barcode`, `Price` (decimal), `ImageUrl` (nullable string; storage — likely Cloudflare R2 — deferred, but the column exists now so it isn't a migration-shaped afterthought later), `CategoryId`.
+- **`Item` (Catalog)** — `Sku`, `Name`, `Barcode`, `Price` (decimal), `ImageUrl` (nullable string; upload storage was deferred at this step but the column exists now so it isn't a migration-shaped afterthought later — see "Image uploads (R2)" below for where that landed), `CategoryId`.
 - **Barcode/Sku generation** — the system always generates the code for new items (a random 12-digit numeric string, retried on the vanishingly-rare collision via the DB's own unique constraint — see `ItemCreationService`). Sku defaults to the same value as the generated barcode unless explicitly supplied, since in this system the code *is* the item's identifier. Explicitly-supplied barcodes/skus (e.g. registering a real product's existing manufacturer barcode) are still supported via the REST/gRPC `CreateItem` contract; only the Scan Gateway intake flow always omits them.
 - **Two distinct write flows, not one "upsert"** — because "new item" and "restock existing item" need different inputs and different failure modes:
   - `POST /items/intake` (Scan Gateway) — brand-new item, no barcode known yet. Takes name/price/category/image/quantity, never a barcode. Creates the Catalog item (generating its code) then gives Inventory the initial quantity via `ReceiveStock`. Returns the generated barcode.
@@ -308,12 +308,18 @@ Wolverine's `Saga` base class, and a static `Start(CreatePurchaseOrder)` plus in
   return, which Wolverine publishes itself once the ambient transaction actually commits — same
   delivery guarantee as the outbox gives everywhere else, just through a different mechanism.
 
-## Image uploads (Cloudflare Images) — optional, behind an interface
+## Image uploads (R2) — optional, behind an interface
 
 `Item.ImageUrl` has always just been an opaque string — swapping who hosts images was already
 free before this feature existed. What wasn't free: an admin who has a raw file, not a link yet.
 `POST /images` on Scan Gateway (Admin-only, multipart upload) fills that gap by proxying the file
-to Cloudflare Images and handing back the delivery URL.
+to R2 (Cloudflare's S3-compatible object storage) and handing back a public delivery URL.
+
+*Changed 2026-09-28: this was originally built against Cloudflare Images (a different Cloudflare
+product — a managed image REST API with automatic resizing/CDN delivery), swapped for R2 once the
+user actually set up an R2 bucket rather than Cloudflare Images. `Item.ImageUrl` staying an opaque
+string is exactly what made that swap cheap — nothing outside this one interface's implementation
+changed.*
 
 - **Two convergent, independent paths to the same field** — an admin who already has a URL from
   anywhere just passes it straight into `/items/intake`'s existing `imageUrl`, untouched by any of
@@ -322,30 +328,44 @@ to Cloudflare Images and handing back the delivery URL.
   separate concerns that happen to produce the same kind of value.
 - **Lives in Scan Gateway, not Catalog** — same "admin-managed setup, not a day-to-day seller
   action" bucket as categories/discounts, all fronted from the same service.
-- **`ICloudflareImageUploader` behind an interface, not called directly** — the one dependency in
-  this whole system with no local/Dockerized equivalent (there's no way to run "Cloudflare" the way
-  Postgres/RabbitMQ/Redis/Mongo run locally). The interface is what makes the request-building and
-  error-handling logic unit-testable at all: `tests/UnitTests` (new project, sibling to
-  `tests/IntegrationTests`, no Aspire.Hosting.Testing, no containers) verifies
-  `CloudflareImageUploader` against a fake `HttpMessageHandler` modeling Cloudflare's documented
-  response shape. This is a genuine gap, not a stand-in for a real test: nothing here has verified
-  behavior against the actual Cloudflare API, since no real account/token exists yet. See
-  TECH_DEBT.md.
+- **`IImageUploader` behind an interface, not called directly** — the one dependency in this whole
+  system with no local/Dockerized equivalent (there's no way to run "R2" the way
+  Postgres/RabbitMQ/Redis/Mongo run locally). The interface is what makes the endpoint's own logic
+  (validation, status codes, error shape) unit-testable at all — `tests/UnitTests` (sibling to
+  `tests/IntegrationTests`, no Aspire.Hosting.Testing, no containers) exercises it against a fake
+  implementation. `R2ImageUploader` itself talks to R2 through the AWS SDK's `AmazonS3Client`
+  (R2 is S3-compatible; the SDK just gets pointed at R2's own endpoint,
+  `https://{account_id}.r2.cloudflarestorage.com`, with `ForcePathStyle = true` since R2 doesn't
+  support S3's virtual-hosted-style bucket URLs) rather than a plain `HttpClient` this project
+  controls, so there's no seam left to fake the wire call through the way the Cloudflare Images
+  version could. Its own tests instead cover what's actually ours and needs no network at all: the
+  not-configured guard, and the pure key/URL-building logic
+  (`R2ImageUploader.BuildObjectKey`/`BuildPublicUrl`, both `public static` so the tests can reach
+  them). The `PutObjectAsync` call itself is a genuine gap, not a stand-in for a real test —
+  nothing here has verified behavior against a live bucket yet. See TECH_DEBT.md.
+- **R2 has no built-in CDN delivery the way Cloudflare Images did** — an uploaded object is only
+  reachable once the bucket's "Public access" is turned on in the dashboard (its own `r2.dev`
+  subdomain, or a connected custom domain), and that resulting base URL is its own required
+  setting (`R2Images__PublicBaseUrl`) — a blank one is treated the same as a blank access key: not
+  configured, rather than uploading successfully to a URL nothing can actually reach.
 - **Binds the upload from `HttpRequest` directly, not an `IFormFile` parameter** — minimal APIs
   bind an `IFormFile` parameter by reading the form during argument binding, before the handler
   body runs at all; a request with no multipart body throws ASP.NET Core's own
   `BadHttpRequestException` (still a 400, but an unhandled-exception one) instead of ever reaching
-  application code. Found via manual smoke test against a live AppHost, not the unit tests (which
-  construct `CloudflareImageUploader` directly and never touch the minimal-API binding layer at
-  all). Fixed by checking `HttpRequest.HasFormContentType` and reading `HttpRequest.Form` directly,
-  so every invalid-request shape returns the endpoint's own clean message.
-- **Degrades to 502, not a startup failure, when unconfigured** — `AddParameter("cloudflare-...",
-  "")` (no pinned local-dev literal, unlike every other AppHost parameter) leaves `AccountId`/
-  `ApiToken` blank by default; `CloudflareImageUploader` checks for that itself and throws
-  `ImageUploadException` only when actually called, which the endpoint maps to `502 Bad Gateway`
-  ("this service is a proxy here, and the failure is on the far side"). The rest of the system —
-  including `/items/intake`'s own `imageUrl` field — works identically whether or not Cloudflare is
-  configured at all.
+  application code. Found via manual smoke test against a live AppHost. Fixed by checking
+  `HttpRequest.HasFormContentType` and reading `HttpRequest.Form` directly, so every
+  invalid-request shape returns the endpoint's own clean message.
+- **Degrades to 502, not a startup failure, when unconfigured** — the five `r2-...` AppHost
+  parameters (`r2-account-id`, `r2-access-key-id`, `r2-secret-access-key` (secret),
+  `r2-bucket-name`, `r2-public-base-url`) have no pinned local-dev literal, unlike every other
+  AppHost parameter. `R2ImageUploader` checks for that itself and throws `ImageUploadException`
+  only when actually called, which the endpoint maps to `502 Bad Gateway` ("this service is a
+  proxy here, and the failure is on the far side"). The rest of the system — including
+  `/items/intake`'s own `imageUrl` field — works identically whether or not R2 is configured at
+  all. Set real values via `dotnet user-secrets set Parameters:r2-access-key-id <key>` etc. (from
+  `src/AppHost`) once a real bucket exists, using an **R2-specific API token** (R2 → Manage R2 API
+  Tokens) — not a general Cloudflare API token, which isn't the right shape for R2's
+  S3-compatible auth (that always needs a separate Access Key ID + Secret Access Key pair).
 
 ## CORS — opt-in per service, not global
 

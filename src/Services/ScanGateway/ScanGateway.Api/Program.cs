@@ -67,12 +67,12 @@ builder.Services.AddScoped<InventoryApiClient>();
 // go through this, per the "no cache on the live-stock-read path" rule in architecture.md.
 builder.AddRedisDistributedCache("redis");
 
-// Optional feature: an admin can hand /items/intake an imageUrl from anywhere, unrelated to
-// Cloudflare, so nothing about this needs to be configured for the rest of the service to work.
-// Binding-without-validation here is deliberate — CloudflareImageUploader itself throws only
-// when actually called with the account id/token still blank, not at startup.
-builder.Services.Configure<CloudflareImagesOptions>(builder.Configuration.GetSection("CloudflareImages"));
-builder.Services.AddHttpClient<ICloudflareImageUploader, CloudflareImageUploader>();
+// Optional feature: an admin can hand /items/intake an imageUrl from anywhere, unrelated to R2,
+// so nothing about this needs to be configured for the rest of the service to work.
+// Binding-without-validation here is deliberate — R2ImageUploader itself throws only when
+// actually called with any of the R2 settings still blank, not at startup.
+builder.Services.Configure<R2ImageOptions>(builder.Configuration.GetSection("R2Images"));
+builder.Services.AddSingleton<IImageUploader, R2ImageUploader>();
 
 builder.Services.AddInventorySystemCors(builder.Configuration);
 
