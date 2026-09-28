@@ -34,11 +34,20 @@ var jwtSigningKey = builder.AddParameter("jwt-signing-key", "local-dev-only-sign
 // Parameters:r2-access-key-id <key>` etc. (from src/AppHost) once a real R2 bucket exists, with
 // its own R2 API token (R2 → Manage R2 API Tokens — NOT a general Cloudflare API token, which
 // isn't the right shape for R2's S3-compatible auth) and "Public access" turned on for the bucket.
-var r2AccountId = builder.AddParameter("r2-account-id", "");
-var r2AccessKeyId = builder.AddParameter("r2-access-key-id", "");
-var r2SecretAccessKey = builder.AddParameter("r2-secret-access-key", "", secret: true);
-var r2BucketName = builder.AddParameter("r2-bucket-name", "");
-var r2PublicBaseUrl = builder.AddParameter("r2-public-base-url", "");
+// Read directly from configuration (which is confirmed to see a dotnet-user-secrets override
+// fine: Parameters:r2-account-id etc. resolve correctly right here) rather than going through
+// AddParameter()'s ParameterResource + WithEnvironment(name, IResourceBuilder<ParameterResource>)
+// — that combination was never actually confirmed to carry an *overridden* value through to a
+// resource's environment for any parameter in this file (every parameter that's ever been
+// verified working — postgres-password, jwt-signing-key — was only ever exercised with its
+// hardcoded fallback still in effect; a silently-dropped override would look identical from the
+// outside). Passing the plain resolved string to WithEnvironment sidesteps that machinery
+// entirely, so there's nothing left to it that hasn't already been shown to work.
+var r2AccountId = builder.Configuration["Parameters:r2-account-id"] ?? "";
+var r2AccessKeyId = builder.Configuration["Parameters:r2-access-key-id"] ?? "";
+var r2SecretAccessKey = builder.Configuration["Parameters:r2-secret-access-key"] ?? "";
+var r2BucketName = builder.Configuration["Parameters:r2-bucket-name"] ?? "";
+var r2PublicBaseUrl = builder.Configuration["Parameters:r2-public-base-url"] ?? "";
 
 // The origin(s) a browser-based frontend is allowed to call Staff/Scan Gateway/Dashboard from.
 // Pinned to Next.js's own default dev port so local frontend work needs zero extra setup; a real

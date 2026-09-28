@@ -201,11 +201,21 @@ test("catalog, labels that really scan, printing, new SKUs, categories and disco
     await page.getByRole("button", { name: "Create item" }).click();
     check("form: duplicate barcode is reported on the barcode field", await visible(page, "An item with that barcode already exists."));
 
-    // Upload with Cloudflare unconfigured must degrade to a helpful message, not an error page.
+    // A real upload (this environment has R2 configured) must fill the image field with a real
+    // URL; without R2 configured it must degrade to a helpful message instead of an error page —
+    // either is a pass here, since which one applies depends on whether this environment's own
+    // R2 secrets are set, not on anything this test controls.
     const png = PNG.sync.write(Object.assign(new PNG({ width: 2, height: 2 }), { data: Buffer.alloc(16, 255) }));
     writeFileSync(`${SCREENS}/p3-tiny.png`, png);
     await page.getByLabel("Upload an image file").setInputFiles(`${SCREENS}/p3-tiny.png`);
-    check("form: unconfigured image upload explains what to do", await visible(page, "Image uploads aren't set up on this server yet"));
+    await page.waitForTimeout(1500); // the upload round-trips to R2 for real when configured
+    const uploadedUrl = await page.getByLabel("Image", { exact: true }).inputValue();
+    const notConfigured = await visible(page, "Image uploads aren't set up on this server yet", 500);
+    check(
+      "form: image upload either fills a real URL or explains it isn't configured",
+      notConfigured || /^https:\/\//.test(uploadedUrl),
+      notConfigured ? "not configured" : uploadedUrl,
+    );
     await page.getByLabel("Image", { exact: true }).fill("https://example.com/x.png");
     check("form: valid image address shows a preview slot", (await page.locator('img[alt="Item preview"], div:has(> svg.lucide-package-x)').count()) > 0);
   }

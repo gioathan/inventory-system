@@ -1,3 +1,4 @@
+using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Microsoft.Extensions.Options;
@@ -50,6 +51,12 @@ public class R2ImageUploader(IOptions<R2ImageOptions> options) : IImageUploader
                 InputStream = content,
                 ContentType = contentType,
                 AutoCloseStream = false,
+                // R2 also doesn't implement the SDK's chunked/streaming SigV4 payload signing
+                // (STREAMING-AWS4-HMAC-SHA256-PAYLOAD) that RequestChecksumCalculation alone
+                // doesn't turn off — this signs the whole payload up front in the Authorization
+                // header instead, over HTTPS (required for this to be safe, and R2's endpoint
+                // always is). Confirmed against a live bucket, not just from docs.
+                DisablePayloadSigning = true,
             }, cancellationToken);
         }
         catch (AmazonS3Exception ex)
@@ -67,6 +74,12 @@ public class R2ImageUploader(IOptions<R2ImageOptions> options) : IImageUploader
         {
             ServiceURL = $"https://{o.AccountId}.r2.cloudflarestorage.com",
             ForcePathStyle = true, // R2 doesn't support S3's virtual-hosted-style bucket URLs
+            // The SDK's default (WHEN_SUPPORTED) streams a trailing checksum after the payload
+            // (STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER) — R2 doesn't implement that mode and
+            // rejects the upload outright. WHEN_REQUIRED only adds a checksum when the operation
+            // actually demands one, which PutObject doesn't, avoiding the trailer entirely.
+            // Confirmed against a live bucket, not just from docs — see TECH_DEBT.md.
+            RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED,
         });
 
     // A random, unguessable key rather than the original filename — two sellers uploading

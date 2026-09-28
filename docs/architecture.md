@@ -319,7 +319,10 @@ to R2 (Cloudflare's S3-compatible object storage) and handing back a public deli
 product — a managed image REST API with automatic resizing/CDN delivery), swapped for R2 once the
 user actually set up an R2 bucket rather than Cloudflare Images. `Item.ImageUrl` staying an opaque
 string is exactly what made that swap cheap — nothing outside this one interface's implementation
-changed.*
+changed. Verified the same day: uploaded three real images (one direct API call, one through New
+SKU's own "Upload a file" button) against the user's real bucket, confirmed the returned URL serves
+back the exact bytes uploaded, and confirmed it renders in the item panel — see TECH_DEBT.md for
+the two R2-specific SDK settings and one unrelated AppHost-configuration bug that took to get there.*
 
 - **Two convergent, independent paths to the same field** — an admin who already has a URL from
   anywhere just passes it straight into `/items/intake`'s existing `imageUrl`, untouched by any of
@@ -341,8 +344,14 @@ changed.*
   version could. Its own tests instead cover what's actually ours and needs no network at all: the
   not-configured guard, and the pure key/URL-building logic
   (`R2ImageUploader.BuildObjectKey`/`BuildPublicUrl`, both `public static` so the tests can reach
-  them). The `PutObjectAsync` call itself is a genuine gap, not a stand-in for a real test —
-  nothing here has verified behavior against a live bucket yet. See TECH_DEBT.md.
+  them). The `PutObjectAsync` call itself is verified manually against a live bucket, not by the
+  automated suite.
+- **Two AWS SDK settings R2 needs that plain S3 doesn't** (found against a live bucket, not from
+  docs — see TECH_DEBT.md): `AmazonS3Config.RequestChecksumCalculation = WHEN_REQUIRED` (the
+  SDK's default, `WHEN_SUPPORTED`, streams a trailing checksum R2 doesn't implement) and
+  `PutObjectRequest.DisablePayloadSigning = true` (R2 also doesn't implement the SDK's
+  chunked/streaming SigV4 payload signing; this signs the whole payload up front in the
+  `Authorization` header instead, safe since R2's endpoint is always HTTPS).
 - **R2 has no built-in CDN delivery the way Cloudflare Images did** — an uploaded object is only
   reachable once the bucket's "Public access" is turned on in the dashboard (its own `r2.dev`
   subdomain, or a connected custom domain), and that resulting base URL is its own required
