@@ -12,6 +12,7 @@ import { LABEL_FORMAT, LABEL_HEIGHT_IN, LABEL_WIDTH_IN } from "@/lib/label";
 import { stockLevel } from "@/lib/stock";
 import type { CatalogEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { QuickReceiveDialog } from "@/components/receive/quick-receive-dialog";
 import { EditItemDialog } from "./edit-item-dialog";
 import { ItemSession } from "./item-session";
 
@@ -43,6 +44,7 @@ export function ItemPanel({
   const level = stockLevel(item.quantityOnHand);
   const discounted = item.discountPercentage !== null;
   const [editOpen, setEditOpen] = useState(false);
+  const [receiveOpen, setReceiveOpen] = useState(false);
 
   return (
     <div className="flex flex-col gap-5">
@@ -126,16 +128,15 @@ export function ItemPanel({
           <Printer className="size-4" />
           Print label
         </Link>
-        <Link
-          href={`/receive?barcode=${encodeURIComponent(item.barcode)}`}
-          className={cn(buttonVariants({ variant: "outline" }), "h-10 flex-1 gap-2")}
-        >
+        <Button type="button" variant="outline" className="h-10 flex-1 gap-2" onClick={() => setReceiveOpen(true)}>
           <PackagePlus className="size-4" />
           Receive stock
-        </Link>
+        </Button>
       </div>
 
       <EditItemDialog open={editOpen} onOpenChange={setEditOpen} item={item} />
+      {/* In place: receiving here keeps you on the catalog, so you can move straight on to the next item. */}
+      <QuickReceiveDialog open={receiveOpen} onOpenChange={setReceiveOpen} items={[item]} />
     </div>
   );
 }

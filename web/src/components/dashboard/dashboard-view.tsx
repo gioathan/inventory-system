@@ -2,16 +2,18 @@
 
 import { AlertTriangle, ArrowRight, Boxes, ClipboardList, PackagePlus, Tag } from "lucide-react";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ItemImage } from "@/components/item-image";
+import { QuickReceiveDialog } from "@/components/receive/quick-receive-dialog";
 import { StatusPill } from "@/components/status-pill";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { useAlerts } from "@/hooks/use-admin-data";
 import { useItems } from "@/hooks/use-items";
 import { useCurrentSession, useSessionReport } from "@/hooks/use-restock-sessions";
 import { computeStats, needsAttention } from "@/lib/dashboard";
 import { formatMoney } from "@/lib/format";
 import { timeAgo } from "@/lib/time";
+import type { CatalogEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 function Panel({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
@@ -49,6 +51,8 @@ function Kpi({ label, value, sub, icon: Icon, tone }: { label: string; value: st
 export function DashboardView() {
   const items = useItems();
   const alerts = useAlerts();
+  // Receive in a dialog: the list refreshes and the next item that needs attention is right there.
+  const [receiving, setReceiving] = useState<CatalogEntry | null>(null);
   const session = useCurrentSession();
   const report = useSessionReport(session.data?.id ?? null);
 
@@ -156,9 +160,9 @@ export function DashboardView() {
                   <StatusPill tone={item.quantityOnHand === 0 ? "danger" : "warning"}>
                     {item.quantityOnHand === 0 ? "Out" : `${item.quantityOnHand} left`}
                   </StatusPill>
-                  <Link href={`/receive?barcode=${encodeURIComponent(item.barcode)}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-9 px-3")}>
+                  <Button type="button" variant="outline" size="sm" className="h-9 px-3" onClick={() => setReceiving(item)}>
                     Receive
-                  </Link>
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -218,6 +222,8 @@ export function DashboardView() {
           </ul>
         )}
       </Panel>
+
+      <QuickReceiveDialog open={receiving !== null} onOpenChange={(open) => !open && setReceiving(null)} items={receiving ? [receiving] : []} />
     </div>
   );
 }

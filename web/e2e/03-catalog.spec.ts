@@ -238,6 +238,34 @@ test("catalog, labels that really scan, printing, new SKUs, categories and disco
     alpha.name = `Alpha Edited ${tag}`;
   }
 
+  // ---- receiving without leaving the catalog --------------------------------------------------
+  {
+    const page = admin.page;
+    await page.goto(`${baseUrl}/catalog?sku=${charlie.sku}`);
+    await page.getByRole("button", { name: "Receive stock" }).click();
+    const dialog = page.getByRole("dialog");
+    check("receive: the panel opens a receive dialog for the item", (await dialog.getByRole("heading").innerText()).includes(`Charlie ${tag}`));
+    await dialog.getByRole("button", { name: /^Add 5 to/ }).click(); // default 1 + 5 = 6
+    await dialog.getByRole("button", { name: "Add to stock" }).click();
+    await dialog.waitFor({ state: "detached" });
+    check("receive: stays on the same item in the catalog", page.url().endsWith(`/catalog?sku=${charlie.sku}`), page.url());
+    check("receive: the panel shows the new stock (40 + 6 = 46)", await visible(page, "46 in stock"));
+
+    // Several at once from a selection; an empty quantity skips that item.
+    await page.getByLabel("Search items").fill(tag);
+    await page.locator("table").getByLabel(`Select Bravo ${tag}`).check();
+    await page.locator("table").getByLabel(`Select =1+1 ${tag}`).check();
+    await page.getByRole("region", { name: "Bulk actions" }).getByRole("button", { name: "Receive stock" }).click();
+    check("receive: bulk dialog lists the selected items", (await dialog.getByRole("heading").innerText()).includes("Receive 2 items"));
+    await dialog.getByLabel(`Bravo ${tag}`, { exact: true }).fill("3");
+    await dialog.getByRole("button", { name: "Add to stock (1)" }).click();
+    await dialog.waitFor({ state: "detached" });
+    const bravoStock = (await api(page, `scan/${bravo.barcode}`)).quantityOnHand;
+    const evilStock = (await api(page, `scan/${evil.barcode}`)).quantityOnHand;
+    check("receive: bulk added only the filled-in item (Bravo 2 + 3 = 5, the other untouched at 5)", bravoStock === 5 && evilStock === 5, `bravo=${bravoStock} other=${evilStock}`);
+    check("receive: selection clears afterwards", (await page.getByRole("region", { name: "Bulk actions" }).count()) === 0);
+  }
+
   // ---- categories -----------------------------------------------------------------------------
   {
     const page = admin.page;

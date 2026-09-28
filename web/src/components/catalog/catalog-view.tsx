@@ -9,7 +9,7 @@ import {
   type RowSelectionState,
   type SortingState,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Download, Loader2, Percent, Plus, Printer, Search, Tag, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Download, Loader2, PackagePlus, Percent, Plus, Printer, Search, Tag, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -30,6 +30,7 @@ import { stockLevel } from "@/lib/stock";
 import type { CatalogEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { DiscountDialog } from "./discount-dialog";
+import { QuickReceiveDialog } from "@/components/receive/quick-receive-dialog";
 import { ItemPanel } from "./item-panel";
 
 const PAGE_SIZE = 25;
@@ -82,6 +83,7 @@ export function CatalogView() {
   const [sorting, setSorting] = useState<SortingState>([{ id: "name", desc: false }]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [discountOpen, setDiscountOpen] = useState(false);
+  const [receiveOpen, setReceiveOpen] = useState(false);
 
   const all = useMemo(() => items.data ?? [], [items.data]);
   const categoryName = useMemo(
@@ -273,6 +275,10 @@ export function CatalogView() {
       {selectedSkus.length > 0 && (
         <div role="region" aria-label="Bulk actions" className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/40 bg-primary/5 px-4 py-2.5">
           <span className="mr-auto text-sm font-medium">{selectedSkus.length} selected</span>
+          <Button type="button" variant="outline" className="h-9 gap-2" onClick={() => setReceiveOpen(true)}>
+            <PackagePlus className="size-4" />
+            Receive stock
+          </Button>
           <Button type="button" variant="outline" className="h-9 gap-2" onClick={() => setDiscountOpen(true)}>
             <Percent className="size-4" />
             Batch discount
@@ -433,6 +439,12 @@ export function CatalogView() {
       <DiscountDialog
         open={discountOpen}
         onOpenChange={setDiscountOpen}
+        items={all.filter((i) => selectedSkus.includes(i.sku))}
+        onDone={() => setRowSelection({})}
+      />
+      <QuickReceiveDialog
+        open={receiveOpen}
+        onOpenChange={setReceiveOpen}
         items={all.filter((i) => selectedSkus.includes(i.sku))}
         onDone={() => setRowSelection({})}
       />

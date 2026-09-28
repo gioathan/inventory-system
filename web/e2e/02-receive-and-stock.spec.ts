@@ -135,11 +135,16 @@ test("receiving stock and the stock lookup screen", async () => {
     check("stock: shows current stock (6 from the earlier receive)", await visible(page, "6 in stock"));
     await page.screenshot({ path: `${SCREENS}/p2-phone-stock.png`, fullPage: true });
 
-    // "Receive" on a card opens Receive with that item loaded.
-    await page.getByLabel("Search items").fill(`Plentiful ${tag}`);
-    await page.locator("ul li").getByRole("link", { name: "Receive" }).first().click();
-    await page.waitForURL("**/receive?barcode=*");
-    check("stock -> receive: link opens the item ready to receive", await visible(page, `Plentiful ${tag}`));
+    // "Receive" on a card receives in place: the search stays, and the card updates.
+    await page.getByLabel("Search items").fill(`Receivable ${tag}`);
+    await page.locator("ul li").getByRole("button", { name: "Receive" }).first().click();
+    const dialog = page.getByRole("dialog");
+    check("stock: Receive opens a dialog for that item", (await dialog.getByRole("heading").innerText()).includes(`Receivable ${tag}`));
+    await dialog.getByRole("button", { name: /^Add 5 to/ }).click(); // 1 + 5 = 6
+    await dialog.getByRole("button", { name: "Add to stock" }).click();
+    await dialog.waitFor({ state: "detached" });
+    check("stock: stays on the stock screen with the search kept", new URL(page.url()).pathname === "/stock" && (await page.getByLabel("Search items").inputValue()) === `Receivable ${tag}`);
+    check("stock: the card shows the new stock (6 + 6 = 12)", await visible(page, "12 in stock"));
     await context.close();
   }
 

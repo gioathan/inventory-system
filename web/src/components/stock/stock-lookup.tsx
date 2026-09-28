@@ -1,12 +1,12 @@
 "use client";
 
 import { Loader2, PackageSearch, RefreshCw, Search, Tag, X } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FilterChips } from "@/components/filter-chips";
 import { ItemImage } from "@/components/item-image";
+import { QuickReceiveDialog } from "@/components/receive/quick-receive-dialog";
 import { StatusPill } from "@/components/status-pill";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useItems } from "@/hooks/use-items";
 import { useCurrentSessionSales } from "@/hooks/use-restock-sessions";
@@ -16,7 +16,15 @@ import { stockLevel } from "@/lib/stock";
 import type { CatalogEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-function StockCard({ item, soldThisSession }: { item: CatalogEntry; soldThisSession: number | null }) {
+function StockCard({
+  item,
+  soldThisSession,
+  onReceive,
+}: {
+  item: CatalogEntry;
+  soldThisSession: number | null;
+  onReceive: (item: CatalogEntry) => void;
+}) {
   const level = stockLevel(item.quantityOnHand);
   return (
     <li className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
@@ -47,12 +55,9 @@ function StockCard({ item, soldThisSession }: { item: CatalogEntry; soldThisSess
         )}
         {level === "low" && <StatusPill tone="warning">Low · {item.quantityOnHand} left</StatusPill>}
         {level === "ok" && <StatusPill tone="success">{item.quantityOnHand} in stock</StatusPill>}
-        <Link
-          href={`/receive?barcode=${encodeURIComponent(item.barcode)}`}
-          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-9 px-3")}
-        >
+        <Button type="button" variant="outline" size="sm" className="h-9 px-3" onClick={() => onReceive(item)}>
           Receive
-        </Link>
+        </Button>
       </div>
     </li>
   );
@@ -67,6 +72,8 @@ export function StockLookup() {
   // Counts only, readable by sellers; null per item when no session is open.
   const sessionSales = useCurrentSessionSales();
   const soldOf = (sku: string) => (sessionSales.data?.session ? (sessionSales.data.bySku.get(sku)?.sold ?? 0) : null);
+  // Receiving happens in a dialog so the search and filter stay put for the next item.
+  const [receiving, setReceiving] = useState<CatalogEntry | null>(null);
 
   // Desktop only: focusing on a touch device would pop the keyboard over the results.
   useEffect(() => {
@@ -163,11 +170,13 @@ export function StockLookup() {
           </p>
           <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {visible.map((item) => (
-              <StockCard key={item.sku} item={item} soldThisSession={soldOf(item.sku)} />
+              <StockCard key={item.sku} item={item} soldThisSession={soldOf(item.sku)} onReceive={setReceiving} />
             ))}
           </ul>
         </>
       )}
+
+      <QuickReceiveDialog open={receiving !== null} onOpenChange={(open) => !open && setReceiving(null)} items={receiving ? [receiving] : []} />
     </div>
   );
 }

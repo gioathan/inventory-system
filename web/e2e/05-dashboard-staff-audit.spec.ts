@@ -104,11 +104,15 @@ test("dashboard numbers, staff accounts and the audit log", async () => {
     check("alerts: the low-stock alert is shown by item name", await visible(page, `Dash Low ${tag}`) && (await page.getByRole("region", { name: "Recent low-stock alerts" }).innerText()).includes("Dropped to 2"));
     await page.screenshot({ path: `${SCREENS}/p5-desktop-dashboard.png`, fullPage: true });
 
-    // Links go where they say.
+    // Receive opens a dialog for that item right here. Cancelled, not submitted: the most urgent
+    // item may be real shop data, not something this test created.
     const firstName = rowNames[0];
-    await attention.locator("li").first().getByRole("link", { name: "Receive" }).click();
-    await page.waitForURL("**/receive?barcode=*");
-    check("attention: Receive opens that item ready to receive", await visible(page, firstName));
+    await attention.locator("li").first().getByRole("button", { name: "Receive" }).click();
+    const dialog = page.getByRole("dialog");
+    check("attention: Receive opens a dialog for that item, staying on the dashboard",
+      (await dialog.getByRole("heading").innerText()).includes(firstName) && new URL(page.url()).pathname === "/dashboard");
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await dialog.waitFor({ state: "detached" });
   }
 
   // ---- staff ----------------------------------------------------------------------------------
