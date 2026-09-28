@@ -1,4 +1,4 @@
-import { LayoutDashboard, PackagePlus, PackageSearch, Percent, ScanBarcode, ScrollText, Shapes, Tags, Truck, Users, type LucideIcon } from "lucide-react";
+import { ClipboardList, LayoutDashboard, PackagePlus, PackageSearch, Percent, ScanBarcode, ScrollText, Shapes, Tags, Users, type LucideIcon } from "lucide-react";
 
 export interface NavItem {
   href: string;
@@ -33,7 +33,7 @@ export const ADMIN_NAV: NavGroup[] = [
   },
   {
     label: "Supply chain",
-    items: [{ href: "/purchase-orders", label: "Purchase Orders", icon: Truck }],
+    items: [{ href: "/restock-sessions", label: "Restock Sessions", icon: ClipboardList }],
   },
   {
     label: "Team & control",

@@ -66,3 +66,22 @@ export interface StockAlert {
   threshold: number;
   timestamp: string;
 }
+
+/** A restocking period. Starting one closes whichever was open; receives made meanwhile are tagged with it. */
+export interface RestockSession {
+  id: string;
+  openedAt: string;
+  closedAt: string | null;
+  note: string | null;
+}
+
+/** One item's movement during a restock session, from the Dashboard's sessionReport query. */
+export interface SessionReportLine {
+  sku: string;
+  name: string | null;
+  restocked: number;
+  sold: number;
+  netDelta: number;
+  /** Units sold × today's price; null if the item no longer exists in the catalog. */
+  revenue: number | null;
+}

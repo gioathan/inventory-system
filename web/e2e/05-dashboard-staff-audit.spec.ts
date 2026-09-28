@@ -39,10 +39,7 @@ test("dashboard numbers, staff accounts and the audit log", async () => {
   await gw(admin.page, `scan/${low.barcode}/sell`, { quantity: 2 }); // ends at 2. Only a decrease raises a low-stock alert, never an intake
   const out = await mk(`Dash Out ${tag}`, 1);
   await gw(admin.page, `scan/${out.barcode}/sell`, { quantity: 1 });
-  const plenty = await mk(`Dash Plenty ${tag}`, 50);
-  const supplier = `Dash Supplier ${tag}`;
-  const po = (await gw(admin.page, "purchase-orders", { supplierName: supplier, lines: [{ sku: plenty.sku, quantity: 20 }] })).body;
-  await gw(admin.page, `purchase-orders/${po.id}/send`, {});
+  await mk(`Dash Plenty ${tag}`, 50);
 
   // Low-stock alerts arrive asynchronously (a message queue hop), so wait for ours.
   let alertSeen = false;
@@ -60,15 +57,12 @@ test("dashboard numbers, staff accounts and the audit log", async () => {
       const r = await fetch("/api/backend/dashboard/graphql", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: "{ items { sku quantityOnHand effectivePrice discountPercentage } }" }) });
       return (await r.json()).data.items;
     }));
-    const orders = (await gw(page, "purchase-orders")).body;
     const level = (q: number | null) => (q === null || q <= 0 ? "out" : q <= 5 ? "low" : "ok");
     const expected = {
       skus: items.length,
       units: items.reduce((s: any, i: any) => s + (i.quantityOnHand ?? 0), 0),
       low: items.filter((i: any) => level(i.quantityOnHand) === "low").length,
       out: items.filter((i: any) => level(i.quantityOnHand) === "out").length,
-      open: orders.filter((o: any) => o.status === "Sent" || o.status === "PartiallyReceived").length,
-      due: orders.filter((o: any) => o.status === "Sent" || o.status === "PartiallyReceived").reduce((s: any, o: any) => s + o.lines.reduce((t: any, l: any) => t + Math.max(0, l.orderedQuantity - l.receivedQuantity), 0), 0),
     };
     const fmt = (n: number) => n.toLocaleString("en-US");
 
@@ -82,7 +76,7 @@ test("dashboard numbers, staff accounts and the audit log", async () => {
     check("dashboard: Units on hand KPI equals the sum of stock", (await text("Units on hand")).includes(fmt(expected.units)), `${expected.units}`);
     check("dashboard: Low stock KPI matches the count of items at 1-5", (await text("Low stock")).includes(`${fmt(expected.low)} `) || (await text("Low stock")).includes(fmt(expected.low)), `${expected.low} :: ${await text("Low stock")}`);
     check("dashboard: out-of-stock count matches", (await text("Low stock")).includes(`${fmt(expected.out)} out of stock`), `${expected.out}`);
-    check("dashboard: Open orders KPI and units due match", (await text("Open orders")).includes(`${expected.open}`) && (await text("Open orders")).includes(`${fmt(expected.due)} units still due`), `${expected.open} / ${expected.due}`);
+    check("dashboard: purchase orders are gone from the overview", (await page.getByText(/purchase order/i).count()) === 0);
 
     const legend = await page.locator("ul.flex.flex-wrap li").allInnerTexts();
     const legendSum = legend.map((t: any) => Number(t.replace(/\D/g, ""))).reduce((a: any, b: any) => a + b, 0);
@@ -107,14 +101,6 @@ test("dashboard numbers, staff accounts and the audit log", async () => {
     check("attention: an in-stock item is never listed", !rows.some((r) => r.includes(`Dash Plenty ${tag}`)));
     check("attention: never-stocked items are excluded", !rows.some((r) => r.includes("Not stocked") || r.includes("Unstocked")));
 
-    const openSorted = orders
-      .filter((o: any) => o.status === "Sent" || o.status === "PartiallyReceived")
-      .sort((a: any, b: any) => a.openedAt.localeCompare(b.openedAt))
-      .slice(0, 5)
-      .map((o: any) => o.supplierName);
-    const orderPanel = page.getByRole("region", { name: "Open purchase orders" });
-    const orderRows = (await orderPanel.locator("li").allInnerTexts()).map((r) => r.split("\n")[0].trim());
-    check("open orders: the 5 oldest open orders, oldest first", JSON.stringify(orderRows) === JSON.stringify(openSorted), orderRows.join(" | "));
     check("alerts: the low-stock alert is shown by item name", await visible(page, `Dash Low ${tag}`) && (await page.getByRole("region", { name: "Recent low-stock alerts" }).innerText()).includes("Dropped to 2"));
     await page.screenshot({ path: `${SCREENS}/p5-desktop-dashboard.png`, fullPage: true });
 
@@ -123,10 +109,6 @@ test("dashboard numbers, staff accounts and the audit log", async () => {
     await attention.locator("li").first().getByRole("link", { name: "Receive" }).click();
     await page.waitForURL("**/receive?barcode=*");
     check("attention: Receive opens that item ready to receive", await visible(page, firstName));
-    await page.goto(`${baseUrl}/dashboard`);
-    await page.getByRole("region", { name: "Open purchase orders" }).locator("li a").first().click();
-    await page.waitForURL(/\/purchase-orders\/[0-9a-f-]{36}$/);
-    check("open orders: a row opens an order that is still open", (await visible(page, "Waiting for the first delivery", 4000)) || (await visible(page, "Some of the order has arrived", 4000)));
   }
 
   // ---- staff ----------------------------------------------------------------------------------
@@ -134,6 +116,7 @@ test("dashboard numbers, staff accounts and the audit log", async () => {
   const newPass = "Sup3rSecret!";
   {
     const page = admin.page;
+    await page.goto(`${baseUrl}/dashboard`); // the previous step ended on /receive, which uses the seller layout
     const links = await page.locator("nav[aria-label=Main] a").allInnerTexts();
     check("nav: Team & control links are present", links.includes("Staff Accounts") && links.includes("Audit Log"), links.join(", "));
 

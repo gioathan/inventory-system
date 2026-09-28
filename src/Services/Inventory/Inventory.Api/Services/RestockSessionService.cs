@@ -9,23 +9,48 @@ public record SessionSummaryLine(string Sku, int Restocked, int Sold, int NetDel
 // sessionReport query) so the aggregation logic exists exactly once.
 public class RestockSessionService(InventoryDbContext db)
 {
-    public async Task<RestockSession> OpenAsync(string? note, CancellationToken cancellationToken)
+    // Starting a new session closes whichever one is open, at the same instant — a restocking
+    // period ends when the next one begins, so there's never a forgotten session left open.
+    // Two saves inside one transaction, not one: the partial unique index on ClosedAt IS NULL is
+    // checked per statement, and EF doesn't promise to order an unrelated UPDATE before an
+    // INSERT, so the close has to hit the database before the new row does. Two admins starting
+    // a session at the same moment still can't both win — the loser's insert trips that index.
+    public Task<(RestockSession Opened, RestockSession? Closed)> OpenAsync(string? note, CancellationToken cancellationToken) =>
+        // Same wrapping as StockReceivingService's manual transactions, so this keeps working if
+        // retry-on-failure is ever turned back on for this DbContext (see Program.cs).
+        db.Database.CreateExecutionStrategy().ExecuteAsync(() => OpenInTransactionAsync(note, cancellationToken));
+
+    private async Task<(RestockSession Opened, RestockSession? Closed)> OpenInTransactionAsync(string? note, CancellationToken cancellationToken)
     {
-        // The partial unique index on ClosedAt IS NULL is the real guard against two open
-        // sessions racing each other; this check just gives a friendlier error in the common case.
-        if (await db.RestockSessions.AnyAsync(s => s.ClosedAt == null, cancellationToken))
-            throw new InvalidOperationException("A restock session is already open. Close it before opening another.");
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+        var previous = await db.RestockSessions.FirstOrDefaultAsync(s => s.ClosedAt == null, cancellationToken);
+        if (previous is not null)
+        {
+            previous.ClosedAt = now;
+            await db.SaveChangesAsync(cancellationToken);
+        }
 
         var session = new RestockSession
         {
             Id = Guid.NewGuid(),
-            OpenedAt = DateTimeOffset.UtcNow,
-            Note = note
+            OpenedAt = now,
+            Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim()
         };
-
         db.RestockSessions.Add(session);
-        await db.SaveChangesAsync(cancellationToken);
-        return session;
+
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation })
+        {
+            throw new InvalidOperationException("Someone else started a restock session at the same moment. Reload to see it.");
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return (session, previous);
     }
 
     public async Task<RestockSession?> CloseAsync(Guid id, CancellationToken cancellationToken)
@@ -48,10 +73,11 @@ public class RestockSessionService(InventoryDbContext db)
     public Task<List<RestockSession>> ListAsync(CancellationToken cancellationToken) =>
         db.RestockSessions.AsNoTracking().OrderByDescending(s => s.OpenedAt).ToListAsync(cancellationToken);
 
-    // Time-bounded from the session's OpenedAt through now — NOT filtered by SessionId. A
-    // closed session still answers "since this restocking, how much has moved" for as long as
-    // no later session has re-opened; using the SessionId tag instead would freeze the summary
-    // at whenever the session was closed, which is wrong for "3 restockings ago to today."
+    // The session's own period: from OpenedAt until ClosedAt, or until now while it's still open.
+    // Every movement made while a session is open (receives, sales, corrections) is also tagged
+    // with its SessionId, and since starting a session closes the previous one, sessions never
+    // overlap — so bounding by time and filtering by tag give the same answer. Time is kept
+    // because it's what this query has always used and it needs no extra index.
     // Restocked = sum of positive deltas (Intake + Restock movements), Sold = sum of negative
     // deltas from Sale movements only — a ManualAdjust correction shouldn't be counted as a sale.
     public async Task<List<SessionSummaryLine>?> GetSummaryAsync(Guid sessionId, CancellationToken cancellationToken)
@@ -61,8 +87,11 @@ public class RestockSessionService(InventoryDbContext db)
         if (session is null)
             return null;
 
-        var grouped = await db.StockMovements.AsNoTracking()
-            .Where(m => m.Timestamp >= session.OpenedAt)
+        var inSession = db.StockMovements.AsNoTracking().Where(m => m.Timestamp >= session.OpenedAt);
+        if (session.ClosedAt is { } closedAt)
+            inSession = inSession.Where(m => m.Timestamp < closedAt);
+
+        var grouped = await inSession
             .GroupBy(m => m.Sku)
             .Select(g => new
             {

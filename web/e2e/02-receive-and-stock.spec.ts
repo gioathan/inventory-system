@@ -78,7 +78,7 @@ test("receiving stock and the stock lookup screen", async () => {
     await page.screenshot({ path: `${SCREENS}/p2-phone-receive.png`, fullPage: true });
     await page.getByRole("button", { name: /Add 4 to stock/ }).click();
     check("receive: success notice", await visible(page, `Added 4 × Receivable ${tag} · now 6 on hand`));
-    check("receive: logged in this session", await visible(page, "Received this session"));
+    check("receive: listed under Recently received", await visible(page, "Recently received"));
     const after = await api(page, `scan/${lowItem.barcode}`);
     check("receive: backend stock actually increased", after.quantityOnHand === 6, `stock=${after.quantityOnHand}`);
 

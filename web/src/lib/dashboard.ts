@@ -1,6 +1,4 @@
 import { stockLevel } from "./stock";
-import type { PurchaseOrder } from "./po";
-import { totals } from "./po";
 import type { CatalogEntry } from "./types";
 
 export interface DashboardStats {
@@ -12,11 +10,9 @@ export interface DashboardStats {
   inStock: number;
   low: number;
   out: number;
-  openOrders: number;
-  unitsDue: number;
 }
 
-export function computeStats(items: CatalogEntry[], orders: PurchaseOrder[]): DashboardStats {
+export function computeStats(items: CatalogEntry[]): DashboardStats {
   let unitsOnHand = 0;
   let retailValue = 0;
   let inStock = 0, low = 0, out = 0, onPromo = 0;
@@ -32,18 +28,7 @@ export function computeStats(items: CatalogEntry[], orders: PurchaseOrder[]): Da
     else out++;
   }
 
-  const open = orders.filter((o) => o.status === "Sent" || o.status === "PartiallyReceived");
-  return {
-    skus: items.length,
-    onPromo,
-    unitsOnHand,
-    retailValue,
-    inStock,
-    low,
-    out,
-    openOrders: open.length,
-    unitsDue: open.reduce((sum, o) => sum + totals(o).remaining, 0),
-  };
+  return { skus: items.length, onPromo, unitsOnHand, retailValue, inStock, low, out };
 }
 
 // What needs reordering: low items, lowest first, then items that hit zero. Items that have never

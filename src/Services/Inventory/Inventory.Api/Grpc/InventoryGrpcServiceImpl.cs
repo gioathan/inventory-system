@@ -88,6 +88,68 @@ public class InventoryGrpcServiceImpl(
         return reply;
     }
 
+    // Starting/ending a restocking period and browsing past ones is admin work, same as the REST
+    // routes. GetCurrent stays at the class-level SellerOrAdmin floor: the Receive screen shows
+    // sellers which session their scans are being logged to.
+    [Authorize(Policy = AuthPolicies.AdminOnly)]
+    public override async Task<OpenRestockSessionReply> OpenRestockSession(OpenRestockSessionRequest request, ServerCallContext context)
+    {
+        try
+        {
+            var (opened, closed) = await sessions.OpenAsync(request.HasNote ? request.Note : null, context.CancellationToken);
+            var reply = new OpenRestockSessionReply { Opened = ToReply(opened) };
+            if (closed is not null)
+                reply.Closed = ToReply(closed);
+            return reply;
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new RpcException(new Status(StatusCode.AlreadyExists, ex.Message));
+        }
+    }
+
+    [Authorize(Policy = AuthPolicies.AdminOnly)]
+    public override async Task<RestockSessionReply> CloseRestockSession(RestockSessionIdRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.SessionId, out var sessionId))
+            throw new RpcException(new Status(StatusCode.InvalidArgument, $"'{request.SessionId}' is not a valid session id."));
+
+        try
+        {
+            var session = await sessions.CloseAsync(sessionId, context.CancellationToken)
+                ?? throw new RpcException(new Status(StatusCode.NotFound, $"No restock session found with id '{sessionId}'."));
+            return ToReply(session);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new RpcException(new Status(StatusCode.FailedPrecondition, ex.Message));
+        }
+    }
+
+    public override async Task<CurrentRestockSessionReply> GetCurrentRestockSession(GetCurrentRestockSessionRequest request, ServerCallContext context)
+    {
+        var session = await sessions.GetCurrentAsync(context.CancellationToken);
+        return session is null ? new CurrentRestockSessionReply() : new CurrentRestockSessionReply { Session = ToReply(session) };
+    }
+
+    [Authorize(Policy = AuthPolicies.AdminOnly)]
+    public override async Task<ListRestockSessionsReply> ListRestockSessions(ListRestockSessionsRequest request, ServerCallContext context)
+    {
+        var reply = new ListRestockSessionsReply();
+        reply.Sessions.AddRange((await sessions.ListAsync(context.CancellationToken)).Select(ToReply));
+        return reply;
+    }
+
+    private static RestockSessionReply ToReply(RestockSession session)
+    {
+        var reply = new RestockSessionReply { Id = session.Id.ToString(), OpenedAt = session.OpenedAt.ToString("O") };
+        if (session.ClosedAt is { } closedAt)
+            reply.ClosedAt = closedAt.ToString("O");
+        if (session.Note is not null)
+            reply.Note = session.Note;
+        return reply;
+    }
+
     // Purchase orders are admin-managed setup like categories/sessions, not a day-to-day
     // seller action — every RPC below is Admin-only.
     [Authorize(Policy = AuthPolicies.AdminOnly)]

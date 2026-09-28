@@ -1,18 +1,16 @@
 "use client";
 
-import { AlertTriangle, ArrowRight, Boxes, PackagePlus, Plus, Tag, Truck } from "lucide-react";
+import { AlertTriangle, ArrowRight, Boxes, ClipboardList, PackagePlus, Tag } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
 import { ItemImage } from "@/components/item-image";
-import { ProgressBar } from "@/components/progress-bar";
 import { StatusPill } from "@/components/status-pill";
 import { buttonVariants } from "@/components/ui/button";
 import { useAlerts } from "@/hooks/use-admin-data";
 import { useItems } from "@/hooks/use-items";
-import { usePurchaseOrders } from "@/hooks/use-purchase-orders";
+import { useCurrentSession, useSessionReport } from "@/hooks/use-restock-sessions";
 import { computeStats, needsAttention } from "@/lib/dashboard";
 import { formatMoney } from "@/lib/format";
-import { PO_STATUS, shortId, totals } from "@/lib/po";
 import { timeAgo } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
@@ -50,19 +48,17 @@ function Kpi({ label, value, sub, icon: Icon, tone }: { label: string; value: st
 
 export function DashboardView() {
   const items = useItems();
-  const orders = usePurchaseOrders();
   const alerts = useAlerts();
+  const session = useCurrentSession();
+  const report = useSessionReport(session.data?.id ?? null);
 
-  const stats = useMemo(() => (items.data && orders.data ? computeStats(items.data, orders.data) : null), [items.data, orders.data]);
+  const stats = useMemo(() => (items.data ? computeStats(items.data) : null), [items.data]);
   const attention = useMemo(() => needsAttention(items.data ?? []), [items.data]);
   const itemBySku = useMemo(() => new Map((items.data ?? []).map((i) => [i.sku, i])), [items.data]);
-  const openOrders = useMemo(
-    () =>
-      (orders.data ?? [])
-        .filter((o) => o.status === "Sent" || o.status === "PartiallyReceived")
-        .sort((a, b) => a.openedAt.localeCompare(b.openedAt))
-        .slice(0, 5),
-    [orders.data],
+  const sessionReceived = useMemo(() => (report.data ?? []).reduce((sum, l) => sum + l.restocked, 0), [report.data]);
+  const topReceived = useMemo(
+    () => [...(report.data ?? [])].filter((l) => l.restocked > 0).sort((a, b) => b.restocked - a.restocked).slice(0, 5),
+    [report.data],
   );
 
   const health = stats && stats.skus > 0 ? [
@@ -79,20 +75,20 @@ export function DashboardView() {
           <p className="text-sm text-muted-foreground">Where stock stands and what needs your attention.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/receive" className={cn(buttonVariants({ variant: "outline" }), "h-10 gap-2")}>
+          <Link href="/restock-sessions" className={cn(buttonVariants({ variant: "outline" }), "h-10 gap-2")}>
+            <ClipboardList className="size-4" />
+            Restock sessions
+          </Link>
+          <Link href="/receive" className={cn(buttonVariants(), "h-10 gap-2")}>
             <PackagePlus className="size-4" />
             Receive stock
-          </Link>
-          <Link href="/purchase-orders/new" className={cn(buttonVariants(), "h-10 gap-2")}>
-            <Plus className="size-4" />
-            New purchase order
           </Link>
         </div>
       </div>
 
-      {items.isError || orders.isError ? (
+      {items.isError ? (
         <p role="alert" className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          Couldn&apos;t load the overview: {(items.error ?? orders.error)?.message}
+          Couldn&apos;t load the overview: {items.error.message}
         </p>
       ) : (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -107,7 +103,12 @@ export function DashboardView() {
                 icon={AlertTriangle}
                 tone={stats.low > 0 ? "warning" : undefined}
               />
-              <Kpi label="Open orders" value={String(stats.openOrders)} sub={`${stats.unitsDue.toLocaleString()} units still due`} icon={Truck} />
+              <Kpi
+                label="This session"
+                value={session.data ? (report.isPending ? "…" : sessionReceived.toLocaleString()) : "—"}
+                sub={session.data ? `units received since ${timeAgo(session.data.openedAt)}` : "No restock session open"}
+                icon={ClipboardList}
+              />
             </>
           ) : (
             Array.from({ length: 4 }, (_, i) => <div key={i} className="h-28 animate-pulse rounded-2xl border bg-muted/40" aria-label="Loading" />)
@@ -165,34 +166,32 @@ export function DashboardView() {
         </Panel>
 
         <Panel
-          title="Open purchase orders"
+          title="Current restock session"
           action={
-            <Link href="/purchase-orders" className="flex items-center gap-1 text-xs text-primary hover:underline">
-              All orders <ArrowRight className="size-3" />
+            <Link href="/restock-sessions" className="flex items-center gap-1 text-xs text-primary hover:underline">
+              All sessions <ArrowRight className="size-3" />
             </Link>
           }
         >
-          <PanelState pending={orders.isPending} error={orders.error} empty={openOrders.length === 0} emptyText="No orders are waiting on a delivery." />
-          {openOrders.length > 0 && (
+          <PanelState
+            pending={session.isPending || (!!session.data && report.isPending)}
+            error={session.error ?? report.error}
+            empty={!session.data || topReceived.length === 0}
+            emptyText={session.data ? "Nothing received in this session yet." : "No session open. Start one from Receive stock when a delivery comes in."}
+          />
+          {session.data && topReceived.length > 0 && (
             <ul className="divide-y">
-              {openOrders.map((order) => {
-                const { ordered, received } = totals(order);
-                return (
-                  <li key={order.id}>
-                    <Link href={`/purchase-orders/${order.id}`} className="flex flex-col gap-2 py-3 hover:opacity-90">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="min-w-0 truncate text-sm font-medium">{order.supplierName}</span>
-                        <StatusPill tone={PO_STATUS[order.status].tone}>{PO_STATUS[order.status].label}</StatusPill>
-                      </div>
-                      <ProgressBar value={received} max={ordered} label={`${shortId(order.id)} received units`} />
-                      <div className="flex justify-between text-xs tabular-nums text-muted-foreground">
-                        <span>{received} of {ordered} units</span>
-                        <span className="font-mono">{shortId(order.id)}</span>
-                      </div>
-                    </Link>
-                  </li>
-                );
-              })}
+              {topReceived.map((line) => (
+                <li key={line.sku} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">{line.name ?? line.sku}</div>
+                    <div className="truncate font-mono text-xs text-muted-foreground">{line.sku}</div>
+                  </div>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">
+                    +{line.restocked} received{line.sold > 0 ? ` · ${line.sold} sold` : ""}
+                  </span>
+                </li>
+              ))}
             </ul>
           )}
         </Panel>

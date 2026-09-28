@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PackageOpen } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { NoticeBanner } from "@/components/notice-banner";
+import { SessionBanner } from "@/components/restock/session-banner";
 import { ScanInput } from "@/components/scan/scan-input";
 import { scanPath, useItemLookup } from "@/hooks/use-item-lookup";
 import { apiFetch } from "@/lib/api";
@@ -18,7 +19,7 @@ interface Received {
   at: Date;
 }
 
-export function ReceiveStock({ initialCode }: { initialCode?: string }) {
+export function ReceiveStock({ initialCode, isAdmin = false }: { initialCode?: string; isAdmin?: boolean }) {
   const queryClient = useQueryClient();
   const { item, setItem, notice, setNotice, lookup, clear } = useItemLookup();
   const [quantity, setQuantity] = useState(1);
@@ -71,6 +72,8 @@ export function ReceiveStock({ initialCode }: { initialCode?: string }) {
         <p className="text-sm text-muted-foreground">Scan what arrived, enter how many, and add it to stock.</p>
       </div>
 
+      <SessionBanner isAdmin={isAdmin} />
+
       <div className="grid gap-6 md:grid-cols-2 md:items-start">
         <ScanInput onScan={handleScan} disabled={busy} />
 
@@ -98,9 +101,9 @@ export function ReceiveStock({ initialCode }: { initialCode?: string }) {
       </div>
 
       {received.length > 0 && (
-        <section aria-label="Received this session" className="flex flex-col gap-3">
+        <section aria-label="Recently received" className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-medium">Received this session</h2>
+            <h2 className="text-sm font-medium">Recently received</h2>
             <span className="text-sm tabular-nums text-muted-foreground">{totalUnits} units</span>
           </div>
           <ul className="divide-y rounded-xl border bg-card">

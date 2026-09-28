@@ -84,6 +84,55 @@ public class InventoryApiClient(InventoryGrpcService.InventoryGrpcServiceClient 
         return reply.PurchaseOrders.Select(ToPurchaseOrder).ToList();
     }
 
+    public async Task<(RestockSession Opened, RestockSession? Closed)> OpenRestockSessionAsync(string? note, CancellationToken cancellationToken)
+    {
+        var request = new OpenRestockSessionRequest();
+        if (!string.IsNullOrWhiteSpace(note))
+            request.Note = note;
+
+        try
+        {
+            var reply = await grpcClient.OpenRestockSessionAsync(request, cancellationToken: cancellationToken);
+            return (ToRestockSession(reply.Opened), reply.Closed is null ? null : ToRestockSession(reply.Closed));
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
+        {
+            throw new RestockSessionOperationException(ex.StatusCode, ex.Status.Detail);
+        }
+    }
+
+    public async Task<RestockSession> CloseRestockSessionAsync(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var reply = await grpcClient.CloseRestockSessionAsync(
+                new RestockSessionIdRequest { SessionId = id.ToString() }, cancellationToken: cancellationToken);
+            return ToRestockSession(reply);
+        }
+        catch (RpcException ex) when (ex.StatusCode is StatusCode.NotFound or StatusCode.FailedPrecondition)
+        {
+            throw new RestockSessionOperationException(ex.StatusCode, ex.Status.Detail);
+        }
+    }
+
+    public async Task<RestockSession?> GetCurrentRestockSessionAsync(CancellationToken cancellationToken)
+    {
+        var reply = await grpcClient.GetCurrentRestockSessionAsync(new GetCurrentRestockSessionRequest(), cancellationToken: cancellationToken);
+        return reply.Session is null ? null : ToRestockSession(reply.Session);
+    }
+
+    public async Task<List<RestockSession>> ListRestockSessionsAsync(CancellationToken cancellationToken)
+    {
+        var reply = await grpcClient.ListRestockSessionsAsync(new ListRestockSessionsRequest(), cancellationToken: cancellationToken);
+        return reply.Sessions.Select(ToRestockSession).ToList();
+    }
+
+    private static RestockSession ToRestockSession(RestockSessionReply reply) => new(
+        Guid.Parse(reply.Id),
+        DateTimeOffset.Parse(reply.OpenedAt),
+        reply.HasClosedAt ? DateTimeOffset.Parse(reply.ClosedAt) : null,
+        reply.HasNote ? reply.Note : null);
+
     // NotFound and FailedPrecondition (an invalid state transition — see the saga's own Handle
     // methods) both become null here; the REST endpoint turns that into 404/409 respectively by
     // checking which one actually applies rather than losing the distinction.
@@ -122,6 +171,13 @@ public record PurchaseOrder(
     DateTimeOffset OpenedAt, DateTimeOffset? ClosedAt);
 
 public class PurchaseOrderOperationException(StatusCode statusCode, string message) : Exception(message)
+{
+    public StatusCode StatusCode { get; } = statusCode;
+}
+
+public record RestockSession(Guid Id, DateTimeOffset OpenedAt, DateTimeOffset? ClosedAt, string? Note);
+
+public class RestockSessionOperationException(StatusCode statusCode, string message) : Exception(message)
 {
     public StatusCode StatusCode { get; } = statusCode;
 }

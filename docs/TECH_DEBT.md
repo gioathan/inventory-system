@@ -229,4 +229,14 @@ Track anything done quick-and-dirty here the moment you do it — future you wil
 - **Why:** Standing up a disposable database per test run (a fresh Aspire instance, or Postgres/Mongo containers reset between runs) is a real chunk of infrastructure work on its own, and the specs were built to verify features as they were written, not as a hermetic CI suite yet.
 - **Fix later by:** Either give the suite its own AppHost profile with fresh containers (`docker compose`-style ephemeral stack) or add a reset endpoint/script that truncates test-tagged rows before a run; either way, wire `npm run e2e` into CI once that exists rather than "run it by hand against your dev stack."
 
+## [2026-09-28] Purchase orders are hidden from the frontend but still live in the backend
+- **What:** The Purchase Orders screens, dashboard figure/panel and browser spec were removed from `web/`, but the saga, its Inventory RPCs, Scan Gateway's `/purchase-orders` routes and their integration tests all remain and still run.
+- **Why:** The user doesn't need purchase orders right now (restock sessions cover how they actually restock). Hiding rather than deleting keeps it a frontend-only restore if they want it back.
+- **Fix later by:** Decide. If it stays unused, delete the backend too (saga, `PurchaseOrder` tables via a migration, RPCs, gateway routes, tests) so it isn't maintained for nothing. If it comes back, restore the `web/` files from git (commit before `2026-09-28`).
+
+## [2026-09-28] Starting a restock session silently ends whoever else's was open
+- **What:** Sessions are one global timeline and starting one auto-closes the open one. With two admins, one starting a session ends the other's without asking them. The dialog does say it will end the open session and when that one started.
+- **Why:** Matches how the shop actually restocks (one admin, one period at a time) and was the user's explicit choice over "refuse until closed". Same reasoning as the single-global-session entry above.
+- **Fix later by:** If several admins ever restock independently, move to per-location or per-admin sessions — which also means deciding how a sale is attributed when two sessions are open.
+
 <!-- Add new entries above this line as you go -->

@@ -18,6 +18,14 @@ service InventoryGrpcService {
   // to compute revenue — Inventory only ever reports quantities, never money.
   rpc GetSessionSummary (GetSessionSummaryRequest) returns (SessionSummaryReply);
 
+  // Restock sessions, reachable through Scan Gateway so the frontend can run them. Opening one
+  // closes whichever session was open; every receive made while a session is open is tagged
+  // with it server-side, so nothing else needs to pass a session id around.
+  rpc OpenRestockSession (OpenRestockSessionRequest) returns (OpenRestockSessionReply);
+  rpc CloseRestockSession (RestockSessionIdRequest) returns (RestockSessionReply);
+  rpc GetCurrentRestockSession (GetCurrentRestockSessionRequest) returns (CurrentRestockSessionReply);
+  rpc ListRestockSessions (ListRestockSessionsRequest) returns (ListRestockSessionsReply);
+
   // Purchase order saga (Step 13) — Create/Send/Receive/Cancel each publish a command to the
   // Wolverine saga identified by purchase_order_id; the RPC returns once that command has been
   // handled and the resulting state persisted, same request/response shape as everything else
@@ -78,6 +86,42 @@ message SessionSummaryLine {
 
 message SessionSummaryReply {
   repeated SessionSummaryLine lines = 1;
+}
+
+message RestockSessionReply {
+  string id = 1;
+  string opened_at = 2; // ISO 8601, same convention as PurchaseOrderReply
+  optional string closed_at = 3;
+  optional string note = 4;
+}
+
+message OpenRestockSessionRequest {
+  optional string note = 1;
+}
+
+message OpenRestockSessionReply {
+  RestockSessionReply opened = 1;
+  // The session that starting this one closed, if any — lets the caller say so.
+  RestockSessionReply closed = 2;
+}
+
+message RestockSessionIdRequest {
+  string session_id = 1;
+}
+
+message GetCurrentRestockSessionRequest {
+}
+
+// No open session is a normal state, not an error, so it's an absent field rather than NotFound.
+message CurrentRestockSessionReply {
+  RestockSessionReply session = 1;
+}
+
+message ListRestockSessionsRequest {
+}
+
+message ListRestockSessionsReply {
+  repeated RestockSessionReply sessions = 1;
 }
 
 enum PurchaseOrderStatus {

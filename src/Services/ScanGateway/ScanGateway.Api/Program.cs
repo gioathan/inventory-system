@@ -100,6 +100,7 @@ app.MapItemsEndpoints();
 app.MapCategoryEndpoints();
 app.MapDiscountEndpoints();
 app.MapPurchaseOrderEndpoints();
+app.MapRestockSessionEndpoints();
 app.MapImageEndpoints();
 
 app.Run();

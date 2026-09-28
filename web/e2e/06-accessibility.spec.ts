@@ -50,9 +50,6 @@ test("no accessibility violations across the app, both themes, desktop and phone
         ).json()
       ).data.items[0].sku,
   );
-  const firstPo: string = await probe.page.evaluate(
-    async () => (await (await fetch("/api/backend/gateway/purchase-orders")).json())[0].id,
-  );
   await probe.context.close();
 
   const adminPages = [
@@ -62,9 +59,7 @@ test("no accessibility violations across the app, both themes, desktop and phone
     "/catalog/new",
     "/categories",
     "/discounts",
-    "/purchase-orders",
-    "/purchase-orders/new",
-    `/purchase-orders/${firstPo}`,
+    "/restock-sessions",
     "/staff",
     "/audit-log",
     `/labels/print?sku=${firstSku}`,

@@ -77,18 +77,25 @@ service) since it only needs Inventory's own data, not cross-service events yet.
   ResultingQuantity, nullable SessionId). `StockItem.QuantityOnHand` remains the current total;
   this table is the history the total alone can't answer ("how much did I have 3 restockings
   ago" is a range query over this table, not a special "since last count" case).
-- **`RestockSession`** — an explicit, admin-opened/closed window (only one open at a time,
-  enforced by a partial unique index on `ClosedAt IS NULL`, not just app logic). Every
-  receive/adjust made while a session is open is auto-tagged with it server-side — Scan Gateway
-  and Dashboard never need to know a session exists, let alone pass its id.
-- **`GET /restock-sessions/{id}/summary`** (Inventory, also exposed over gRPC as
-  `GetSessionSummary`) — per-Sku Restocked/Sold/NetDelta from that session's `OpenedAt` through
-  right now — **time-bounded by when the session opened, not tag-filtered by its `SessionId`**.
-  A closed session still answers "since this restocking, how much has moved, as of today," not
-  a snapshot frozen at whenever it was closed — that's the whole point of picking "restocking
-  #7" as your starting line rather than a raw date. `Sold` only counts `Reason == Sale`
-  movements, so a `ManualAdjust` correction never gets counted as a sale. 404s if the session id
-  doesn't exist.
+- **`RestockSession`** — an admin-started restocking period (only one open at a time, enforced
+  by a partial unique index on `ClosedAt IS NULL`, not just app logic). **Starting a session
+  closes the open one at the same instant** (one transaction, two saves — the index is checked
+  per statement, so the close must land before the insert), so sessions tile the timeline with
+  no overlap and no forgotten open session. An admin can also close one explicitly. Every
+  movement made while a session is open (receives, sales, corrections) is auto-tagged with it
+  server-side — callers never pass a session id.
+  *Changed 2026-09-28:* starting used to be refused while a session was open.
+- **`GetSessionSummary`** (gRPC; Dashboard's `sessionReport` is its caller) — per-Sku
+  Restocked/Sold/NetDelta for **the session's own period**: `OpenedAt` until `ClosedAt`, or until
+  now while it's still open. `Sold` only counts `Reason == Sale` movements, so a `ManualAdjust`
+  correction never gets counted as a sale. NotFound if the session id doesn't exist.
+  *Changed 2026-09-28:* this used to run from `OpenedAt` until today even for closed sessions
+  ("since restocking #7"); with auto-closing sessions each one now reads as one period, which is
+  how the sessions are actually used.
+- **Scan Gateway exposes them** (`GET /restock-sessions/current` for any signed-in user;
+  list/start/close admin-only) via four Inventory RPCs (`OpenRestockSession`,
+  `CloseRestockSession`, `GetCurrentRestockSession`, `ListRestockSessions`). "No session open" is
+  a normal 200 with a null session, not a 404.
 - **Revenue lives in Dashboard, not Inventory** — Inventory's ledger only ever knows quantities,
   never money (same boundary as everywhere else: Inventory owns stock truth, Catalog owns
   price). Dashboard's new `sessionReport(sessionId)` GraphQL query is the join point: it calls
@@ -450,7 +457,9 @@ real stock instead of leaving a stale number.
   immediately rather than staging a batch: nothing is lost if a phone dies mid-delivery, and there
   is no half-committed batch to reconcile. The on-screen list is history, not a cart. Quantity has
   quick-add presets (+1/+5/+10/+20), rejects non-digits, and is capped at 99,999 to catch typos.
-  The backend has no restock-session routes at the gateway, so this is per-call by necessity too.
+  Above the scanner, a banner shows which restock session receives are being logged to (see
+  below); receiving works the same with or without one. The on-screen list is labelled "Recently
+  received" so it isn't confused with a restock session.
 - **Stock** reads the whole catalog through the Dashboard GraphQL `items` query (sellers are
   allowed) and searches/filters client-side (name, SKU, barcode; All / Low / Out / On promo with
   live counts). A hardware scanner works in the search box because it just types the code. Each
@@ -502,7 +511,29 @@ real stock instead of leaving a stale number.
   changes the barcode, since an unchanged one still cached the old name/price/image. Gateway route:
   `PUT /items/{sku}`.
 
-### Purchase orders (admin, `/purchase-orders`)
+### Restock sessions (admin, `/restock-sessions`)
+
+Replaces Purchase Orders in the "Supply chain" nav group (see below).
+
+- **Sessions list + report side by side** (stacked on phones). Sessions are numbered oldest-first so
+  "#7" stays #7 as new ones are added. The selected session's report shows received / sold /
+  revenue totals and a per-item table (received, sold, net, revenue), sorted by what came in.
+  Revenue is labelled as using today's price (the same known tradeoff as `sessionReport`).
+- **Starting a session** (from this page or the Receive banner) goes through one dialog that says
+  up front it will end the open session, with an optional note (supplier, delivery). An open
+  session can also be closed explicitly, behind a confirm.
+- **The Receive banner** shows every user which session is open ("since … · Everything you
+  receive is logged to it"); only admins see Start/All sessions. Sellers get the read, never the
+  write — the backend enforces admin-only on start/close/list regardless.
+- **Dashboard:** the fourth KPI is "This session" (units received in the open session), and the
+  "Current restock session" panel lists what came in most, linking to all sessions.
+
+### Purchase orders — hidden from the frontend (2026-09-28)
+
+Removed from the app at the user's request: nav entry, pages, dashboard figure/panel and the
+browser spec (`web/src/components/po`, `hooks/use-purchase-orders.ts`, `lib/po.ts` — all in git
+history). **The backend is intact** (saga, gRPC, gateway routes, integration tests), just unused
+by the UI, so bringing it back is a frontend-only restore. The notes below describe it as it was.
 
 A list (search, status filter chips with counts, progress bars), a New PO form, and a detail screen
 per order. Purchase orders stay admin-only, matching the backend policy on the whole route group.

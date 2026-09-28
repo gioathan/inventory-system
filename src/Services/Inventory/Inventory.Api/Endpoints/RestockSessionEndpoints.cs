@@ -17,7 +17,7 @@ public static class RestockSessionEndpoints
         {
             try
             {
-                var session = await sessions.OpenAsync(request.Note, cancellationToken);
+                var (session, _) = await sessions.OpenAsync(request.Note, cancellationToken);
                 return Results.Created($"/restock-sessions/{session.Id}", ToResponse(session));
             }
             catch (InvalidOperationException ex)

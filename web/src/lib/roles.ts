@@ -6,7 +6,7 @@ export function homeFor(role: Role): string {
   return role === "Admin" ? "/dashboard" : "/scan";
 }
 
-export const ADMIN_PREFIXES = ["/dashboard", "/catalog", "/categories", "/discounts", "/purchase-orders", "/staff", "/audit-log", "/labels"];
+export const ADMIN_PREFIXES = ["/dashboard", "/catalog", "/categories", "/discounts", "/restock-sessions", "/staff", "/audit-log", "/labels"];
 export const SELLER_PREFIXES = ["/scan", "/receive", "/stock"];
 
 export function matchesPrefix(pathname: string, prefixes: string[]): boolean {
