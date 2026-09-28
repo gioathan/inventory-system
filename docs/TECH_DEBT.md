@@ -239,4 +239,9 @@ Track anything done quick-and-dirty here the moment you do it — future you wil
 - **Why:** Matches how the shop actually restocks (one admin, one period at a time) and was the user's explicit choice over "refuse until closed". Same reasoning as the single-global-session entry above.
 - **Fix later by:** If several admins ever restock independently, move to per-location or per-admin sessions — which also means deciding how a sale is attributed when two sessions are open.
 
+## [2026-09-28] Insights fetches one full report per session in scope
+- **What:** The Insights tab asks for `sessionReport` once per session ("All" = every session), and each of those calls fetches the whole catalog from Catalog to join names, prices and categories. Aggregation happens in the browser.
+- **Why:** It reuses the existing, tested report with no new backend, and the reports are cached, so tab switches don't refetch. At shop scale (tens of sessions, hundreds of items) it's instant.
+- **Fix later by:** A `salesStats(sessionIds: [UUID!]!)` Dashboard query that fetches the catalog once and asks Inventory for all sessions in one grouped query. That's also the natural home for the daily series when per-day charts are added.
+
 <!-- Add new entries above this line as you go -->

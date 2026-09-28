@@ -542,7 +542,22 @@ Replaces Purchase Orders in the "Supply chain" nav group (see below).
   write — the backend enforces admin-only on start/close/list regardless.
 - **Dashboard:** the fourth KPI is "This session" (units received in the open session), and the
   "Current restock session" panel lists what came in most, linking to all sessions.
-- **Tabs** (`?tab=` in the URL, read by the server page): Sessions and Compare.
+- **Tabs** (`?tab=` in the URL, read by the server page): Sessions, Compare and Insights.
+- **Insights** (Phase 3, first cut) covers any scope: latest, last 3/5/10, or all sessions. One filter
+  row (scope and measure: units or revenue) sits above everything, and every figure re-renders
+  against it.
+  - **Charts:** three figures, top 10 items and top 10 categories as ranked bar lists, and a
+    per-session column chart. Aggregated in the browser (`aggregateInsights`) from one cached
+    `sessionReport` per session in scope.
+  - **Chart rules** (from the dataviz method): each chart is one series in one colour
+    (`--chart-1`), so there's no legend box. Bars are at most 24px thick with a 4px rounded end
+    and a square base; gridlines are hairlines. Values sit at the bar tip, and only the latest
+    column is labelled. Each bar has a hover and keyboard tooltip, and every chart has a
+    "Show the numbers" table.
+  - **`--chart-1` was re-set** to values validated against the card surfaces. Light is the brand
+    emerald. Dark is a step darker than brand (L 0.64), because the brand's 0.70 sits above the
+    dark lightness band. The old shadcn defaults failed contrast in light and the band in dark.
+  - **Not in the first cut:** sales per day within a session, item trend sparklines, slow movers.
 - **Compare** (Phase 2 of the sales-visibility plan) pits two sessions against each other,
   defaulting to the latest vs the one before. Computed in the browser from two `sessionReport`
   calls (`lib/restock.ts`, pure functions), so no backend changes were needed.

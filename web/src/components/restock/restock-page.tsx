@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { CompareView } from "./compare-view";
+import { InsightsView } from "./insights-view";
 import { SessionsView } from "./sessions-view";
 
 export const RESTOCK_TABS = [
   { id: "sessions", label: "Sessions" },
   { id: "compare", label: "Compare" },
+  { id: "insights", label: "Insights" },
 ] as const;
 export type RestockTab = (typeof RESTOCK_TABS)[number]["id"];
 
@@ -36,7 +38,7 @@ export function RestockPage({ tab }: { tab: RestockTab }) {
         ))}
       </nav>
 
-      {tab === "compare" ? <CompareView /> : <SessionsView />}
+      {tab === "compare" ? <CompareView /> : tab === "insights" ? <InsightsView /> : <SessionsView />}
     </div>
   );
 }

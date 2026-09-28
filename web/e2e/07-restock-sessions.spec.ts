@@ -120,6 +120,20 @@ test("restock sessions: starting one closes the last, and each report covers onl
   await page.getByRole("button", { name: "By category" }).click();
   check("compare: by-category view lists No category (our item has none)", await visible(page, "No category"));
 
+  // ---- insights over the last sessions -----------------------------------------------------------------
+  await page.goto(`${baseUrl}/restock-sessions?tab=insights`);
+  await page.getByRole("button", { name: "Last 3" }).click();
+  const topItems = page.getByRole("list", { name: "Item" });
+  await topItems.waitFor();
+  const itemBar = topItems.getByRole("listitem", { name: new RegExp(`^Session Item ${tag}: 2\\b`) });
+  check("insights: top items include the test item with its 2 units sold", (await itemBar.count()) === 1);
+  await page.getByRole("button", { name: "Revenue" }).click();
+  check("insights: switching to revenue ranks it by $20.00", (await topItems.getByRole("listitem", { name: new RegExp(`^Session Item ${tag}: \\$20\\.00`) }).count()) === 1);
+  const trendColumns = await page.getByRole("list", { name: "Sessions" }).getByRole("listitem").count();
+  check("insights: the trend has one column per session in scope (3)", trendColumns === 3, String(trendColumns));
+  await page.getByRole("button", { name: "Latest" }).click();
+  check("insights: Latest excludes the first session's sales", (await topItems.getByRole("listitem", { name: new RegExp(`^Session Item ${tag}:`) }).count()) === 0);
+
   // ---- a seller sees the session but can't run them ---------------------------------------------------
   {
     const s = await login(browser, seller.username, seller.password, "/scan");

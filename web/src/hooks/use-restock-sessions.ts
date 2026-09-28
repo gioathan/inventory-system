@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { gql } from "@/lib/graphql";
 import type { CurrentSessionSales, RestockSession, SessionReportLine } from "@/lib/types";
@@ -62,12 +62,20 @@ const REPORT_QUERY = /* GraphQL */ `
   }
 `;
 
+const reportQuery = (sessionId: string | null) => ({
+  queryKey: ["restock-sessions", "report", sessionId],
+  queryFn: async () => (await gql<{ sessionReport: SessionReportLine[] }>(REPORT_QUERY, { sessionId })).sessionReport,
+  enabled: sessionId !== null,
+});
+
 export function useSessionReport(sessionId: string | null) {
-  return useQuery({
-    queryKey: ["restock-sessions", "report", sessionId],
-    queryFn: async () => (await gql<{ sessionReport: SessionReportLine[] }>(REPORT_QUERY, { sessionId })).sessionReport,
-    enabled: sessionId !== null,
-  });
+  return useQuery(reportQuery(sessionId));
+}
+
+// Several reports at once (Insights over the last N sessions). Same cache entries as
+// useSessionReport, so switching between tabs doesn't refetch.
+export function useSessionReports(sessionIds: string[]) {
+  return useQueries({ queries: sessionIds.map((id) => reportQuery(id)) });
 }
 
 export function useStartSession() {

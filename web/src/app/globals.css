@@ -90,7 +90,9 @@
   --border: oklch(0.92 0.004 286);
   --input: oklch(0.9 0.005 286);
   --ring: oklch(0.47 0.108 166);
-  --chart-1: oklch(0.696 0.17 162.48);
+  /* chart-1 is the single-series mark color. Validated with the dataviz palette checks against
+     the card surface: light L 0.47 (band 0.43–0.77, contrast ≥ 3:1 on white). */
+  --chart-1: oklch(0.47 0.108 166);
   --chart-2: oklch(0.596 0.145 163.225);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.55 0.02 286);
@@ -131,7 +133,8 @@
   --border: oklch(1 0 0 / 9%);
   --input: oklch(1 0 0 / 13%);
   --ring: oklch(0.696 0.17 162.48);
-  --chart-1: oklch(0.765 0.177 163.223);
+  /* Dark: a step below the brand emerald (0.696 sits above the dark band's 0.67 ceiling). */
+  --chart-1: oklch(0.64 0.15 163);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.6 0.02 286);

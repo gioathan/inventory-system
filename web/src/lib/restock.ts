@@ -109,3 +109,70 @@ export function compareCategories(a: SessionReportLine[], b: SessionReportLine[]
     (key) => (key === "none" ? "No category" : (categoryName(key) ?? "Unknown category")),
   );
 }
+
+export interface RankedRow {
+  key: string;
+  label: string;
+  sold: number;
+  revenue: number;
+}
+
+export interface SessionPoint {
+  session: NumberedSession;
+  sold: number;
+  revenue: number;
+  estimated: boolean;
+}
+
+export interface Insights {
+  items: RankedRow[];
+  categories: RankedRow[];
+  /** Oldest first, so the trend reads left to right. */
+  trend: SessionPoint[];
+  estimated: boolean;
+}
+
+// Totals across any set of sessions: per item, per category (the item's current one), and one
+// point per session for the trend. Rows that sold nothing are dropped from the rankings.
+export function aggregateInsights(
+  reports: { session: NumberedSession; lines: SessionReportLine[] }[],
+  categoryName: (id: string) => string | undefined,
+): Insights {
+  const items = new Map<string, RankedRow>();
+  const categories = new Map<string, RankedRow>();
+  const add = (map: Map<string, RankedRow>, key: string, label: string, sold: number, revenue: number) => {
+    const row = map.get(key) ?? { key, label, sold: 0, revenue: 0 };
+    row.sold += sold;
+    row.revenue += revenue;
+    map.set(key, row);
+  };
+
+  let estimated = false;
+  const trend = reports
+    .map(({ session, lines }) => {
+      let sold = 0, revenue = 0, est = false;
+      for (const l of lines) {
+        const r = l.revenue ?? 0;
+        sold += l.sold;
+        revenue += r;
+        if (l.revenueEstimated) est = true;
+        if (l.sold === 0) continue;
+        add(items, l.sku, l.name ?? l.sku, l.sold, r);
+        const catKey = l.categoryId ?? "none";
+        add(categories, catKey, catKey === "none" ? "No category" : (categoryName(catKey) ?? "Unknown category"), l.sold, r);
+      }
+      if (est) estimated = true;
+      return { session, sold, revenue, estimated: est };
+    })
+    .sort((a, b) => a.session.number - b.session.number);
+
+  return { items: [...items.values()], categories: [...categories.values()], trend, estimated };
+}
+
+/** A clean axis maximum (1, 2, 2.5, 5 × 10ⁿ) at or above the largest value. */
+export function niceMax(value: number): number {
+  if (value <= 0) return 1;
+  const magnitude = 10 ** Math.floor(Math.log10(value));
+  const step = [1, 2, 2.5, 5, 10].find((s) => s * magnitude >= value)!;
+  return step * magnitude;
+}
