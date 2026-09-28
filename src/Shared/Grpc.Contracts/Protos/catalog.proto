@@ -10,8 +10,10 @@ package catalog;
 // something internal to call; nothing else uses them, so REST on Catalog.Api stays as well.
 service CatalogGrpcService {
   rpc GetItemByBarcode (GetItemByBarcodeRequest) returns (ItemReply);
+  rpc GetItemBySku (GetItemBySkuRequest) returns (ItemReply);
   rpc ListItems (ListItemsRequest) returns (ListItemsReply);
   rpc CreateItem (CreateItemRequest) returns (ItemReply);
+  rpc UpdateItem (UpdateItemRequest) returns (ItemReply);
   rpc CreateCategory (CreateCategoryRequest) returns (CategoryReply);
   rpc ListCategories (ListCategoriesRequest) returns (ListCategoriesReply);
   rpc ApplyDiscount (ApplyDiscountRequest) returns (DiscountReply);
@@ -20,6 +22,13 @@ service CatalogGrpcService {
 
 message GetItemByBarcodeRequest {
   string barcode = 1;
+}
+
+// Sku-keyed counterpart to GetItemByBarcode — used to look up an item's current state (e.g. its
+// barcode before an edit changes it) when the caller already knows the Sku rather than the
+// barcode a shopper would scan.
+message GetItemBySkuRequest {
+  string sku = 1;
 }
 
 message ItemReply {
@@ -55,6 +64,20 @@ message CreateItemRequest {
   // value — a conflict on a supplied value fails the call; a conflict on a generated one retries.
   optional string barcode = 3;
   optional string sku = 4;
+  optional string category_id = 5;
+  optional string image_url = 6;
+}
+
+// A full replace of the editable fields, like the form that submits it — not a partial patch.
+// Sku identifies the item and is immutable: it's the key Inventory, Purchase Orders and printed
+// labels already carry, so renaming it here would silently orphan all of those. Barcode, unlike
+// on CreateItemRequest, is required and never auto-generated — there's already one on the item to
+// keep unless the caller means to change it.
+message UpdateItemRequest {
+  string sku = 1;
+  string name = 2;
+  string price = 3;
+  string barcode = 4;
   optional string category_id = 5;
   optional string image_url = 6;
 }

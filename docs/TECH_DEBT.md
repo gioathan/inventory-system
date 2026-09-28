@@ -184,10 +184,10 @@ Track anything done quick-and-dirty here the moment you do it — future you wil
 - **Why:** For a shop-sized catalog it's the simplest thing that gives instant filtering and accurate live counts, and the Dashboard `items` query has no paging/search arguments to use anyway.
 - **Fix later by:** When the catalog reaches a few thousand items, add search/filter/paging arguments to the Dashboard query (and Catalog's `ListItems`) and drive the filter chips' counts server-side. The component's data shape wouldn't need to change much.
 
-## [2026-09-26] Catalog items can't be edited after creation
-- **What:** The catalog is create-and-view only. There is no update endpoint (no `UpdateItem` RPC, no gateway route), so name, price, category and image can't be changed once an item exists, and categories can't be renamed or deleted.
-- **Why:** Phase 3 was scoped to what the backend supports; adding update RPCs, gateway routes and tests is its own piece of work. The item panel is deliberately read-only rather than showing a Save button that can't work.
-- **Fix later by:** Add `UpdateItem` to `catalog.proto` and `CatalogGrpcServiceImpl`, a `PUT /items/{sku}` gateway route (invalidating the barcode cache in Scan Gateway), and an edit form reusing `NewItemForm`'s schema.
+## [2026-09-27] Categories still can't be renamed or deleted
+- **What:** Items themselves are now fully editable (name, price, category, barcode, image — see docs/architecture.md's "Editing an item" section), but categories are still create/list-only: no rename, no delete, so a typo'd or abandoned category sits in the list forever.
+- **Why:** The item-edit work (`UpdateItem`) only needed to touch items; renaming a category is a one-field change but deleting one raises a real question this system hasn't answered yet — what happens to items still pointing at it (null them out? refuse the delete while any remain?) — worth deciding deliberately rather than bundling in as an afterthought.
+- **Fix later by:** Add `UpdateCategory`/`DeleteCategory` RPCs (`CatalogGrpcServiceImpl`, admin-only like the rest of category management) and matching gateway routes; decide the orphan-item behavior before writing `DeleteCategory`, and surface whatever it is in the UI's confirmation copy.
 
 ## [2026-09-26] Long alphanumeric barcodes get dense on a 2in x 1in label
 - **What:** Generated 12-digit codes use Code128's compact numeric mode (about 101 modules) and print comfortably. A 12-character alphanumeric manufacturer barcode needs about 167 modules in the same ~1.2in, roughly 0.18 mm per bar at 300 dpi — at the edge of what cheap laser scanners read reliably. It decodes fine at 3x render, but hasn't been tried on paper.

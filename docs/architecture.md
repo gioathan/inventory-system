@@ -484,7 +484,23 @@ real stock instead of leaving a stale number.
 - **Categories** (create/list, with item counts) and **Discounts & Promos**. A discount goes
   through one shared dialog whether it comes from selected catalog rows or a whole category: the
   backend takes a fraction strictly between 0 and 1 and never touches the list price, so removal
-  restores it exactly. The dialog states how many items it will change.
+  restores it exactly. The dialog states how many items it will change. Discounts & Promos also
+  links to `/catalog` ("Pick specific items instead") for discounting an arbitrary selection rather
+  than a whole category — that filter/select/batch-discount flow already lives on Items & SKUs, so
+  the two screens point at each other instead of duplicating it.
+- **Editing an item** (`EditItemDialog`, opened from the item panel's "Edit item" button): a full
+  replace of name, price, category, barcode and image — the same fields New SKU sets on creation,
+  reusing its zod rules and, via the new `useImageUpload` hook, its upload logic (extracted once
+  this became the second consumer). **Sku is shown but never editable** — it's the key Inventory,
+  Purchase Orders and printed labels already carry, so renaming it here would silently orphan all
+  of those; the dialog says so. Barcode *is* editable (a mislabeled or re-barcoded product needs
+  that), with a hint that it won't retroactively update labels already printed with the old value.
+  Backend: `UpdateItem` (catalog.proto/`CatalogGrpcServiceImpl`, admin-only) does the full-replace
+  write and a unique-constraint conflict on barcode maps to 409; a new `GetItemBySku` RPC lets
+  Scan Gateway's `CatalogApiClient.UpdateItemAsync` read the item's *pre-edit* barcode first, so it
+  can drop that barcode's Redis cache entry after the write — needed whether or not the edit
+  changes the barcode, since an unchanged one still cached the old name/price/image. Gateway route:
+  `PUT /items/{sku}`.
 
 ### Purchase orders (admin, `/purchase-orders`)
 

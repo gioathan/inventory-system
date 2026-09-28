@@ -68,7 +68,9 @@ public class ItemCreationService(CatalogDbContext db)
         return value.ToString("D12");
     }
 
-    private static bool IsUniqueViolation(DbUpdateException ex) =>
+    // Shared with UpdateItem (CatalogGrpcServiceImpl), which hits the same Sku/Barcode unique
+    // constraints when a caller-supplied value collides with a different existing item.
+    internal static bool IsUniqueViolation(DbUpdateException ex) =>
         ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation };
 }
 

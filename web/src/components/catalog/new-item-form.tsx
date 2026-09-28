@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ImageUp, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { FormField } from "@/components/form-field";
@@ -13,10 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { useCategories } from "@/hooks/use-items";
+import { useImageUpload } from "@/hooks/use-image-upload";
 import { ApiError, apiFetch } from "@/lib/api";
 import type { ReceiveResult } from "@/lib/types";
-
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // Cloudflare Images' own per-file limit.
 
 function isHttpUrl(value: string) {
   try {
@@ -54,9 +53,6 @@ export function NewItemForm() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const categories = useCategories();
-  const fileInput = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
@@ -67,6 +63,7 @@ export function NewItemForm() {
   const { errors } = formState;
   const imageUrl = useWatch({ control, name: "imageUrl" });
   const categoryId = useWatch({ control, name: "categoryId" });
+  const { fileInput, uploading, error: uploadError, onFileInputChange, pick } = useImageUpload((url) => setValue("imageUrl", url, { shouldValidate: true }));
 
   const create = useMutation({
     mutationFn: (values: FormValues) =>
@@ -96,34 +93,6 @@ export function NewItemForm() {
       }
     },
   });
-
-  async function upload(file: File) {
-    setUploadError(null);
-    if (!file.type.startsWith("image/")) return setUploadError("Choose an image file.");
-    if (file.size > MAX_IMAGE_BYTES) return setUploadError("That image is over 10 MB. Choose a smaller one.");
-
-    setUploading(true);
-    try {
-      const body = new FormData();
-      body.append("file", file);
-      const { imageUrl: uploaded } = await apiFetch<{ imageUrl: string }>("gateway", "images", { method: "POST", body });
-      setValue("imageUrl", uploaded, { shouldValidate: true });
-    } catch (error) {
-      // 502 with "not configured" is the expected state until Cloudflare credentials exist;
-      // it isn't a failure of this upload, so say what to do instead.
-      const notConfigured = error instanceof ApiError && error.status === 502 && /not configured/i.test(error.message);
-      setUploadError(
-        notConfigured
-          ? "Image uploads aren't set up on this server yet. Paste an image address instead."
-          : error instanceof Error
-            ? error.message
-            : "The upload failed. Try again.",
-      );
-    } finally {
-      setUploading(false);
-      if (fileInput.current) fileInput.current.value = "";
-    }
-  }
 
   return (
     <form
@@ -200,12 +169,9 @@ export function NewItemForm() {
           className="sr-only"
           aria-label="Upload an image file"
           tabIndex={-1}
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) void upload(file);
-          }}
+          onChange={onFileInputChange}
         />
-        <Button type="button" variant="outline" className="h-11 gap-2" disabled={uploading} onClick={() => fileInput.current?.click()}>
+        <Button type="button" variant="outline" className="h-11 gap-2" disabled={uploading} onClick={pick}>
           {uploading ? <Loader2 className="size-4 animate-spin" /> : <ImageUp className="size-4" />}
           {uploading ? "Uploading…" : "Upload a file"}
         </Button>

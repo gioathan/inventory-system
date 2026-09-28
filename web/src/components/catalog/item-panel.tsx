@@ -1,7 +1,8 @@
 "use client";
 
-import { PackagePlus, Printer, Tag, X } from "lucide-react";
+import { PackagePlus, Pencil, Printer, Tag, X } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import { ItemImage } from "@/components/item-image";
 import { Label } from "@/components/labels/label";
 import { StatusPill } from "@/components/status-pill";
@@ -11,6 +12,7 @@ import { LABEL_FORMAT, LABEL_HEIGHT_IN, LABEL_WIDTH_IN } from "@/lib/label";
 import { stockLevel } from "@/lib/stock";
 import type { CatalogEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { EditItemDialog } from "./edit-item-dialog";
 
 const FORMAT_NOTE = {
   both: "Code128 + QR",
@@ -39,6 +41,7 @@ export function ItemPanel({
 }) {
   const level = stockLevel(item.quantityOnHand);
   const discounted = item.discountPercentage !== null;
+  const [editOpen, setEditOpen] = useState(false);
 
   return (
     <div className="flex flex-col gap-5">
@@ -109,6 +112,10 @@ export function ItemPanel({
       </section>
 
       <div className="flex flex-wrap gap-2">
+        <Button type="button" variant="outline" className="h-10 flex-1 gap-2" onClick={() => setEditOpen(true)}>
+          <Pencil className="size-4" />
+          Edit item
+        </Button>
         <Link
           href={`/labels/print?sku=${encodeURIComponent(item.sku)}`}
           className={cn(buttonVariants(), "h-10 flex-1 gap-2")}
@@ -124,6 +131,8 @@ export function ItemPanel({
           Receive stock
         </Link>
       </div>
+
+      <EditItemDialog open={editOpen} onOpenChange={setEditOpen} item={item} />
     </div>
   );
 }

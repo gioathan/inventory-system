@@ -69,6 +69,79 @@ public class CatalogItemTests
     }
 
     [Fact]
+    public async Task UpdateItem_ChangesTheEditableFieldsAndLeavesSkuAlone()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+        var (app, catalog, auth) = await StartAsync(cts.Token);
+        await using var _ = app;
+
+        var sku = $"CATALOG-TEST-UPDATE-{Guid.NewGuid():N}";
+        var oldBarcode = Random.Shared.NextInt64(100000000000, 999999999999).ToString();
+        var newBarcode = Random.Shared.NextInt64(100000000000, 999999999999).ToString();
+        await catalog.CreateItemAsync(
+            new CreateItemRequest { Name = "Before", Sku = sku, Barcode = oldBarcode, Price = "10" },
+            headers: auth, cancellationToken: cts.Token);
+
+        var category = await catalog.CreateCategoryAsync(
+            new CreateCategoryRequest { Name = $"Update Test Category {Guid.NewGuid():N}" }, headers: auth, cancellationToken: cts.Token);
+
+        var updated = await catalog.UpdateItemAsync(
+            new UpdateItemRequest { Sku = sku, Name = "After", Price = "15.50", Barcode = newBarcode, CategoryId = category.Id },
+            headers: auth, cancellationToken: cts.Token);
+
+        Assert.Equal(sku, updated.Sku); // identity never changes
+        Assert.Equal("After", updated.Name);
+        Assert.Equal("15.50", updated.Price);
+        Assert.Equal(newBarcode, updated.Barcode);
+        Assert.Equal(category.Id, updated.CategoryId);
+
+        var foundByNewBarcode = await catalog.GetItemBySkuAsync(new GetItemBySkuRequest { Sku = sku }, headers: auth, cancellationToken: cts.Token);
+        Assert.Equal(newBarcode, foundByNewBarcode.Barcode);
+
+        var oldBarcodeGone = await Assert.ThrowsAsync<RpcException>(() => catalog.GetItemByBarcodeAsync(
+            new GetItemByBarcodeRequest { Barcode = oldBarcode }, headers: auth, cancellationToken: cts.Token).ResponseAsync);
+        Assert.Equal(StatusCode.NotFound, oldBarcodeGone.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateItem_ForUnknownSku_ReturnsNotFound()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+        var (app, catalog, auth) = await StartAsync(cts.Token);
+        await using var _ = app;
+
+        var ex = await Assert.ThrowsAsync<RpcException>(() => catalog.UpdateItemAsync(
+            new UpdateItemRequest { Sku = "NO-SUCH-SKU", Name = "X", Price = "1", Barcode = Random.Shared.NextInt64(100000000000, 999999999999).ToString() },
+            headers: auth, cancellationToken: cts.Token).ResponseAsync);
+
+        Assert.Equal(StatusCode.NotFound, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateItem_WithAnotherItemsBarcode_ReturnsAlreadyExists()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+        var (app, catalog, auth) = await StartAsync(cts.Token);
+        await using var _ = app;
+
+        var takenBarcode = Random.Shared.NextInt64(100000000000, 999999999999).ToString();
+        await catalog.CreateItemAsync(
+            new CreateItemRequest { Name = "Holds The Barcode", Sku = $"CATALOG-TEST-TAKEN-{Guid.NewGuid():N}", Barcode = takenBarcode, Price = "0" },
+            headers: auth, cancellationToken: cts.Token);
+
+        var sku = $"CATALOG-TEST-CONFLICT-{Guid.NewGuid():N}";
+        await catalog.CreateItemAsync(
+            new CreateItemRequest { Name = "Wants The Barcode", Sku = sku, Barcode = Random.Shared.NextInt64(100000000000, 999999999999).ToString(), Price = "0" },
+            headers: auth, cancellationToken: cts.Token);
+
+        var ex = await Assert.ThrowsAsync<RpcException>(() => catalog.UpdateItemAsync(
+            new UpdateItemRequest { Sku = sku, Name = "Wants The Barcode", Price = "0", Barcode = takenBarcode },
+            headers: auth, cancellationToken: cts.Token).ResponseAsync);
+
+        Assert.Equal(StatusCode.AlreadyExists, ex.StatusCode);
+    }
+
+    [Fact]
     public async Task LookupByBarcode_ForUnknownBarcode_ReturnsNotFound()
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));

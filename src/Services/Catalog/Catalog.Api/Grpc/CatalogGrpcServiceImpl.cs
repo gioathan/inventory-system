@@ -26,6 +26,17 @@ public class CatalogGrpcServiceImpl(CatalogDbContext db, ItemCreationService ite
         return ToReply(item);
     }
 
+    public override async Task<ItemReply> GetItemBySku(GetItemBySkuRequest request, ServerCallContext context)
+    {
+        var item = await db.Items.AsNoTracking()
+            .FirstOrDefaultAsync(i => i.Sku == request.Sku, context.CancellationToken);
+
+        if (item is null)
+            throw new RpcException(new Status(StatusCode.NotFound, $"No catalog item found for SKU '{request.Sku}'."));
+
+        return ToReply(item);
+    }
+
     public override async Task<ListItemsReply> ListItems(ListItemsRequest request, ServerCallContext context)
     {
         var items = await db.Items.AsNoTracking().ToListAsync(context.CancellationToken);
@@ -54,6 +65,34 @@ public class CatalogGrpcServiceImpl(CatalogDbContext db, ItemCreationService ite
         {
             throw new RpcException(new Status(StatusCode.AlreadyExists, ex.Message));
         }
+    }
+
+    // A full replace of the editable fields (see UpdateItemRequest), admin-only like the rest of
+    // catalog management (categories, discounts) — a seller creating an item during receiving
+    // doesn't also get to edit an existing one.
+    [Authorize(Policy = AuthPolicies.AdminOnly)]
+    public override async Task<ItemReply> UpdateItem(UpdateItemRequest request, ServerCallContext context)
+    {
+        var item = await db.Items.FirstOrDefaultAsync(i => i.Sku == request.Sku, context.CancellationToken);
+        if (item is null)
+            throw new RpcException(new Status(StatusCode.NotFound, $"No catalog item found for SKU '{request.Sku}'."));
+
+        item.Name = request.Name;
+        item.Price = decimal.Parse(request.Price, CultureInfo.InvariantCulture);
+        item.Barcode = request.Barcode;
+        item.CategoryId = request.HasCategoryId ? Guid.Parse(request.CategoryId) : null;
+        item.ImageUrl = request.HasImageUrl ? request.ImageUrl : null;
+
+        try
+        {
+            await db.SaveChangesAsync(context.CancellationToken);
+        }
+        catch (DbUpdateException ex) when (ItemCreationService.IsUniqueViolation(ex))
+        {
+            throw new RpcException(new Status(StatusCode.AlreadyExists, $"Another item already uses barcode '{request.Barcode}'."));
+        }
+
+        return ToReply(item);
     }
 
     [Authorize(Policy = AuthPolicies.AdminOnly)]

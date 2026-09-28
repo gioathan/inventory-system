@@ -210,6 +210,34 @@ test("catalog, labels that really scan, printing, new SKUs, categories and disco
     check("form: valid image address shows a preview slot", (await page.locator('img[alt="Item preview"], div:has(> svg.lucide-package-x)').count()) > 0);
   }
 
+  // ---- editing an item -------------------------------------------------------------------------
+  {
+    const page = admin.page;
+    const newBarcode = `EDIT-${tag}`;
+    await page.goto(`${baseUrl}/catalog?sku=${alpha.sku}`);
+    await page.getByRole("button", { name: "Edit item" }).click();
+    check("edit: dialog opens pre-filled with the current values", (await page.getByLabel("Name").inputValue()) === `Alpha ${tag}`);
+    check("edit: current category is pre-selected, not blank", (await page.getByRole("combobox", { name: "Category" }).inputValue()).startsWith(`Cat ${tag}`));
+
+    await page.getByLabel("Name").fill(`Alpha Edited ${tag}`);
+    await page.getByLabel("Price").fill("12.34");
+    await page.getByRole("textbox", { name: "Barcode" }).fill(newBarcode);
+    await page.getByRole("button", { name: "Save changes" }).click();
+    check("edit: dialog closes and the panel shows the new name", await visible(page, `Alpha Edited ${tag}`));
+    check("edit: category survived an edit that didn't touch it", await visible(page, `Cat ${tag}`));
+
+    const bySku = await api(page, `scan/${newBarcode}`);
+    check("edit: new barcode resolves to the edited item", bySku.name === `Alpha Edited ${tag}` && bySku.price === 12.34, JSON.stringify(bySku));
+    const oldGone = await page.evaluate((barcode) => fetch(`/api/backend/gateway/scan/${barcode}`).then((r) => r.status), alpha.barcode);
+    check("edit: old barcode no longer resolves", oldGone === 404, `status=${oldGone}`);
+
+    check("edit: sku is unchanged", bySku.sku === alpha.sku, bySku.sku);
+    // Keep the seed record accurate — the discount block below still refers to alpha's category,
+    // which this edit never touched, but its barcode is now the new one.
+    alpha.barcode = newBarcode;
+    alpha.name = `Alpha Edited ${tag}`;
+  }
+
   // ---- categories -----------------------------------------------------------------------------
   {
     const page = admin.page;
@@ -248,7 +276,7 @@ test("catalog, labels that really scan, printing, new SKUs, categories and disco
     const bravoNow = await api(page, `scan/${bravo.barcode}`);
     check("discounts: applied to every item in the category", Math.abs(bravoNow.effectivePrice - 15) < 0.001, `eff=${bravoNow.effectivePrice}`);
     await page.screenshot({ path: `${SCREENS}/p3-desktop-discounts.png` });
-    await page.getByLabel("Select Alpha " + tag).check();
+    await page.getByLabel(`Select ${alpha.name}`).check(); // renamed by the edit step above
     await page.getByRole("button", { name: /Change or remove 1 selected/ }).click();
     await page.getByRole("button", { name: "Remove discount" }).click();
     await page.waitForTimeout(800);
@@ -261,10 +289,10 @@ test("catalog, labels that really scan, printing, new SKUs, categories and disco
     const { context, page } = await login("admin", "ChangeMe123!", { width: 390, height: 844 }, "/dashboard");
     await page.goto(`${baseUrl}/catalog`);
     await page.getByLabel("Search items").fill(tag);
-    await visible(page, `Alpha ${tag}`);
+    await visible(page, alpha.name);
     check("phone: cards instead of a table", !(await page.locator("table").isVisible()) && (await page.locator("ul li").count()) >= 4);
     await page.screenshot({ path: `${SCREENS}/p3-phone-catalog.png` });
-    await page.getByRole("button", { name: new RegExp(`Alpha ${tag}`) }).click();
+    await page.getByRole("button", { name: new RegExp(alpha.name) }).click();
     check("phone: item opens as a sheet", await visible(page, "Label") && (await page.getByRole("dialog").count()) === 1);
     await page.waitForTimeout(700); // let the slide-in animation finish
     await page.screenshot({ path: `${SCREENS}/p3-phone-sheet.png` });
@@ -284,6 +312,18 @@ test("catalog, labels that really scan, printing, new SKUs, categories and disco
     check("authz: seller is bounced from /catalog to /scan", new URL(page.url()).pathname === "/scan");
     const direct = await page.evaluate(async () => (await fetch("/api/backend/gateway/items/discount", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ skus: ["x"], percentage: 0.1 }) })).status);
     check("authz: backend refuses a seller's discount call (403)", direct === 403, `status=${direct}`);
+    const editDirect = await page.evaluate(
+      async ([sku, barcode]: [string, string]) =>
+        (
+          await fetch(`/api/backend/gateway/items/${sku}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: "x", price: 1, barcode, categoryId: null, imageUrl: null }),
+          })
+        ).status,
+      [alpha.sku, alpha.barcode] as [string, string],
+    );
+    check("authz: backend refuses a seller's item edit (403)", editDirect === 403, `status=${editDirect}`);
     await context.close();
   }
 
