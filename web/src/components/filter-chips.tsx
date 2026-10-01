@@ -1,3 +1,6 @@
+"use client";
+
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 // Horizontally scrollable on phones (edge-to-edge), wrapping on larger screens. Generic over the
@@ -13,11 +16,12 @@ export function FilterChips<T extends string>({
   onChange: (filter: T) => void;
   counts: Record<T, number>;
 }) {
+  const t = useTranslations("common");
   return (
     <div
       className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
       role="group"
-      aria-label="Filter"
+      aria-label={t("filterLabel")}
     >
       {options.map((option) => (
         <button

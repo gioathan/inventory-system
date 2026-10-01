@@ -1,0 +1,13 @@
+{
+  "title": "Categories",
+  "subtitle": "Group items so they're easier to find and to discount together.",
+  "newCategory": "New category",
+  "addCategory": "Add category",
+  "loading": "Loading categories",
+  "loadError": "Couldn't load categories: {message}",
+  "empty": "No categories yet. Add one above.",
+  "itemCount": "{count, plural, one {# item} other {# items}}",
+  "duplicate": "A category with that name already exists.",
+  "addFailed": "Couldn't add the category.",
+  "footnote": "Categories can't be renamed or deleted yet."
+}

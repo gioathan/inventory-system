@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { niceMax } from "@/lib/restock";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,8 @@ export function ColumnChart({
   valueHeader: string;
 }) {
   const [active, setActive] = useState<string | null>(null);
+  // Only the Insights tab uses these charts today, so their few built-in strings live in "restock".
+  const t = useTranslations("restock");
   const top = niceMax(Math.max(0, ...points.map((p) => p.value)));
   const ticks = [top, top / 2, 0];
   // Past ~12 columns, label every other one so axis labels never collide.
@@ -41,9 +44,9 @@ export function ColumnChart({
       <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2">
         {/* y-axis tick labels, aligned to the gridlines */}
         <div className="relative h-48 text-right text-[11px] tabular-nums text-muted-foreground" aria-hidden>
-          {ticks.map((t, i) => (
+          {ticks.map((tick, i) => (
             <span key={i} className="absolute right-0 -translate-y-1/2 whitespace-nowrap" style={{ top: `${(i / 2) * 100}%` }}>
-              {format(t)}
+              {format(tick)}
             </span>
           ))}
           <span className="invisible block">{format(top)}</span>
@@ -113,13 +116,13 @@ export function ColumnChart({
       </div>
 
       <details className="text-sm">
-        <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">Show the numbers</summary>
+        <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">{t("charts.showNumbers")}</summary>
         <table className="mt-2 w-full text-sm">
           <thead>
             <tr className="border-b text-left text-xs text-muted-foreground">
-              <th className="py-1.5 font-medium">Session</th>
+              <th className="py-1.5 font-medium">{t("charts.session")}</th>
               <th className="py-1.5 text-right font-medium">{valueHeader}</th>
-              <th className="py-1.5 pl-3 text-right font-medium">Other</th>
+              <th className="py-1.5 pl-3 text-right font-medium">{t("charts.other")}</th>
             </tr>
           </thead>
           <tbody className="divide-y">

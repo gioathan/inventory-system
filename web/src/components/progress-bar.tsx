@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 // A real progressbar for assistive tech, not just a coloured div: it announces "24 of 32 units".
@@ -12,6 +13,7 @@ export function ProgressBar({
   label: string;
   className?: string;
 }) {
+  const t = useTranslations("common");
   const percent = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
   return (
     <div
@@ -20,7 +22,7 @@ export function ProgressBar({
       aria-valuemin={0}
       aria-valuemax={max}
       aria-valuenow={Math.min(value, max)}
-      aria-valuetext={`${value} of ${max} units`}
+      aria-valuetext={t("progressUnits", { value, max })}
       className={cn("h-2 w-full overflow-hidden rounded-full bg-muted", className)}
     >
       <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${percent}%` }} />

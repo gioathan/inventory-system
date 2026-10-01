@@ -1,0 +1,42 @@
+{
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "confirm": "Confirm",
+    "retry": "Retry",
+    "search": "Search",
+    "add": "Add"
+  },
+  "status": {
+    "loading": "Loading…",
+    "error": "Something went wrong.",
+    "empty": "Nothing here yet."
+  },
+  "itemFilters": {
+    "all": "All",
+    "low": "Low stock",
+    "out": "Out of stock",
+    "promo": "On promo"
+  },
+  "stockLevel": {
+    "inStock": "In stock",
+    "lowStock": "Low stock",
+    "outOfStock": "Out of stock",
+    "notStockedYet": "Not stocked yet"
+  },
+  "filterLabel": "Filter",
+  "keepAsIs": "Keep as is",
+  "roles": {
+    "Admin": "Administrator",
+    "Seller": "Seller"
+  },
+  "justNow": "just now",
+  "progressUnits": "{value} of {max} units",
+  "appDescription": "Inventory, barcode scanning and purchasing for the shop floor and back office.",
+  "toggleTheme": "Toggle theme",
+  "switchLanguage": "Switch language",
+  "signOut": "Sign out"
+}

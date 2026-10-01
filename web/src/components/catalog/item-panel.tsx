@@ -1,6 +1,7 @@
 "use client";
 
 import { PackagePlus, Pencil, Printer, Tag, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useState } from "react";
 import { ItemImage } from "@/components/item-image";
@@ -45,6 +46,8 @@ export function ItemPanel({
   const discounted = item.discountPercentage !== null;
   const [editOpen, setEditOpen] = useState(false);
   const [receiveOpen, setReceiveOpen] = useState(false);
+  const t = useTranslations("catalog");
+  const tc = useTranslations("common");
 
   return (
     <div className="flex flex-col gap-5">
@@ -60,41 +63,41 @@ export function ItemPanel({
                 <span className="text-xs tabular-nums text-muted-foreground line-through">{formatMoney(item.price)}</span>
                 <StatusPill tone="warning" className="px-2 py-0.5">
                   <Tag className="size-3" />
-                  {formatPercent(item.discountPercentage!)} off
+                  {t("percentOff", { percent: formatPercent(item.discountPercentage!) })}
                 </StatusPill>
               </>
             )}
           </div>
         </div>
         {onClose && (
-          <Button type="button" variant="ghost" size="icon" aria-label="Close details" onClick={onClose}>
+          <Button type="button" variant="ghost" size="icon" aria-label={t("panel.closeDetails")} onClick={onClose}>
             <X className="size-4" />
           </Button>
         )}
       </div>
 
       <dl className="divide-y rounded-xl border px-4">
-        <Field label="Stock">
+        <Field label={t("fields.stock")}>
           {level === "out" ? (
-            <StatusPill tone="danger">{item.quantityOnHand === null ? "Not stocked yet" : "Out of stock"}</StatusPill>
+            <StatusPill tone="danger">{item.quantityOnHand === null ? tc("stockLevel.notStockedYet") : tc("stockLevel.outOfStock")}</StatusPill>
           ) : level === "low" ? (
-            <StatusPill tone="warning">Low · {item.quantityOnHand} left</StatusPill>
+            <StatusPill tone="warning">{t("panel.lowLeft", { count: item.quantityOnHand! })}</StatusPill>
           ) : (
-            <StatusPill tone="success">{item.quantityOnHand} in stock</StatusPill>
+            <StatusPill tone="success">{t("panel.inStock", { count: item.quantityOnHand! })}</StatusPill>
           )}
         </Field>
-        <Field label="Category">{categoryName ?? <span className="text-muted-foreground">None</span>}</Field>
-        <Field label="Barcode">
+        <Field label={t("fields.category")}>{categoryName ?? <span className="text-muted-foreground">{t("panel.none")}</span>}</Field>
+        <Field label={t("fields.barcode")}>
           <span className="font-mono text-xs">{item.barcode}</span>
         </Field>
-        <Field label="List price">{formatMoney(item.price)}</Field>
+        <Field label={t("fields.listPrice")}>{formatMoney(item.price)}</Field>
       </dl>
 
       <ItemSession item={item} />
 
-      <section aria-label="Label preview" className="flex flex-col gap-3">
+      <section aria-label={t("panel.labelPreview")} className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between">
-          <h3 className="text-sm font-medium">Label</h3>
+          <h3 className="text-sm font-medium">{t("panel.label")}</h3>
           <span className="text-xs text-muted-foreground">
             {FORMAT_NOTE[LABEL_FORMAT]} · {LABEL_WIDTH_IN}&Prime; × {LABEL_HEIGHT_IN}&Prime;
           </span>
@@ -105,7 +108,7 @@ export function ItemPanel({
         <div
           tabIndex={0}
           role="region"
-          aria-label="Label preview"
+          aria-label={t("panel.labelPreview")}
           className="overflow-x-auto rounded-xl border bg-muted/40 p-3 [--scale:1.15] focus-visible:outline-2 focus-visible:outline-ring min-[420px]:[--scale:1.5]"
         >
           <div style={{ width: `calc(${LABEL_WIDTH_IN}in * var(--scale))`, height: `calc(${LABEL_HEIGHT_IN}in * var(--scale))` }}>
@@ -119,18 +122,18 @@ export function ItemPanel({
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" className="h-10 flex-1 gap-2" onClick={() => setEditOpen(true)}>
           <Pencil className="size-4" />
-          Edit item
+          {t("panel.editItem")}
         </Button>
         <Link
           href={`/labels/print?sku=${encodeURIComponent(item.sku)}`}
           className={cn(buttonVariants(), "h-10 flex-1 gap-2")}
         >
           <Printer className="size-4" />
-          Print label
+          {t("panel.printLabel")}
         </Link>
         <Button type="button" variant="outline" className="h-10 flex-1 gap-2" onClick={() => setReceiveOpen(true)}>
           <PackagePlus className="size-4" />
-          Receive stock
+          {t("panel.receiveStock")}
         </Button>
       </div>
 

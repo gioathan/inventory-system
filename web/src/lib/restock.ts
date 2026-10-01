@@ -1,3 +1,4 @@
+import { useFormatter, useTranslations } from "next-intl";
 import type { RestockSession, SessionReportLine } from "./types";
 
 export type NumberedSession = RestockSession & { number: number };
@@ -7,9 +8,22 @@ export function numberSessions(sessions: RestockSession[]): NumberedSession[] {
   return sessions.map((s, index) => ({ ...s, number: sessions.length - index }));
 }
 
-export function sessionLabel(s: NumberedSession): string {
-  const date = new Date(s.openedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  return `#${s.number} · ${date}${s.note ? ` · ${s.note}` : ""}${s.closedAt === null ? " (open)" : ""}`;
+// "#7 · Mar 3 · note (open)" in the current UI language — the month name and "(open)" are words.
+// A hook returning the formatter (like useItemFilterOptions), since the wording comes from messages.
+export function useSessionLabel() {
+  const t = useTranslations("restock");
+  const format = useFormatter();
+  return (s: NumberedSession): string => {
+    const date = format.dateTime(new Date(s.openedAt), { month: "short", day: "numeric" });
+    const label = s.note ? t("label.withNote", { number: s.number, date, note: s.note }) : t("label.base", { number: s.number, date });
+    return s.closedAt === null ? t("label.open", { label }) : label;
+  };
+}
+
+/** Display names for rows with no (or a since-deleted) category; passed in so they can be translated. */
+export interface CategoryFallbacks {
+  none: string;
+  unknown: string;
 }
 
 // Length in days for per-day figures. Anything shorter than a day counts as one day, so a
@@ -101,12 +115,17 @@ export function compareItems(a: SessionReportLine[], b: SessionReportLine[]): Co
   return compareBy(a, b, (l) => l.sku, (_, l) => l.name ?? l.sku);
 }
 
-export function compareCategories(a: SessionReportLine[], b: SessionReportLine[], categoryName: (id: string) => string | undefined): ComparedRow[] {
+export function compareCategories(
+  a: SessionReportLine[],
+  b: SessionReportLine[],
+  categoryName: (id: string) => string | undefined,
+  fallbacks: CategoryFallbacks,
+): ComparedRow[] {
   return compareBy(
     a,
     b,
     (l) => l.categoryId ?? "none",
-    (key) => (key === "none" ? "No category" : (categoryName(key) ?? "Unknown category")),
+    (key) => (key === "none" ? fallbacks.none : (categoryName(key) ?? fallbacks.unknown)),
   );
 }
 
@@ -137,6 +156,7 @@ export interface Insights {
 export function aggregateInsights(
   reports: { session: NumberedSession; lines: SessionReportLine[] }[],
   categoryName: (id: string) => string | undefined,
+  fallbacks: CategoryFallbacks,
 ): Insights {
   const items = new Map<string, RankedRow>();
   const categories = new Map<string, RankedRow>();
@@ -159,7 +179,7 @@ export function aggregateInsights(
         if (l.sold === 0) continue;
         add(items, l.sku, l.name ?? l.sku, l.sold, r);
         const catKey = l.categoryId ?? "none";
-        add(categories, catKey, catKey === "none" ? "No category" : (categoryName(catKey) ?? "Unknown category"), l.sold, r);
+        add(categories, catKey, catKey === "none" ? fallbacks.none : (categoryName(catKey) ?? fallbacks.unknown), l.sold, r);
       }
       if (est) estimated = true;
       return { session, sold, revenue, estimated: est };

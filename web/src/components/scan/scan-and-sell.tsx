@@ -2,6 +2,8 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ScanLine } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useTimeFormat } from "@/lib/time";
 import { useState } from "react";
 import { NoticeBanner } from "@/components/notice-banner";
 import { scanPath, useItemLookup } from "@/hooks/use-item-lookup";
@@ -21,6 +23,8 @@ interface Sale {
 }
 
 export function ScanAndSell() {
+  const t = useTranslations("scan");
+  const { formatTime } = useTimeFormat();
   const queryClient = useQueryClient();
   const sessionSales = useCurrentSessionSales();
   const { item, setItem, notice, setNotice, lookup, clear } = useItemLookup();
@@ -41,7 +45,7 @@ export function ScanAndSell() {
       );
       setNotice({
         kind: "success",
-        text: `Sold ${sold.quantity} × ${updated.name} · ${updated.quantityOnHand ?? 0} left`,
+        text: t("sold", { quantity: sold.quantity, name: updated.name, left: updated.quantityOnHand ?? 0 }),
       });
       setItem(null);
       // Stock changed, so any cached stock list — and the session's counts — are now stale.
@@ -49,7 +53,7 @@ export function ScanAndSell() {
       queryClient.invalidateQueries({ queryKey: ["restock-sessions"] });
     },
     onError: async (error, sold) => {
-      setNotice({ kind: "error", text: error instanceof Error ? error.message : "The sale didn't go through." });
+      setNotice({ kind: "error", text: error instanceof Error ? error.message : t("saleFailed") });
       // Stock is the usual reason a sale fails (someone else sold it first), so show the
       // current number rather than leaving a stale one on screen.
       if (error instanceof ApiError && error.status === 409) {
@@ -75,8 +79,8 @@ export function ScanAndSell() {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Scan &amp; Sell</h1>
-        <p className="text-sm text-muted-foreground">Scan an item, check the stock, then confirm the sale.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 md:items-start">
@@ -86,7 +90,7 @@ export function ScanAndSell() {
           {notice && <NoticeBanner notice={notice} />}
 
           {lookup.isPending ? (
-            <div className="h-80 animate-pulse rounded-2xl border bg-muted/40" aria-label="Looking up item" />
+            <div className="h-80 animate-pulse rounded-2xl border bg-muted/40" aria-label={t("lookingUp")} />
           ) : item ? (
             <ProductCard
               item={item}
@@ -100,17 +104,17 @@ export function ScanAndSell() {
           ) : (
             <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
               <ScanLine className="size-8 text-primary/70" />
-              Ready to scan. The item appears here.
+              {t("readyToScan")}
             </div>
           )}
         </div>
       </div>
 
       {sales.length > 0 && (
-        <section aria-label="Sales this session" className="flex flex-col gap-3">
+        <section aria-label={t("salesThisSession")} className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-medium">This session</h2>
-            <span className="text-sm tabular-nums text-muted-foreground">{formatMoney(sessionTotal)} total</span>
+            <h2 className="text-sm font-medium">{t("thisSession")}</h2>
+            <span className="text-sm tabular-nums text-muted-foreground">{t("sessionTotal", { total: formatMoney(sessionTotal) })}</span>
           </div>
           <ul className="divide-y rounded-xl border bg-card">
             {sales.map((sale) => (
@@ -119,7 +123,7 @@ export function ScanAndSell() {
                   {sale.quantity} × {sale.name}
                 </span>
                 <span className="shrink-0 tabular-nums text-muted-foreground">
-                  {formatMoney(sale.total)} · {sale.at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  {formatMoney(sale.total)} · {formatTime(sale.at)}
                 </span>
               </li>
             ))}

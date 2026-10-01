@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { ReceiveStock } from "@/components/receive/receive-stock";
 import { getSession } from "@/lib/session";
 
-export const metadata: Metadata = { title: "Receive stock" };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("receive");
+  return { title: t("title") };
+}
 
 export default async function ReceivePage({ searchParams }: PageProps<"/receive">) {
   const { barcode } = await searchParams;

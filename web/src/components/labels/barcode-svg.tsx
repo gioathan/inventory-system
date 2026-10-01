@@ -1,12 +1,14 @@
 "use client";
 
 import JsBarcode from "jsbarcode";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef } from "react";
 
 // Code128, not EAN/UPC: this system's generated codes are arbitrary 12-digit strings with no
 // valid UPC check digit, and Code128 encodes any of them (switching to its compact numeric
 // mode automatically). Drawn as SVG so it stays sharp at any print size.
 export function BarcodeSvg({ value, className }: { value: string; className?: string }) {
+  const t = useTranslations("labels");
   const ref = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
@@ -21,5 +23,5 @@ export function BarcodeSvg({ value, className }: { value: string; className?: st
     }
   }, [value]);
 
-  return <svg ref={ref} role="img" aria-label={`Barcode ${value}`} preserveAspectRatio="none" className={className} />;
+  return <svg ref={ref} role="img" aria-label={t("barcode", { value })} preserveAspectRatio="none" className={className} />;
 }

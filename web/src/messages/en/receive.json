@@ -1,0 +1,41 @@
+{
+  "title": "Receive stock",
+  "subtitle": "Scan what arrived, enter how many, and add it to stock.",
+  "lookingUp": "Looking up item",
+  "readyToReceive": "Ready to receive. Scan an item to begin.",
+  "recentlyReceived": "Recently received",
+  "totalUnits": "{count} units",
+  "nowAt": "now {total} · {time}",
+  "added": "Added {quantity} × {name} · now {total} on hand",
+  "addFailed": "Couldn't add that stock. Try again.",
+  "card": {
+    "onHand": "On hand · {count}",
+    "quantityToAdd": "Quantity to add",
+    "decrease": "Decrease quantity",
+    "increase": "Increase quantity",
+    "quickAdd": "Quick add",
+    "add": "Add",
+    "newTotal": "New total",
+    "addToStock": "Add {quantity} to stock",
+    "clear": "Clear · scan next item"
+  },
+  "dialog": {
+    "titleSingle": "Receive {name}",
+    "titleMany": "Receive {count} items",
+    "sessionOpen": "Logged to the restock session open since {date}.",
+    "noSession": "No restock session is open; the stock is still added.",
+    "skipHint": "Leave a quantity empty to skip that item.",
+    "quantity": "Quantity",
+    "addedNow": "Added · now {total}",
+    "inStock": "{count} in stock",
+    "inStockAfter": "{count} in stock → {after}",
+    "addedQuantity": "Added {quantity}",
+    "addAmountTo": "Add {amount} to {name}",
+    "adding": "Adding",
+    "invalidQuantity": "Enter a whole number up to {max}.",
+    "addOneFailed": "Couldn't add this one.",
+    "retryRest": "Retry the rest",
+    "addToStock": "Add to stock",
+    "addToStockCount": "Add to stock ({count})"
+  }
+}

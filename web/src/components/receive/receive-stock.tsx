@@ -2,6 +2,8 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PackageOpen } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useTimeFormat } from "@/lib/time";
 import { useEffect, useRef, useState } from "react";
 import { NoticeBanner } from "@/components/notice-banner";
 import { SessionBanner } from "@/components/restock/session-banner";
@@ -20,6 +22,8 @@ interface Received {
 }
 
 export function ReceiveStock({ initialCode, isAdmin = false }: { initialCode?: string; isAdmin?: boolean }) {
+  const t = useTranslations("receive");
+  const { formatTime } = useTimeFormat();
   const queryClient = useQueryClient();
   const { item, setItem, notice, setNotice, lookup, clear } = useItemLookup();
   const [quantity, setQuantity] = useState(1);
@@ -48,13 +52,13 @@ export function ReceiveStock({ initialCode, isAdmin = false }: { initialCode?: s
       setReceived((previous) =>
         [{ id: Date.now(), name: updated.name, quantity: added.quantity, newTotal: updated.quantityOnHand, at: new Date() }, ...previous].slice(0, 10),
       );
-      setNotice({ kind: "success", text: `Added ${added.quantity} × ${updated.name} · now ${updated.quantityOnHand} on hand` });
+      setNotice({ kind: "success", text: t("added", { quantity: added.quantity, name: updated.name, total: updated.quantityOnHand }) });
       setItem(null);
       queryClient.invalidateQueries({ queryKey: ["items"] });
       queryClient.invalidateQueries({ queryKey: ["restock-sessions"] });
     },
     onError: (error) => {
-      setNotice({ kind: "error", text: error instanceof Error ? error.message : "Couldn't add that stock. Try again." });
+      setNotice({ kind: "error", text: error instanceof Error ? error.message : t("addFailed") });
     },
   });
 
@@ -69,8 +73,8 @@ export function ReceiveStock({ initialCode, isAdmin = false }: { initialCode?: s
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Receive stock</h1>
-        <p className="text-sm text-muted-foreground">Scan what arrived, enter how many, and add it to stock.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
       </div>
 
       <SessionBanner isAdmin={isAdmin} />
@@ -82,7 +86,7 @@ export function ReceiveStock({ initialCode, isAdmin = false }: { initialCode?: s
           {notice && <NoticeBanner notice={notice} />}
 
           {lookup.isPending ? (
-            <div className="h-80 animate-pulse rounded-2xl border bg-muted/40" aria-label="Looking up item" />
+            <div className="h-80 animate-pulse rounded-2xl border bg-muted/40" aria-label={t("lookingUp")} />
           ) : item ? (
             <ReceiveCard
               item={item}
@@ -95,17 +99,17 @@ export function ReceiveStock({ initialCode, isAdmin = false }: { initialCode?: s
           ) : (
             <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
               <PackageOpen className="size-8 text-primary/70" />
-              Ready to receive. Scan an item to begin.
+              {t("readyToReceive")}
             </div>
           )}
         </div>
       </div>
 
       {received.length > 0 && (
-        <section aria-label="Recently received" className="flex flex-col gap-3">
+        <section aria-label={t("recentlyReceived")} className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-medium">Recently received</h2>
-            <span className="text-sm tabular-nums text-muted-foreground">{totalUnits} units</span>
+            <h2 className="text-sm font-medium">{t("recentlyReceived")}</h2>
+            <span className="text-sm tabular-nums text-muted-foreground">{t("totalUnits", { count: totalUnits })}</span>
           </div>
           <ul className="divide-y rounded-xl border bg-card">
             {received.map((entry) => (
@@ -114,7 +118,10 @@ export function ReceiveStock({ initialCode, isAdmin = false }: { initialCode?: s
                   +{entry.quantity} × {entry.name}
                 </span>
                 <span className="shrink-0 tabular-nums text-muted-foreground">
-                  now {entry.newTotal} · {entry.at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  {t("nowAt", {
+                    total: entry.newTotal,
+                    time: formatTime(entry.at),
+                  })}
                 </span>
               </li>
             ))}

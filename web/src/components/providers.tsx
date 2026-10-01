@@ -1,10 +1,20 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { NextIntlClientProvider } from "next-intl";
 import { ThemeProvider } from "next-themes";
 import { useState } from "react";
+import type { Locale } from "@/i18n/config";
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({
+  locale,
+  messages,
+  children,
+}: {
+  locale: Locale;
+  messages: Record<string, unknown>;
+  children: React.ReactNode;
+}) {
   // Created in state (not module scope) so each browser session gets its own cache and
   // server renders never share one across requests.
   const [queryClient] = useState(
@@ -23,9 +33,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }),
   );
 
+  // The viewer's own zone, not a fixed one. Every date this app formats is fetched data rendered
+  // client-side, so the server computing a different zone during SSR never reaches the DOM.
+  const [timeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+
   return (
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    </ThemeProvider>
+    <NextIntlClientProvider locale={locale} messages={messages} timeZone={timeZone}>
+      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      </ThemeProvider>
+    </NextIntlClientProvider>
   );
 }

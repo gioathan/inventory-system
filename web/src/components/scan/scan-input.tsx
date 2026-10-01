@@ -1,6 +1,7 @@
 "use client";
 
 import { Camera, ScanBarcode } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ interface ScanInputProps {
 // into the same onScan(code): the phone camera, a hardware scanner (which types like a
 // keyboard), or typing the code by hand. Callers never need to know which one it was.
 export function ScanInput({ onScan, disabled = false }: ScanInputProps) {
+  const t = useTranslations("scan.input");
   const [cameraOn, setCameraOn] = useState(false);
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -48,7 +50,7 @@ export function ScanInput({ onScan, disabled = false }: ScanInputProps) {
           onClick={() => setCameraOn(true)}
         >
           <Camera className="size-6 text-primary" />
-          Scan with camera
+          {t("scanWithCamera")}
         </Button>
       )}
 
@@ -66,8 +68,8 @@ export function ScanInput({ onScan, disabled = false }: ScanInputProps) {
             ref={inputRef}
             value={value}
             onChange={(event) => setValue(event.target.value)}
-            aria-label="Barcode"
-            placeholder="Scan or type a barcode"
+            aria-label={t("barcodeLabel")}
+            placeholder={t("placeholder")}
             autoComplete="off"
             autoCapitalize="none"
             spellCheck={false}
@@ -76,7 +78,7 @@ export function ScanInput({ onScan, disabled = false }: ScanInputProps) {
           />
         </div>
         <Button type="submit" className="h-11 px-4" disabled={disabled || !value.trim()}>
-          Look up
+          {t("lookUp")}
         </Button>
       </form>
     </div>

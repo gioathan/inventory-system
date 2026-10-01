@@ -1,0 +1,42 @@
+{
+  "actions": {
+    "save": "Αποθήκευση",
+    "cancel": "Ακύρωση",
+    "delete": "Διαγραφή",
+    "edit": "Επεξεργασία",
+    "close": "Κλείσιμο",
+    "confirm": "Επιβεβαίωση",
+    "retry": "Δοκιμή ξανά",
+    "search": "Αναζήτηση",
+    "add": "Προσθήκη"
+  },
+  "status": {
+    "loading": "Φόρτωση…",
+    "error": "Κάτι πήγε στραβά.",
+    "empty": "Δεν υπάρχει τίποτα εδώ ακόμα."
+  },
+  "itemFilters": {
+    "all": "Όλα",
+    "low": "Χαμηλό απόθεμα",
+    "out": "Εξαντλημένα",
+    "promo": "Σε προσφορά"
+  },
+  "stockLevel": {
+    "inStock": "Διαθέσιμο",
+    "lowStock": "Χαμηλό απόθεμα",
+    "outOfStock": "Εξαντλημένο",
+    "notStockedYet": "Δεν έχει παραληφθεί ακόμα"
+  },
+  "filterLabel": "Φίλτρο",
+  "keepAsIs": "Να μείνει ως έχει",
+  "roles": {
+    "Admin": "Διαχειριστής",
+    "Seller": "Πωλητής"
+  },
+  "justNow": "μόλις τώρα",
+  "progressUnits": "{value} από {max} τεμάχια",
+  "appDescription": "Απόθεμα, σκανάρισμα barcode και αγορές για το κατάστημα και το back office.",
+  "toggleTheme": "Αλλαγή θέματος",
+  "switchLanguage": "Αλλαγή γλώσσας",
+  "signOut": "Αποσύνδεση"
+}

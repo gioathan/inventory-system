@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { useRef, useState } from "react";
 import { ApiError, apiFetch } from "@/lib/api";
 
@@ -8,14 +9,15 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // Cloudflare Images' own per-file lim
 // clear message when Cloudflare isn't configured (502) is the expected state until real
 // credentials exist, not a failure of the upload itself — see architecture.md.
 export function useImageUpload(onUploaded: (url: string) => void) {
+  const t = useTranslations("catalog");
   const fileInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function upload(file: File) {
     setError(null);
-    if (!file.type.startsWith("image/")) return setError("Choose an image file.");
-    if (file.size > MAX_IMAGE_BYTES) return setError("That image is over 10 MB. Choose a smaller one.");
+    if (!file.type.startsWith("image/")) return setError(t("image.notImage"));
+    if (file.size > MAX_IMAGE_BYTES) return setError(t("image.tooLarge"));
 
     setUploading(true);
     try {
@@ -27,10 +29,10 @@ export function useImageUpload(onUploaded: (url: string) => void) {
       const notConfigured = err instanceof ApiError && err.status === 502 && /not configured/i.test(err.message);
       setError(
         notConfigured
-          ? "Image uploads aren't set up on this server yet. Paste an image address instead."
+          ? t("image.notConfigured")
           : err instanceof Error
             ? err.message
-            : "The upload failed. Try again.",
+            : t("image.failed"),
       );
     } finally {
       setUploading(false);

@@ -1,6 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -28,6 +29,7 @@ export function ConfirmDialog({
   error?: string | null;
   onConfirm: () => void;
 }) {
+  const t = useTranslations("common");
   return (
     <Dialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
       <DialogContent>
@@ -42,7 +44,7 @@ export function ConfirmDialog({
         )}
         <DialogFooter>
           <Button type="button" variant="ghost" className="h-10" disabled={pending} onClick={() => onOpenChange(false)}>
-            Keep as is
+            {t("keepAsIs")}
           </Button>
           <Button type="button" variant={destructive ? "destructive" : "default"} className="h-10" disabled={pending} onClick={onConfirm}>
             {pending && <Loader2 className="size-4 animate-spin" />}

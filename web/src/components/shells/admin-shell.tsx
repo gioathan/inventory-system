@@ -1,6 +1,7 @@
 "use client";
 
 import { Menu } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -18,14 +19,15 @@ function isActive(pathname: string, href: string) {
 
 function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const t = useTranslations("nav");
   return (
-    <nav aria-label="Main" className="flex flex-col gap-6 px-3">
+    <nav aria-label={t("mainLabel")} className="flex flex-col gap-6 px-3">
       {ADMIN_NAV.map((group) => (
-        <div key={group.label} className="flex flex-col gap-1">
+        <div key={group.groupLabelKey} className="flex flex-col gap-1">
           <div className="px-3 pb-1 text-[0.7rem] font-medium uppercase tracking-wider text-muted-foreground">
-            {group.label}
+            {t(group.groupLabelKey)}
           </div>
-          {group.items.map(({ href, label, icon: Icon }) => (
+          {group.items.map(({ href, labelKey, icon: Icon }) => (
             <Link
               key={href}
               href={href}
@@ -38,7 +40,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
               )}
             >
               <Icon className="size-4" />
-              {label}
+              {t(labelKey)}
             </Link>
           ))}
         </div>
@@ -57,6 +59,7 @@ export function AdminShell({
   children: React.ReactNode;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const t = useTranslations("nav");
 
   return (
     <div className="flex min-h-dvh">
@@ -70,7 +73,7 @@ export function AdminShell({
 
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
         <SheetContent side="left" className="w-72 gap-6 bg-sidebar py-4 lg:hidden">
-          <SheetTitle className="sr-only">Navigation</SheetTitle>
+          <SheetTitle className="sr-only">{t("navigation")}</SheetTitle>
           <div className="px-6 pb-2">
             <Wordmark />
           </div>
@@ -80,7 +83,7 @@ export function AdminShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/85 px-3 backdrop-blur print:hidden sm:px-6">
-          <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open navigation" onClick={() => setDrawerOpen(true)}>
+          <Button variant="ghost" size="icon" className="lg:hidden" aria-label={t("openNavigation")} onClick={() => setDrawerOpen(true)}>
             <Menu className="size-5" />
           </Button>
           <div className="lg:hidden">

@@ -1,6 +1,7 @@
 "use client";
 
 import { ListFilter, Percent, Tag } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Checkbox } from "@/components/checkbox";
@@ -15,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { DiscountDialog } from "./discount-dialog";
 
 export function DiscountsView() {
+  const t = useTranslations("discounts");
   const items = useItems();
   const categories = useCategories();
   const [target, setTarget] = useState("all");
@@ -48,24 +50,22 @@ export function DiscountsView() {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Discounts &amp; Promos</h1>
-        <p className="text-sm text-muted-foreground">
-          Put a percentage off many items at once for a sale period. List prices never change, so ending a promo restores them exactly.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
       </div>
 
-      <section aria-label="Apply a discount" className="flex flex-col gap-4 rounded-2xl border bg-card p-4 sm:flex-row sm:items-end sm:p-5">
+      <section aria-label={t("applySection")}className="flex flex-col gap-4 rounded-2xl border bg-card p-4 sm:flex-row sm:items-end sm:p-5">
         <div className="flex flex-1 flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
             <label htmlFor="discount-target" className="text-sm font-medium">
-              Apply to
+              {t("applyTo")}
             </label>
             <Link
               href="/catalog"
               className={cn(buttonVariants({ variant: "link" }), "h-auto gap-1.5 p-0 text-sm text-muted-foreground hover:text-foreground")}
             >
               <ListFilter className="size-3.5" />
-              Pick specific items instead
+              {t("pickSpecific")}
             </Link>
           </div>
           <Combobox
@@ -74,52 +74,52 @@ export function DiscountsView() {
             onValueChange={setTarget}
             disabled={items.isPending}
             options={[
-              { value: "all", label: `All items (${all.length})` },
+              { value: "all", label: t("allItems", { count: all.length }) },
               ...(categories.data ?? []).map((c) => ({ value: c.id, label: `${c.name} (${categoryCounts.get(c.id) ?? 0})` })),
             ]}
           />
         </div>
         <Button type="button" className="h-11 gap-2" disabled={targetItems.length === 0} onClick={() => setDialogItems(targetItems)}>
           <Percent className="size-4" />
-          Set discount for {targetItems.length} {targetItems.length === 1 ? "item" : "items"}
+          {t("setDiscountFor", { count: targetItems.length })}
         </Button>
       </section>
 
-      <section aria-label="Active promotions" className="flex flex-col gap-3">
+      <section aria-label={t("activeSection")} className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Checkbox
-              aria-label="Select all promotions"
+              aria-label={t("selectAll")}
               checked={allSelected}
               indeterminate={selectedItems.length > 0 && !allSelected}
               disabled={discounted.length === 0}
               onChange={() => setSelected(allSelected ? new Set() : new Set(discounted.map((i) => i.sku)))}
             />
-            <h2 className="text-sm font-medium">Active promotions ({discounted.length})</h2>
+            <h2 className="text-sm font-medium">{t("activeCount", { count: discounted.length })}</h2>
           </div>
           {selectedItems.length > 0 && (
             <Button type="button" variant="outline" className="h-9" onClick={() => setDialogItems(selectedItems)}>
-              Change or remove {selectedItems.length} selected
+              {t("changeSelected", { count: selectedItems.length })}
             </Button>
           )}
         </div>
 
         {items.isPending ? (
-          <div className="h-32 animate-pulse rounded-2xl border bg-muted/40" aria-label="Loading promotions" />
+          <div className="h-32 animate-pulse rounded-2xl border bg-muted/40" aria-label={t("loading")} />
         ) : items.isError ? (
           <p role="alert" className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            Couldn&apos;t load items: {items.error.message}
+            {t("loadError", { message: items.error.message })}
           </p>
         ) : discounted.length === 0 ? (
           <div className="flex min-h-32 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
             <Tag className="size-6 text-primary/70" />
-            No promotions running. Set a discount above to start one.
+            {t("empty")}
           </div>
         ) : (
           <ul className="divide-y rounded-2xl border bg-card">
             {discounted.map((item) => (
               <li key={item.sku} className="flex items-center gap-3 px-4 py-3">
-                <Checkbox aria-label={`Select ${item.name}`} checked={selected.has(item.sku)} onChange={() => toggle(item.sku)} />
+                <Checkbox aria-label={t("selectItem", { name: item.name })} checked={selected.has(item.sku)} onChange={() => toggle(item.sku)} />
                 <ItemImage src={item.imageUrl} alt="" className="size-11 rounded-lg" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-medium">{item.name}</div>
@@ -127,7 +127,7 @@ export function DiscountsView() {
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">
                   <StatusPill tone="warning" className="px-2 py-0.5">
-                    {formatPercent(item.discountPercentage!)} off
+                    {t("percentOff", { percent: formatPercent(item.discountPercentage!) })}
                   </StatusPill>
                   <span className="text-xs tabular-nums text-muted-foreground">
                     <span className="line-through">{formatMoney(item.price)}</span>{" "}

@@ -1,0 +1,16 @@
+{
+  "title": "Print labels",
+  "backToCatalog": "Back to catalog",
+  "summary": "{labelCount, plural, one {# label} other {# labels}} for {itemCount, plural, one {# item} other {# items}}, {width}″ × {height}″.",
+  "copies": "Copies of each",
+  "paper": "Paper",
+  "paperHint": "Sheet fits many labels on one page; label printer prints one per page.",
+  "sheet": "Normal paper (sheet)",
+  "roll": "Label printer (one per page)",
+  "print": "Print",
+  "missing": "{count, plural, one {# item was} other {# items were}} not found and will be skipped.",
+  "loadError": "Couldn't load items: {message}",
+  "labelsList": "Labels",
+  "barcode": "Barcode {value}",
+  "qrCode": "QR code {value}"
+}

@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { ScanAndSell } from "@/components/scan/scan-and-sell";
 
-export const metadata: Metadata = { title: "Scan & Sell" };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("scan");
+  return { title: t("title") };
+}
 
 export default function ScanPage() {
   return <ScanAndSell />;

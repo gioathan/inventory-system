@@ -1,0 +1,20 @@
+{
+  "title": "Audit log",
+  "subtitle": "Sign-ins (successful and failed) and staff account creation, newest first. Sales, price and stock changes aren't tracked here yet.",
+  "searchLabel": "Search the audit log",
+  "searchPlaceholder": "Search by person, action or detail",
+  "clearSearch": "Clear search",
+  "all": "All",
+  "loading": "Loading the audit log",
+  "loadError": "Couldn't load the audit log: {message}",
+  "tryAgain": "Try again",
+  "emptyLog": "Nothing has been recorded yet.",
+  "noMatches": "No entries match. Try a different search or filter.",
+  "entryCount": "{count, plural, one {# entry} other {# entries}}{capped, select, true { (the most recent 200 are kept)} other {}}",
+  "showMore": "Show more",
+  "actions": {
+    "LoginFailed": "Login failed",
+    "LoginSucceeded": "Login succeeded",
+    "UserCreated": "User created"
+  }
+}

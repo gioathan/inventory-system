@@ -2,6 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -9,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useCurrentSession } from "@/hooks/use-restock-sessions";
 import { scanPath } from "@/hooks/use-item-lookup";
 import { apiFetch } from "@/lib/api";
-import { formatDateTime } from "@/lib/time";
+import { useTimeFormat } from "@/lib/time";
 import type { CatalogEntry, ReceiveResult } from "@/lib/types";
 import { MAX_RECEIVE_QUANTITY } from "./receive-card";
 
@@ -31,6 +32,9 @@ export function QuickReceiveDialog({
   items: CatalogEntry[];
   onDone?: () => void;
 }) {
+  const t = useTranslations("receive.dialog");
+  const tc = useTranslations("common");
+  const { formatDateTime } = useTimeFormat();
   const queryClient = useQueryClient();
   const session = useCurrentSession();
   const single = items.length === 1;
@@ -74,7 +78,7 @@ export function QuickReceiveDialog({
         update(item.sku, { status: "done", newTotal: result.quantityOnHand });
       } catch (error) {
         failed = true;
-        update(item.sku, { status: "error", message: error instanceof Error ? error.message : "Couldn't add this one." });
+        update(item.sku, { status: "error", message: error instanceof Error ? error.message : t("addOneFailed") });
       }
     }
     setBusy(false);
@@ -90,12 +94,12 @@ export function QuickReceiveDialog({
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{single ? `Receive ${items[0]?.name ?? ""}` : `Receive ${items.length} items`}</DialogTitle>
+          <DialogTitle>{single ? t("titleSingle", { name: items[0]?.name ?? "" }) : t("titleMany", { count: items.length })}</DialogTitle>
           <DialogDescription>
             {session.data
-              ? `Logged to the restock session open since ${formatDateTime(session.data.openedAt)}.`
-              : "No restock session is open; the stock is still added."}
-            {!single && " Leave a quantity empty to skip that item."}
+              ? t("sessionOpen", { date: formatDateTime(session.data.openedAt) })
+              : t("noSession")}
+            {!single && ` ${t("skipHint")}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -110,17 +114,19 @@ export function QuickReceiveDialog({
               <li key={item.sku} className="flex flex-col gap-2 py-3">
                 <div className="flex items-baseline justify-between gap-3">
                   <label htmlFor={id} className="min-w-0 truncate text-sm font-medium">
-                    {single ? "Quantity" : item.name}
+                    {single ? t("quantity") : item.name}
                   </label>
                   <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                     {row.status === "done"
-                      ? `Added · now ${row.newTotal}`
-                      : `${item.quantityOnHand ?? 0} in stock${n > 0 && !bad ? ` → ${(item.quantityOnHand ?? 0) + n}` : ""}`}
+                      ? t("addedNow", { total: row.newTotal ?? 0 })
+                      : n > 0 && !bad
+                        ? t("inStockAfter", { count: item.quantityOnHand ?? 0, after: (item.quantityOnHand ?? 0) + n })
+                        : t("inStock", { count: item.quantityOnHand ?? 0 })}
                   </span>
                 </div>
                 {row.status === "done" ? (
                   <p className="flex items-center gap-1.5 text-sm text-success">
-                    <Check className="size-4" /> Added {row.quantity}
+                    <Check className="size-4" /> {t("addedQuantity", { quantity: row.quantity })}
                   </p>
                 ) : (
                   <div className="flex items-center gap-2">
@@ -147,16 +153,16 @@ export function QuickReceiveDialog({
                         variant="outline"
                         className="h-10 px-3 tabular-nums"
                         disabled={busy}
-                        aria-label={`Add ${p} to ${item.name}`}
+                        aria-label={t("addAmountTo", { amount: p, name: item.name })}
                         onClick={() => update(item.sku, { quantity: String((Number.isNaN(n) ? 0 : n) + p) })}
                       >
                         +{p}
                       </Button>
                     ))}
-                    {row.status === "saving" && <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="Adding" />}
+                    {row.status === "saving" && <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label={t("adding")} />}
                   </div>
                 )}
-                {bad && <p className="text-xs text-destructive">Enter a whole number up to {MAX_RECEIVE_QUANTITY.toLocaleString()}.</p>}
+                {bad && <p className="text-xs text-destructive">{t("invalidQuantity", { max: MAX_RECEIVE_QUANTITY.toLocaleString() })}</p>}
                 {row.message && (
                   <p id={`${id}-msg`} role="alert" className="text-xs text-destructive">
                     {row.message}
@@ -169,11 +175,11 @@ export function QuickReceiveDialog({
 
         <DialogFooter>
           <Button type="button" variant="ghost" className="h-10" disabled={busy} onClick={() => onOpenChange(false)}>
-            {anyDone ? "Close" : "Cancel"}
+            {anyDone ? tc("actions.close") : tc("actions.cancel")}
           </Button>
           <Button type="button" className="h-10" disabled={busy || invalid || toSend.length === 0} onClick={() => void submit()}>
             {busy && <Loader2 className="size-4 animate-spin" />}
-            {anyError ? "Retry the rest" : single ? "Add to stock" : `Add to stock (${toSend.length})`}
+            {anyError ? t("retryRest") : single ? t("addToStock") : t("addToStockCount", { count: toSend.length })}
           </Button>
         </DialogFooter>
       </DialogContent>

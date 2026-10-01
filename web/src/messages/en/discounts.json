@@ -1,0 +1,30 @@
+{
+  "title": "Discounts & Promos",
+  "subtitle": "Put a percentage off many items at once for a sale period. List prices never change, so ending a promo restores them exactly.",
+  "applySection": "Apply a discount",
+  "applyTo": "Apply to",
+  "pickSpecific": "Pick specific items instead",
+  "allItems": "All items ({count})",
+  "setDiscountFor": "Set discount for {count, plural, one {# item} other {# items}}",
+  "activeSection": "Active promotions",
+  "selectAll": "Select all promotions",
+  "activeCount": "Active promotions ({count})",
+  "changeSelected": "Change or remove {count} selected",
+  "loading": "Loading promotions",
+  "loadError": "Couldn't load items: {message}",
+  "empty": "No promotions running. Set a discount above to start one.",
+  "selectItem": "Select {name}",
+  "percentOff": "{percent} off",
+  "dialog": {
+    "title": "Discount {count, plural, one {# item} other {# items}}",
+    "description": "The list price never changes, so removing a discount always restores it exactly.",
+    "previewMore": "{names} and {count} more",
+    "percentLabel": "Percent off",
+    "percentHint": "From 0.01 to 99.99.",
+    "remove": "Remove discount",
+    "applyPercent": "Apply {percent}%",
+    "applyDiscount": "Apply discount",
+    "applyFailed": "Couldn't apply the discount.",
+    "removeFailed": "Couldn't remove the discount."
+  }
+}

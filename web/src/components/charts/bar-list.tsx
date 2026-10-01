@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +30,8 @@ export function BarList({
   emptyText: string;
 }) {
   const [active, setActive] = useState<string | null>(null);
+  // Only the Insights tab uses these charts today, so their few built-in strings live in "restock".
+  const t = useTranslations("restock");
   const max = Math.max(0, ...rows.map((r) => r.value));
 
   if (rows.length === 0) {
@@ -77,13 +80,13 @@ export function BarList({
         })}
       </ul>
       <details className="text-sm">
-        <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">Show the numbers</summary>
+        <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">{t("charts.showNumbers")}</summary>
         <table className="mt-2 w-full text-sm">
           <thead>
             <tr className="border-b text-left text-xs text-muted-foreground">
               <th className="py-1.5 font-medium">{title}</th>
               <th className="py-1.5 text-right font-medium">{valueHeader}</th>
-              <th className="py-1.5 pl-3 text-right font-medium">Other</th>
+              <th className="py-1.5 pl-3 text-right font-medium">{t("charts.other")}</th>
             </tr>
           </thead>
           <tbody className="divide-y">

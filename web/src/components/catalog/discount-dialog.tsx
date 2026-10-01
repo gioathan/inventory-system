@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ export function DiscountDialog({
   items: CatalogEntry[];
   onDone?: () => void;
 }) {
+  const t = useTranslations("discounts.dialog");
   const queryClient = useQueryClient();
   const [percent, setPercent] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -50,13 +52,13 @@ export function DiscountDialog({
         body: JSON.stringify({ skus, percentage: Number(percent) / 100 }),
       }),
     onSuccess: finish,
-    onError: (e) => setError(e instanceof Error ? e.message : "Couldn't apply the discount."),
+    onError: (e) => setError(e instanceof Error ? e.message : t("applyFailed")),
   });
 
   const remove = useMutation({
     mutationFn: () => apiFetch("gateway", "items/discount/remove", { method: "POST", body: JSON.stringify({ skus }) }),
     onSuccess: finish,
-    onError: (e) => setError(e instanceof Error ? e.message : "Couldn't remove the discount."),
+    onError: (e) => setError(e instanceof Error ? e.message : t("removeFailed")),
   });
 
   const busy = apply.isPending || remove.isPending;
@@ -73,22 +75,19 @@ export function DiscountDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>
-            Discount {items.length} {items.length === 1 ? "item" : "items"}
-          </DialogTitle>
-          <DialogDescription>
-            The list price never changes, so removing a discount always restores it exactly.
-          </DialogDescription>
+          <DialogTitle>{t("title", { count: items.length })}</DialogTitle>
+          <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
 
         {items.length > 0 && (
           <p className="text-sm text-muted-foreground">
-            {preview.join(", ")}
-            {items.length > preview.length && ` and ${items.length - preview.length} more`}
+            {items.length > preview.length
+              ? t("previewMore", { names: preview.join(", "), count: items.length - preview.length })
+              : preview.join(", ")}
           </p>
         )}
 
-        <FormField id="discount-percent" label="Percent off" hint="From 0.01 to 99.99." error={error ?? undefined}>
+        <FormField id="discount-percent" label={t("percentLabel")} hint={t("percentHint")} error={error ?? undefined}>
           <div className="relative">
             <Input
               id="discount-percent"
@@ -110,12 +109,12 @@ export function DiscountDialog({
           {anyDiscounted && (
             <Button type="button" variant="outline" className="h-10" disabled={busy || items.length === 0} onClick={() => remove.mutate()}>
               {remove.isPending && <Loader2 className="size-4 animate-spin" />}
-              Remove discount
+              {t("remove")}
             </Button>
           )}
           <Button type="button" className="h-10" disabled={!valid || busy || items.length === 0} onClick={() => apply.mutate()}>
             {apply.isPending && <Loader2 className="size-4 animate-spin" />}
-            Apply {valid ? `${Number(percent)}%` : "discount"}
+            {valid ? t("applyPercent", { percent: String(Number(percent)) }) : t("applyDiscount")}
           </Button>
         </DialogFooter>
       </DialogContent>

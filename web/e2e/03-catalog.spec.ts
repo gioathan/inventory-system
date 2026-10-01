@@ -208,7 +208,17 @@ test("catalog, labels that really scan, printing, new SKUs, categories and disco
     const png = PNG.sync.write(Object.assign(new PNG({ width: 2, height: 2 }), { data: Buffer.alloc(16, 255) }));
     writeFileSync(`${SCREENS}/p3-tiny.png`, png);
     await page.getByLabel("Upload an image file").setInputFiles(`${SCREENS}/p3-tiny.png`);
-    await page.waitForTimeout(1500); // the upload round-trips to R2 for real when configured
+    // Wait for whichever outcome arrives, not a fixed sleep: the first upload after a cold start
+    // builds the S3 client and TLS session to R2, which can take a few seconds.
+    await page
+      .waitForFunction(
+        () =>
+          /^https:\/\//.test((document.querySelector<HTMLInputElement>("input#imageUrl") ?? { value: "" }).value) ||
+          document.body.innerText.includes("Image uploads aren't set up on this server yet"),
+        undefined,
+        { timeout: 20000 },
+      )
+      .catch(() => {});
     const uploadedUrl = await page.getByLabel("Image", { exact: true }).inputValue();
     const notConfigured = await visible(page, "Image uploads aren't set up on this server yet", 500);
     check(

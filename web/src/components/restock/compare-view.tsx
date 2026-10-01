@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowDown, ArrowUp, Loader2, Minus, Search } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { FilterChips } from "@/components/filter-chips";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -14,21 +15,15 @@ import {
   numberSessions,
   percentChange,
   sessionDays,
-  sessionLabel,
   totalsOf,
+  useSessionLabel,
   type ComparedRow,
 } from "@/lib/restock";
 import { cn } from "@/lib/utils";
 
-const ROW_FILTERS = [
-  { id: "all", label: "All" },
-  { id: "up", label: "Selling more" },
-  { id: "down", label: "Selling less" },
-  { id: "new", label: "New sellers" },
-  { id: "stopped", label: "Stopped selling" },
-  { id: "soldout", label: "Sold out" },
-] as const;
-type RowFilter = (typeof ROW_FILTERS)[number]["id"];
+// Each id doubles as its label key under "compare.filters" in the restock messages.
+const ROW_FILTERS = ["all", "up", "down", "new", "stopped", "soldout"] as const;
+type RowFilter = (typeof ROW_FILTERS)[number];
 
 const MATCHES: Record<RowFilter, (r: ComparedRow) => boolean> = {
   all: () => true,
@@ -39,17 +34,16 @@ const MATCHES: Record<RowFilter, (r: ComparedRow) => boolean> = {
   soldout: (r) => r.soldOutInB,
 };
 
-const lengthOf = (days: number) => (days <= 1 ? "a day or less" : `${Math.round(days * 10) / 10} days`);
-
 // Green/red only where up is good (sales, revenue); a change in units received is just a change.
 function Change({ value, pct, money = false, neutral = false }: { value: number; pct: number | null; money?: boolean; neutral?: boolean }) {
+  const t = useTranslations("restock");
   const Icon = value > 0 ? ArrowUp : value < 0 ? ArrowDown : Minus;
   const tone = neutral || value === 0 ? "text-muted-foreground" : value > 0 ? "text-success" : "text-destructive";
   const shown = money ? formatMoney(Math.abs(value)) : Math.abs(Math.round(value * 10) / 10).toLocaleString();
   return (
     <span className={cn("inline-flex items-center gap-1 tabular-nums", tone)}>
       <Icon className="size-3.5" aria-hidden />
-      <span className="sr-only">{value > 0 ? "up" : value < 0 ? "down" : "no change"}</span>
+      <span className="sr-only">{value > 0 ? t("compare.change.up") : value < 0 ? t("compare.change.down") : t("compare.change.none")}</span>
       {shown}
       {pct !== null && <span className="text-xs">({Math.round(pct * 100)}%)</span>}
     </span>
@@ -60,6 +54,11 @@ export function CompareView() {
   const sessions = useRestockSessions();
   const categories = useCategories();
   const numbered = useMemo(() => numberSessions(sessions.data ?? []), [sessions.data]);
+  const t = useTranslations("restock");
+  const sessionLabel = useSessionLabel();
+  const noCategory = t("categories.none");
+  const unknownCategory = t("categories.unknown");
+  const lengthOf = (days: number) => (days <= 1 ? t("compare.dayOrLess") : t("compare.days", { days: String(Math.round(days * 10) / 10) }));
 
   // Default: the latest session against the one before it.
   const [aId, setAId] = useState<string | null>(null);
@@ -78,13 +77,16 @@ export function CompareView() {
   const categoryName = useMemo(() => new Map((categories.data ?? []).map((c) => [c.id, c.name])), [categories.data]);
   const rows = useMemo(() => {
     if (!reportA.data || !reportB.data) return [];
-    return by === "item" ? compareItems(reportA.data, reportB.data) : compareCategories(reportA.data, reportB.data, (id) => categoryName.get(id));
-  }, [reportA.data, reportB.data, by, categoryName]);
+    return by === "item"
+      ? compareItems(reportA.data, reportB.data)
+      : compareCategories(reportA.data, reportB.data, (id) => categoryName.get(id), { none: noCategory, unknown: unknownCategory });
+  }, [reportA.data, reportB.data, by, categoryName, noCategory, unknownCategory]);
 
   const counts = useMemo(
-    () => Object.fromEntries(ROW_FILTERS.map((f) => [f.id, rows.filter(MATCHES[f.id]).length])) as Record<RowFilter, number>,
+    () => Object.fromEntries(ROW_FILTERS.map((id) => [id, rows.filter(MATCHES[id]).length])) as Record<RowFilter, number>,
     [rows],
   );
+  const filterOptions = ROW_FILTERS.map((id) => ({ id, label: t(`compare.filters.${id}`) }));
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
     return rows
@@ -93,11 +95,11 @@ export function CompareView() {
       .sort((x, y) => Math.abs(y.change) - Math.abs(x.change) || y.soldB - x.soldB || x.label.localeCompare(y.label));
   }, [rows, filter, search]);
 
-  if (sessions.isPending) return <div className="h-48 animate-pulse rounded-2xl border bg-muted/40" aria-label="Loading sessions" />;
+  if (sessions.isPending) return <div className="h-48 animate-pulse rounded-2xl border bg-muted/40" aria-label={t("loadingSessions")} />;
   if (numbered.length < 2) {
     return (
       <p className="rounded-2xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
-        Comparing needs at least two sessions. Start another one when the next delivery comes in.
+        {t("compare.needTwo")}
       </p>
     );
   }
@@ -110,14 +112,16 @@ export function CompareView() {
   const tB = reportB.data ? totalsOf(reportB.data) : null;
   const loading = reportA.isPending || reportB.isPending;
   const error = reportA.error ?? reportB.error;
+  const numA = String(a?.number ?? "");
+  const numB = String(b?.number ?? "");
 
   const kpis =
     tA && tB
       ? [
-          { label: "Units sold", a: tA.sold * scaleA, b: tB.sold * scaleB, money: false },
-          { label: "Revenue", a: tA.revenue * scaleA, b: tB.revenue * scaleB, money: true, estimated: tA.estimated || tB.estimated },
-          { label: "Units received", a: tA.received * scaleA, b: tB.received * scaleB, money: false, neutral: true },
-          { label: "Items sold", a: tA.itemsSold, b: tB.itemsSold, money: false, noPerDay: true },
+          { id: "unitsSold", label: t("compare.kpi.unitsSold"), a: tA.sold * scaleA, b: tB.sold * scaleB, money: false },
+          { id: "revenue", label: t("compare.kpi.revenue"), a: tA.revenue * scaleA, b: tB.revenue * scaleB, money: true, estimated: tA.estimated || tB.estimated },
+          { id: "unitsReceived", label: t("compare.kpi.unitsReceived"), a: tA.received * scaleA, b: tB.received * scaleB, money: false, neutral: true },
+          { id: "itemsSold", label: t("compare.kpi.itemsSold"), a: tA.itemsSold, b: tB.itemsSold, money: false, noPerDay: true },
         ]
       : [];
 
@@ -125,8 +129,8 @@ export function CompareView() {
     <div className="flex flex-col gap-5">
       <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
         <label className="flex flex-col gap-1.5 text-sm font-medium">
-          Compare
-          <NativeSelect value={a?.id ?? ""} onChange={(e) => setAId(e.target.value)} aria-label="First session">
+          {t("compare.compare")}
+          <NativeSelect value={a?.id ?? ""} onChange={(e) => setAId(e.target.value)} aria-label={t("compare.firstSession")}>
             {numbered.map((s) => (
               <option key={s.id} value={s.id} disabled={s.id === b?.id}>
                 {sessionLabel(s)}
@@ -135,8 +139,8 @@ export function CompareView() {
           </NativeSelect>
         </label>
         <label className="flex flex-col gap-1.5 text-sm font-medium">
-          with
-          <NativeSelect value={b?.id ?? ""} onChange={(e) => setBId(e.target.value)} aria-label="Second session">
+          {t("compare.with")}
+          <NativeSelect value={b?.id ?? ""} onChange={(e) => setBId(e.target.value)} aria-label={t("compare.secondSession")}>
             {numbered.map((s) => (
               <option key={s.id} value={s.id} disabled={s.id === a?.id}>
                 {sessionLabel(s)}
@@ -146,21 +150,18 @@ export function CompareView() {
         </label>
         <label className="flex h-11 items-center gap-2 text-sm">
           <input type="checkbox" checked={perDay} onChange={(e) => setPerDay(e.target.checked)} className="size-4 accent-primary" />
-          Per day
+          {t("compare.perDay")}
         </label>
       </div>
-      <p className="-mt-2 text-xs text-muted-foreground">
-        Lengths: {lengthOf(daysA)} vs {lengthOf(daysB)}. Per day divides by each session&apos;s length (anything under a day counts
-        as one day), so sessions of different lengths compare fairly.
-      </p>
+      <p className="-mt-2 text-xs text-muted-foreground">{t("compare.lengths", { a: lengthOf(daysA), b: lengthOf(daysB) })}</p>
 
       {error ? (
         <p role="alert" className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          Couldn&apos;t load a report: {error.message}
+          {t("compare.loadError", { message: error.message })}
         </p>
       ) : loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin" /> Loading reports…
+          <Loader2 className="size-4 animate-spin" /> {t("compare.loading")}
         </div>
       ) : (
         <>
@@ -170,17 +171,16 @@ export function CompareView() {
               const bVal = k.b;
               const fmt = (v: number) => (k.money ? formatMoney(v) : (Math.round(v * 10) / 10).toLocaleString());
               return (
-                <div key={k.label} className="flex flex-col gap-1.5 rounded-2xl border bg-card p-4">
+                <div key={k.id} className="flex flex-col gap-1.5 rounded-2xl border bg-card p-4">
                   <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    {k.label}
-                    {perDay && !k.noPerDay ? " / day" : ""}
+                    {perDay && !k.noPerDay ? t("compare.kpi.perDay", { label: k.label }) : k.label}
                   </dt>
                   <dd className="flex flex-col gap-1">
                     <span className="text-2xl font-semibold tabular-nums">
                       {k.estimated ? "≈ " : ""}
                       {fmt(bVal)}
                     </span>
-                    <span className="text-xs text-muted-foreground tabular-nums">was {fmt(aVal)}</span>
+                    <span className="text-xs text-muted-foreground tabular-nums">{t("compare.kpi.was", { value: fmt(aVal) })}</span>
                     <Change value={bVal - aVal} pct={percentChange(aVal, bVal)} money={k.money} neutral={k.neutral} />
                   </dd>
                 </div>
@@ -189,7 +189,7 @@ export function CompareView() {
           </dl>
 
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div role="group" aria-label="Compare by" className="inline-flex rounded-lg border p-0.5">
+            <div role="group" aria-label={t("compare.byLabel")} className="inline-flex rounded-lg border p-0.5">
               {(["item", "category"] as const).map((option) => (
                 <button
                   key={option}
@@ -203,15 +203,15 @@ export function CompareView() {
                   }}
                   className={cn("h-9 rounded-md px-3 text-sm font-medium", by === option ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
                 >
-                  By {option}
+                  {option === "item" ? t("compare.byItem") : t("compare.byCategory")}
                 </button>
               ))}
             </div>
             <div className="relative w-full sm:w-64">
               <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                aria-label={`Search ${by === "item" ? "items" : "categories"}`}
-                placeholder={`Search ${by === "item" ? "items" : "categories"}`}
+                aria-label={by === "item" ? t("compare.searchItems") : t("compare.searchCategories")}
+                placeholder={by === "item" ? t("compare.searchItems") : t("compare.searchCategories")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="h-10 pl-9"
@@ -219,20 +219,20 @@ export function CompareView() {
             </div>
           </div>
 
-          <FilterChips options={ROW_FILTERS} value={filter} onChange={setFilter} counts={counts} />
+          <FilterChips options={filterOptions} value={filter} onChange={setFilter} counts={counts} />
 
           {visible.length === 0 ? (
-            <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">Nothing matches.</p>
+            <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">{t("compare.noMatches")}</p>
           ) : (
-            <div tabIndex={0} role="region" aria-label="Comparison" className="overflow-x-auto rounded-2xl border bg-card focus-visible:outline-2 focus-visible:outline-ring">
+            <div tabIndex={0} role="region" aria-label={t("compare.tableLabel")} className="overflow-x-auto rounded-2xl border bg-card focus-visible:outline-2 focus-visible:outline-ring">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-xs uppercase tracking-wider text-muted-foreground">
-                    <th className="px-4 py-2.5 font-medium">{by === "item" ? "Item" : "Category"}</th>
-                    <th className="px-3 py-2.5 text-right font-medium">Sold #{a?.number}</th>
-                    <th className="px-3 py-2.5 text-right font-medium">Sold #{b?.number}</th>
-                    <th className="px-3 py-2.5 text-right font-medium">Change</th>
-                    <th className="px-4 py-2.5 text-right font-medium">Revenue #{a?.number} → #{b?.number}</th>
+                    <th className="px-4 py-2.5 font-medium">{by === "item" ? t("compare.columns.item") : t("compare.columns.category")}</th>
+                    <th className="px-3 py-2.5 text-right font-medium">{t("compare.columns.soldIn", { number: numA })}</th>
+                    <th className="px-3 py-2.5 text-right font-medium">{t("compare.columns.soldIn", { number: numB })}</th>
+                    <th className="px-3 py-2.5 text-right font-medium">{t("compare.columns.change")}</th>
+                    <th className="px-4 py-2.5 text-right font-medium">{t("compare.columns.revenue", { a: numA, b: numB })}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -243,9 +243,9 @@ export function CompareView() {
                         <td className="max-w-64 px-4 py-2.5">
                           <div className="truncate font-medium">{r.label}</div>
                           <div className="flex gap-2 text-xs text-muted-foreground">
-                            {r.isNew && <span>New seller</span>}
-                            {r.stopped && <span>Stopped selling</span>}
-                            {r.soldOutInB && <span className="text-destructive">Sold out in #{b?.number}</span>}
+                            {r.isNew && <span>{t("compare.tags.newSeller")}</span>}
+                            {r.stopped && <span>{t("compare.tags.stopped")}</span>}
+                            {r.soldOutInB && <span className="text-destructive">{t("compare.tags.soldOutIn", { number: numB })}</span>}
                           </div>
                         </td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{Math.round(sa * 10) / 10}</td>

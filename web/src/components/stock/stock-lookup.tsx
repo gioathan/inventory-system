@@ -1,6 +1,7 @@
 "use client";
 
 import { Loader2, PackageSearch, RefreshCw, Search, Tag, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FilterChips } from "@/components/filter-chips";
 import { ItemImage } from "@/components/item-image";
@@ -11,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { useItems } from "@/hooks/use-items";
 import { useCurrentSessionSales } from "@/hooks/use-restock-sessions";
 import { formatMoney, formatPercent } from "@/lib/format";
-import { ITEM_FILTERS as FILTERS, matchesSearch, type ItemFilter as Filter } from "@/lib/item-filters";
+import { ITEM_FILTERS as FILTERS, matchesSearch, useItemFilterOptions, type ItemFilter as Filter } from "@/lib/item-filters";
 import { stockLevel } from "@/lib/stock";
 import type { CatalogEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,8 @@ function StockCard({
   soldThisSession: number | null;
   onReceive: (item: CatalogEntry) => void;
 }) {
+  const t = useTranslations("stock.card");
+  const tc = useTranslations("common");
   const level = stockLevel(item.quantityOnHand);
   return (
     <li className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
@@ -33,7 +36,7 @@ function StockCard({
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-semibold leading-tight">{item.name}</h3>
           <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{item.sku}</p>
-          {soldThisSession !== null && <p className="mt-0.5 text-xs text-muted-foreground">{soldThisSession} sold this session</p>}
+          {soldThisSession !== null && <p className="mt-0.5 text-xs text-muted-foreground">{t("soldThisSession", { count: soldThisSession })}</p>}
           <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2">
             <span className="text-lg font-semibold tabular-nums">{formatMoney(item.effectivePrice)}</span>
             {item.discountPercentage !== null && (
@@ -51,12 +54,12 @@ function StockCard({
 
       <div className="flex items-center justify-between gap-2">
         {level === "out" && (
-          <StatusPill tone="danger">{item.quantityOnHand === null ? "Not stocked yet" : "Out of stock"}</StatusPill>
+          <StatusPill tone="danger">{item.quantityOnHand === null ? tc("stockLevel.notStockedYet") : tc("stockLevel.outOfStock")}</StatusPill>
         )}
-        {level === "low" && <StatusPill tone="warning">Low · {item.quantityOnHand} left</StatusPill>}
-        {level === "ok" && <StatusPill tone="success">{item.quantityOnHand} in stock</StatusPill>}
+        {level === "low" && <StatusPill tone="warning">{t("lowLeft", { count: item.quantityOnHand ?? 0 })}</StatusPill>}
+        {level === "ok" && <StatusPill tone="success">{t("inStock", { count: item.quantityOnHand ?? 0 })}</StatusPill>}
         <Button type="button" variant="outline" size="sm" className="h-9 px-3" onClick={() => onReceive(item)}>
-          Receive
+          {t("receive")}
         </Button>
       </div>
     </li>
@@ -64,6 +67,7 @@ function StockCard({
 }
 
 export function StockLookup() {
+  const t = useTranslations("stock");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const searchRef = useRef<HTMLInputElement>(null);
@@ -81,6 +85,7 @@ export function StockLookup() {
   }, []);
 
   const all = useMemo(() => items.data ?? [], [items.data]);
+  const filterOptions = useItemFilterOptions();
 
   const counts = useMemo(
     () => Object.fromEntries(FILTERS.map((f) => [f.id, all.filter(f.matches).length])) as Record<Filter, number>,
@@ -99,14 +104,14 @@ export function StockLookup() {
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Stock</h1>
-          <p className="text-sm text-muted-foreground">Look up any item. A hardware scanner works in the search box too.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <Button
           type="button"
           variant="outline"
           size="icon"
-          aria-label="Refresh stock"
+          aria-label={t("refresh")}
           className="size-10 shrink-0"
           onClick={() => items.refetch()}
           disabled={items.isFetching}
@@ -121,8 +126,8 @@ export function StockLookup() {
           ref={searchRef}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          aria-label="Search items"
-          placeholder="Search by name, SKU or barcode"
+          aria-label={t("searchLabel")}
+          placeholder={t("searchPlaceholder")}
           autoComplete="off"
           spellCheck={false}
           className="h-11 pl-9 pr-10"
@@ -130,7 +135,7 @@ export function StockLookup() {
         {search && (
           <button
             type="button"
-            aria-label="Clear search"
+            aria-label={t("clearSearch")}
             onClick={() => {
               setSearch("");
               searchRef.current?.focus();
@@ -142,31 +147,31 @@ export function StockLookup() {
         )}
       </div>
 
-      <FilterChips options={FILTERS} value={filter} onChange={setFilter} counts={counts} />
+      <FilterChips options={filterOptions} value={filter} onChange={setFilter} counts={counts} />
 
       {items.isPending ? (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Loading stock">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label={t("loading")}>
           {Array.from({ length: 6 }, (_, i) => (
             <div key={i} className="h-36 animate-pulse rounded-2xl border bg-muted/40" />
           ))}
         </div>
       ) : items.isError ? (
         <div role="alert" className="flex flex-col items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-5 text-sm">
-          <p className="text-destructive">Couldn&apos;t load stock: {items.error.message}</p>
+          <p className="text-destructive">{t("loadFailed", { error: items.error.message })}</p>
           <Button type="button" variant="outline" onClick={() => items.refetch()}>
             {items.isFetching && <Loader2 className="size-4 animate-spin" />}
-            Try again
+            {t("tryAgain")}
           </Button>
         </div>
       ) : visible.length === 0 ? (
         <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
           <PackageSearch className="size-8 text-primary/70" />
-          {all.length === 0 ? "No items in the catalog yet." : "No items match. Try a different search or filter."}
+          {all.length === 0 ? t("emptyCatalog") : t("noMatches")}
         </div>
       ) : (
         <>
           <p aria-live="polite" className="text-sm text-muted-foreground">
-            {visible.length} {visible.length === 1 ? "item" : "items"}
+            {t("itemCount", { count: visible.length })}
           </p>
           <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {visible.map((item) => (

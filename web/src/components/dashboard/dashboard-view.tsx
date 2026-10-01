@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle, ArrowRight, Boxes, ClipboardList, PackagePlus, Tag } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ItemImage } from "@/components/item-image";
@@ -12,7 +13,7 @@ import { useItems } from "@/hooks/use-items";
 import { useCurrentSession, useSessionReport } from "@/hooks/use-restock-sessions";
 import { computeStats, needsAttention } from "@/lib/dashboard";
 import { formatMoney } from "@/lib/format";
-import { timeAgo } from "@/lib/time";
+import { useTimeFormat } from "@/lib/time";
 import type { CatalogEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -29,8 +30,9 @@ function Panel({ title, action, children }: { title: string; action?: React.Reac
 }
 
 function PanelState({ pending, error, empty, emptyText }: { pending: boolean; error?: Error | null; empty: boolean; emptyText: string }) {
-  if (pending) return <div className="h-28 animate-pulse rounded-xl bg-muted/40" aria-label="Loading" />;
-  if (error) return <p role="alert" className="text-sm text-destructive">Couldn&apos;t load this: {error.message}</p>;
+  const t = useTranslations("dashboard");
+  if (pending) return <div className="h-28 animate-pulse rounded-xl bg-muted/40" aria-label={t("loading")} />;
+  if (error) return <p role="alert" className="text-sm text-destructive">{t("loadError", { message: error.message })}</p>;
   if (empty) return <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">{emptyText}</p>;
   return null;
 }
@@ -55,6 +57,9 @@ export function DashboardView() {
   const [receiving, setReceiving] = useState<CatalogEntry | null>(null);
   const session = useCurrentSession();
   const report = useSessionReport(session.data?.id ?? null);
+  const t = useTranslations("dashboard");
+  const tc = useTranslations("common");
+  const { timeAgo } = useTimeFormat();
 
   const stats = useMemo(() => (items.data ? computeStats(items.data) : null), [items.data]);
   const attention = useMemo(() => needsAttention(items.data ?? []), [items.data]);
@@ -66,63 +71,71 @@ export function DashboardView() {
   );
 
   const health = stats && stats.skus > 0 ? [
-    { key: "ok", label: "In stock", value: stats.inStock, className: "bg-success" },
-    { key: "low", label: "Low", value: stats.low, className: "bg-warning" },
-    { key: "out", label: "Out", value: stats.out, className: "bg-destructive" },
+    { key: "ok", label: tc("stockLevel.inStock"), value: stats.inStock, className: "bg-success" },
+    { key: "low", label: t("health.low"), value: stats.low, className: "bg-warning" },
+    { key: "out", label: t("health.out"), value: stats.out, className: "bg-destructive" },
   ] : null;
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Operations</h1>
-          <p className="text-sm text-muted-foreground">Where stock stands and what needs your attention.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/restock-sessions" className={cn(buttonVariants({ variant: "outline" }), "h-10 gap-2")}>
             <ClipboardList className="size-4" />
-            Restock sessions
+            {t("actions.restockSessions")}
           </Link>
           <Link href="/receive" className={cn(buttonVariants(), "h-10 gap-2")}>
             <PackagePlus className="size-4" />
-            Receive stock
+            {t("actions.receiveStock")}
           </Link>
         </div>
       </div>
 
       {items.isError ? (
         <p role="alert" className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          Couldn&apos;t load the overview: {items.error.message}
+          {t("overviewError", { message: items.error.message })}
         </p>
       ) : (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {stats ? (
             <>
-              <Kpi label="Items" value={stats.skus.toLocaleString()} sub={`${stats.onPromo} on promo`} icon={Tag} />
-              <Kpi label="Units on hand" value={stats.unitsOnHand.toLocaleString()} sub={`${formatMoney(stats.retailValue)} at retail`} icon={Boxes} />
+              <Kpi label={t("kpi.items")} value={stats.skus.toLocaleString()} sub={t("kpi.onPromo", { count: String(stats.onPromo) })} icon={Tag} />
               <Kpi
-                label="Low stock"
+                label={t("kpi.unitsOnHand")}
+                value={stats.unitsOnHand.toLocaleString()}
+                sub={t("kpi.atRetail", { value: formatMoney(stats.retailValue) })}
+                icon={Boxes}
+              />
+              <Kpi
+                label={tc("stockLevel.lowStock")}
                 value={stats.low.toLocaleString()}
-                sub={`${stats.out.toLocaleString()} out of stock`}
+                sub={t("kpi.outOfStock", { count: stats.out.toLocaleString() })}
                 icon={AlertTriangle}
                 tone={stats.low > 0 ? "warning" : undefined}
               />
               <Kpi
-                label="This session"
+                label={t("kpi.thisSession")}
                 value={session.data ? (report.isPending ? "…" : sessionReceived.toLocaleString()) : "—"}
-                sub={session.data ? `units received since ${timeAgo(session.data.openedAt)}` : "No restock session open"}
+                sub={session.data ? t("kpi.unitsSince", { time: timeAgo(session.data.openedAt) }) : t("kpi.noSession")}
                 icon={ClipboardList}
               />
             </>
           ) : (
-            Array.from({ length: 4 }, (_, i) => <div key={i} className="h-28 animate-pulse rounded-2xl border bg-muted/40" aria-label="Loading" />)
+            Array.from({ length: 4 }, (_, i) => <div key={i} className="h-28 animate-pulse rounded-2xl border bg-muted/40" aria-label={t("loading")} />)
           )}
         </div>
       )}
 
       {health && (
-        <Panel title="Stock health">
-          <div role="img" aria-label={`${health[0].value} in stock, ${health[1].value} low, ${health[2].value} out of stock`} className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
+        <Panel title={t("health.title")}>
+          <div
+            role="img"
+            aria-label={t("health.summary", { inStock: String(health[0].value), low: String(health[1].value), out: String(health[2].value) })}
+            className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
             {health.map((h) => (
               <div key={h.key} className={h.className} style={{ width: `${(h.value / stats!.skus) * 100}%` }} />
             ))}
@@ -140,14 +153,14 @@ export function DashboardView() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel
-          title="Needs attention"
+          title={t("attention.title")}
           action={
             <Link href="/stock" className="flex items-center gap-1 text-xs text-primary hover:underline">
-              All stock <ArrowRight className="size-3" />
+              {t("actions.allStock")} <ArrowRight className="size-3" />
             </Link>
           }
         >
-          <PanelState pending={items.isPending} error={items.error} empty={attention.length === 0} emptyText="Nothing is running low. Stock levels look healthy." />
+          <PanelState pending={items.isPending} error={items.error} empty={attention.length === 0} emptyText={t("attention.empty")} />
           {attention.length > 0 && (
             <ul className="divide-y">
               {attention.map((item) => (
@@ -158,10 +171,10 @@ export function DashboardView() {
                     <div className="truncate font-mono text-xs text-muted-foreground">{item.sku}</div>
                   </div>
                   <StatusPill tone={item.quantityOnHand === 0 ? "danger" : "warning"}>
-                    {item.quantityOnHand === 0 ? "Out" : `${item.quantityOnHand} left`}
+                    {item.quantityOnHand === 0 ? t("attention.out") : t("attention.left", { count: item.quantityOnHand ?? 0 })}
                   </StatusPill>
                   <Button type="button" variant="outline" size="sm" className="h-9 px-3" onClick={() => setReceiving(item)}>
-                    Receive
+                    {t("actions.receive")}
                   </Button>
                 </li>
               ))}
@@ -170,10 +183,10 @@ export function DashboardView() {
         </Panel>
 
         <Panel
-          title="Current restock session"
+          title={t("session.title")}
           action={
             <Link href="/restock-sessions" className="flex items-center gap-1 text-xs text-primary hover:underline">
-              All sessions <ArrowRight className="size-3" />
+              {t("actions.allSessions")} <ArrowRight className="size-3" />
             </Link>
           }
         >
@@ -181,7 +194,7 @@ export function DashboardView() {
             pending={session.isPending || (!!session.data && report.isPending)}
             error={session.error ?? report.error}
             empty={!session.data || topReceived.length === 0}
-            emptyText={session.data ? "Nothing received in this session yet." : "No session open. Start one from Receive stock when a delivery comes in."}
+            emptyText={session.data ? t("session.emptyNothingReceived") : t("session.emptyNoSession")}
           />
           {session.data && topReceived.length > 0 && (
             <ul className="divide-y">
@@ -192,7 +205,9 @@ export function DashboardView() {
                     <div className="truncate font-mono text-xs text-muted-foreground">{line.sku}</div>
                   </div>
                   <span className="shrink-0 tabular-nums text-muted-foreground">
-                    +{line.restocked} received{line.sold > 0 ? ` · ${line.sold} sold` : ""}
+                    {line.sold > 0
+                      ? t("session.receivedAndSold", { received: String(line.restocked), sold: String(line.sold) })
+                      : t("session.received", { received: String(line.restocked) })}
                   </span>
                 </li>
               ))}
@@ -201,8 +216,8 @@ export function DashboardView() {
         </Panel>
       </div>
 
-      <Panel title="Recent low-stock alerts">
-        <PanelState pending={alerts.isPending} error={alerts.error} empty={(alerts.data ?? []).length === 0} emptyText="No low-stock alerts have been raised yet." />
+      <Panel title={t("alerts.title")}>
+        <PanelState pending={alerts.isPending} error={alerts.error} empty={(alerts.data ?? []).length === 0} emptyText={t("alerts.empty")} />
         {(alerts.data ?? []).length > 0 && (
           <ul className="divide-y">
             {(alerts.data ?? []).slice(0, 6).map((alert, index) => {
@@ -212,7 +227,7 @@ export function DashboardView() {
                   <div className="min-w-0">
                     <div className="truncate font-medium">{item?.name ?? alert.sku}</div>
                     <div className="text-xs text-muted-foreground">
-                      Dropped to {alert.quantityOnHand} (alerts at {alert.threshold} or fewer)
+                      {t("alerts.dropped", { quantity: String(alert.quantityOnHand), threshold: String(alert.threshold) })}
                     </div>
                   </div>
                   <span className="shrink-0 text-xs text-muted-foreground">{timeAgo(alert.timestamp)}</span>

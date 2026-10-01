@@ -1,13 +1,14 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useStartSession } from "@/hooks/use-restock-sessions";
-import { formatDateTime } from "@/lib/time";
+import { useTimeFormat } from "@/lib/time";
 import type { RestockSession } from "@/lib/types";
 
 // Starting a session closes the open one at the same moment, so the dialog says so up front
@@ -26,6 +27,9 @@ export function StartSessionDialog({
   const [note, setNote] = useState("");
   const start = useStartSession();
   const tooLong = note.trim().length > 200;
+  const t = useTranslations("restock");
+  const tc = useTranslations("common");
+  const { formatDateTime } = useTimeFormat();
 
   function close(next: boolean) {
     if (start.isPending) return;
@@ -40,15 +44,15 @@ export function StartSessionDialog({
     <Dialog open={open} onOpenChange={close}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Start a restock session</DialogTitle>
+          <DialogTitle>{t("startDialog.title")}</DialogTitle>
           <DialogDescription>
             {current
-              ? `This ends the session that opened ${formatDateTime(current.openedAt)}. Everything received from now on is logged to the new one.`
-              : "Everything received from now on is logged to this session, until the next one starts."}
+              ? t("startDialog.endsCurrent", { time: formatDateTime(current.openedAt) })
+              : t("startDialog.noCurrent")}
           </DialogDescription>
         </DialogHeader>
 
-        <FormField id="session-note" label="Note" hint="Optional, e.g. the supplier or delivery." error={tooLong ? "Keep it under 200 characters." : undefined}>
+        <FormField id="session-note" label={t("startDialog.note")} hint={t("startDialog.noteHint")} error={tooLong ? t("startDialog.noteTooLong") : undefined}>
           <Input
             id="session-note"
             autoComplete="off"
@@ -68,7 +72,7 @@ export function StartSessionDialog({
 
         <DialogFooter>
           <Button type="button" variant="ghost" className="h-10" disabled={start.isPending} onClick={() => close(false)}>
-            Cancel
+            {tc("actions.cancel")}
           </Button>
           <Button
             type="button"
@@ -84,7 +88,7 @@ export function StartSessionDialog({
             }
           >
             {start.isPending && <Loader2 className="size-4 animate-spin" />}
-            Start session
+            {t("actions.startSession")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,0 +1,27 @@
+{
+  "mainLabel": "Κύρια",
+  "navigation": "Πλοήγηση",
+  "openNavigation": "Άνοιγμα πλοήγησης",
+  "groups": {
+    "operations": "Λειτουργίες",
+    "catalog": "Κατάλογος",
+    "supplyChain": "Εφοδιαστική αλυσίδα",
+    "teamAndControl": "Ομάδα & έλεγχος"
+  },
+  "items": {
+    "dashboard": "Πίνακας ελέγχου",
+    "scanTerminal": "Τερματικό σκαναρίσματος",
+    "receiveStock": "Παραλαβή αποθέματος",
+    "stockLookup": "Αναζήτηση αποθέματος",
+    "itemsAndSkus": "Είδη & SKU",
+    "categories": "Κατηγορίες",
+    "discountsAndPromos": "Εκπτώσεις & προσφορές",
+    "restockSessions": "Συνεδρίες ανεφοδιασμού",
+    "staffAccounts": "Λογαριασμοί προσωπικού",
+    "auditLog": "Αρχείο καταγραφής",
+    "scan": "Σκανάρισμα",
+    "receive": "Παραλαβή",
+    "stock": "Απόθεμα",
+    "console": "Κονσόλα"
+  }
+}

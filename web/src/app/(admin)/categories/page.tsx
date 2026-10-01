@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { CategoriesView } from "@/components/catalog/categories-view";
 
-export const metadata: Metadata = { title: "Categories" };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("categories");
+  return { title: t("title") };
+}
 
 export default function CategoriesPage() {
   return <CategoriesView />;

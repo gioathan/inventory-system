@@ -16,4 +16,7 @@ export default defineConfig({
   timeout: 8 * 60_000,
   reporter: [["list"]],
   outputDir: "test-results/artifacts",
+  // The UI picks its language from Accept-Language when no locale cookie is set, and the specs
+  // assert on English text — so pin it rather than inherit whatever the machine's OS is set to.
+  use: { locale: "en-US" },
 });

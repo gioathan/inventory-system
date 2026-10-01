@@ -1,13 +1,17 @@
 import { ClipboardList, LayoutDashboard, PackagePlus, PackageSearch, Percent, ScanBarcode, ScrollText, Shapes, Tags, Users, type LucideIcon } from "lucide-react";
+import type navMessages from "@/messages/en/nav.json";
 
+// labelKey/groupLabelKey index into the "nav" message namespace (src/messages/<locale>/nav.json)
+// — the shells that render these resolve the actual text via useTranslations("nav"), since a
+// plain data module like this one can't call hooks itself.
 export interface NavItem {
   href: string;
-  label: string;
+  labelKey: `items.${keyof typeof navMessages.items}`;
   icon: LucideIcon;
 }
 
 export interface NavGroup {
-  label: string;
+  groupLabelKey: `groups.${keyof typeof navMessages.groups}`;
   items: NavItem[];
 }
 
@@ -15,37 +19,37 @@ export interface NavGroup {
 // links to a page that 404s.
 export const ADMIN_NAV: NavGroup[] = [
   {
-    label: "Operations",
+    groupLabelKey: "groups.operations",
     items: [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/scan", label: "Scan Terminal", icon: ScanBarcode },
-      { href: "/receive", label: "Receive Stock", icon: PackagePlus },
-      { href: "/stock", label: "Stock Lookup", icon: PackageSearch },
+      { href: "/dashboard", labelKey: "items.dashboard", icon: LayoutDashboard },
+      { href: "/scan", labelKey: "items.scanTerminal", icon: ScanBarcode },
+      { href: "/receive", labelKey: "items.receiveStock", icon: PackagePlus },
+      { href: "/stock", labelKey: "items.stockLookup", icon: PackageSearch },
     ],
   },
   {
-    label: "Catalog",
+    groupLabelKey: "groups.catalog",
     items: [
-      { href: "/catalog", label: "Items & SKUs", icon: Tags },
-      { href: "/categories", label: "Categories", icon: Shapes },
-      { href: "/discounts", label: "Discounts & Promos", icon: Percent },
+      { href: "/catalog", labelKey: "items.itemsAndSkus", icon: Tags },
+      { href: "/categories", labelKey: "items.categories", icon: Shapes },
+      { href: "/discounts", labelKey: "items.discountsAndPromos", icon: Percent },
     ],
   },
   {
-    label: "Supply chain",
-    items: [{ href: "/restock-sessions", label: "Restock Sessions", icon: ClipboardList }],
+    groupLabelKey: "groups.supplyChain",
+    items: [{ href: "/restock-sessions", labelKey: "items.restockSessions", icon: ClipboardList }],
   },
   {
-    label: "Team & control",
+    groupLabelKey: "groups.teamAndControl",
     items: [
-      { href: "/staff", label: "Staff Accounts", icon: Users },
-      { href: "/audit-log", label: "Audit Log", icon: ScrollText },
+      { href: "/staff", labelKey: "items.staffAccounts", icon: Users },
+      { href: "/audit-log", labelKey: "items.auditLog", icon: ScrollText },
     ],
   },
 ];
 
 export const SELLER_NAV: NavItem[] = [
-  { href: "/scan", label: "Scan", icon: ScanBarcode },
-  { href: "/receive", label: "Receive", icon: PackagePlus },
-  { href: "/stock", label: "Stock", icon: PackageSearch },
+  { href: "/scan", labelKey: "items.scan", icon: ScanBarcode },
+  { href: "/receive", labelKey: "items.receive", icon: PackagePlus },
+  { href: "/stock", labelKey: "items.stock", icon: PackageSearch },
 ];

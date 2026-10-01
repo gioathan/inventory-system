@@ -1,0 +1,49 @@
+{
+  "metaTitle": "Dashboard",
+  "title": "Operations",
+  "subtitle": "Where stock stands and what needs your attention.",
+  "actions": {
+    "restockSessions": "Restock sessions",
+    "receiveStock": "Receive stock",
+    "receive": "Receive",
+    "allStock": "All stock",
+    "allSessions": "All sessions"
+  },
+  "loading": "Loading",
+  "loadError": "Couldn't load this: {message}",
+  "overviewError": "Couldn't load the overview: {message}",
+  "kpi": {
+    "items": "Items",
+    "onPromo": "{count} on promo",
+    "unitsOnHand": "Units on hand",
+    "atRetail": "{value} at retail",
+    "outOfStock": "{count} out of stock",
+    "thisSession": "This session",
+    "unitsSince": "units received since {time}",
+    "noSession": "No restock session open"
+  },
+  "health": {
+    "title": "Stock health",
+    "summary": "{inStock} in stock, {low} low, {out} out of stock",
+    "low": "Low",
+    "out": "Out"
+  },
+  "attention": {
+    "title": "Needs attention",
+    "empty": "Nothing is running low. Stock levels look healthy.",
+    "out": "Out",
+    "left": "{count, plural, other {# left}}"
+  },
+  "session": {
+    "title": "Current restock session",
+    "emptyNothingReceived": "Nothing received in this session yet.",
+    "emptyNoSession": "No session open. Start one from Receive stock when a delivery comes in.",
+    "received": "+{received} received",
+    "receivedAndSold": "+{received} received · {sold} sold"
+  },
+  "alerts": {
+    "title": "Recent low-stock alerts",
+    "empty": "No low-stock alerts have been raised yet.",
+    "dropped": "Dropped to {quantity} (alerts at {threshold} or fewer)"
+  }
+}

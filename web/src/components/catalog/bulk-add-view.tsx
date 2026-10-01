@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, Check, Download, Loader2, Plus, Trash2, Upload, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useId, useMemo, useRef, useState } from "react";
 import { Combobox } from "@/components/ui/combobox";
@@ -52,17 +53,21 @@ const blankRow = (): Row => ({
 // filled in 3) is silently skipped rather than blocking submit with "row 4 is invalid".
 const isFilled = (row: Row) => row.name.trim() !== "";
 
-function fieldError(row: Row): string | null {
-  if (!PRICE_RE.test(row.price.trim()) || !(Number(row.price) > 0)) return "Enter a valid price.";
+type CatalogT = ReturnType<typeof useTranslations<"catalog">>;
+
+function fieldError(row: Row, t: CatalogT): string | null {
+  if (!PRICE_RE.test(row.price.trim()) || !(Number(row.price) > 0)) return t("bulk.invalidPrice");
   const q = row.quantity.trim();
-  if (!QUANTITY_RE.test(q) || Number(q) < 1 || Number(q) > 99_999) return "Enter a starting quantity from 1 to 99,999.";
-  if (!BARCODE_RE.test(row.barcode.trim())) return "Barcode: letters, digits, . _ or - only (up to 64).";
-  if (row.name.trim().length > 200) return "Keep the name under 200 characters.";
+  if (!QUANTITY_RE.test(q) || Number(q) < 1 || Number(q) > 99_999) return t("bulk.invalidQuantity");
+  if (!BARCODE_RE.test(row.barcode.trim())) return t("bulk.invalidBarcode");
+  if (row.name.trim().length > 200) return t("bulk.nameTooLong");
   return null;
 }
 
 export function BulkAddView() {
   const formId = useId();
+  const t = useTranslations("catalog");
+  const tc = useTranslations("common");
   const queryClient = useQueryClient();
   const categories = useCategories();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -72,8 +77,8 @@ export function BulkAddView() {
   const [busy, setBusy] = useState(false);
 
   const categoryOptions = useMemo(
-    () => [{ value: "", label: "No category" }, ...(categories.data ?? []).map((c) => ({ value: c.id, label: c.name }))],
-    [categories.data],
+    () => [{ value: "", label: t("fields.noCategory") }, ...(categories.data ?? []).map((c) => ({ value: c.id, label: c.name }))],
+    [categories.data, t],
   );
 
   function update(id: string, patch: Partial<Row>) {
@@ -102,12 +107,12 @@ export function BulkAddView() {
       const text = await file.text();
       const parsed = parseCsvAsObjects(text);
       if (parsed.length === 0) {
-        setCsvError("That file has no data rows.");
+        setCsvError(t("bulk.noRows"));
         return;
       }
       const missing = ["name", "price"].filter((k) => !(k in parsed[0]));
       if (missing.length > 0) {
-        setCsvError(`Missing column(s): ${missing.join(", ")}. Expected: name, price, quantity, category, barcode.`);
+        setCsvError(t("bulk.missingColumns", { columns: missing.join(", ") }));
         return;
       }
       const imported = parsed.map((cells): Row => {
@@ -127,7 +132,7 @@ export function BulkAddView() {
       // appending to 3 untouched blank rows would just leave silent empties mixed in.
       setRows(imported);
     } catch {
-      setCsvError("Couldn't read that file.");
+      setCsvError(t("bulk.readFailed"));
     } finally {
       setImporting(false);
       if (fileInput.current) fileInput.current.value = "";
@@ -155,14 +160,14 @@ export function BulkAddView() {
 
   const filled = rows.filter(isFilled);
   const pending = filled.filter((r) => r.status !== "done");
-  const invalid = pending.some((r) => fieldError(r) !== null);
+  const invalid = pending.some((r) => fieldError(r, t) !== null);
   const doneCount = rows.filter((r) => r.status === "done").length;
   const errorCount = rows.filter((r) => r.status === "error").length;
 
   async function submit() {
     setBusy(true);
     for (const row of pending) {
-      const err = fieldError(row);
+      const err = fieldError(row, t);
       if (err) continue; // shouldn't happen — submit is disabled while any row is invalid
       update(row.id, { status: "saving", message: null });
       try {
@@ -171,10 +176,10 @@ export function BulkAddView() {
       } catch (error) {
         const message =
           error instanceof ApiError && error.status === 409
-            ? "That barcode is already used by another item."
+            ? t("bulk.barcodeTaken")
             : error instanceof Error
               ? error.message
-              : "Couldn't create this item.";
+              : t("bulk.createFailed");
         update(row.id, { status: "error", message });
       }
     }
@@ -185,8 +190,8 @@ export function BulkAddView() {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Add multiple items</h1>
-        <p className="text-sm text-muted-foreground">Fill in rows here, or upload a CSV and check it before creating anything.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("bulk.title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("bulk.description")}</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-3">
@@ -195,7 +200,7 @@ export function BulkAddView() {
           type="file"
           accept=".csv,text/csv"
           className="sr-only"
-          aria-label="Upload a CSV file"
+          aria-label={t("bulk.uploadCsvAria")}
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (file) void onCsvChosen(file);
@@ -203,13 +208,13 @@ export function BulkAddView() {
         />
         <Button type="button" variant="outline" className="h-10 gap-2" disabled={importing} onClick={() => fileInput.current?.click()}>
           {importing ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-          Upload CSV
+          {t("bulk.uploadCsv")}
         </Button>
         <Button type="button" variant="ghost" className="h-10 gap-2 text-muted-foreground" onClick={downloadTemplate}>
           <Download className="size-4" />
-          Download template
+          {t("bulk.downloadTemplate")}
         </Button>
-        <span className="text-xs text-muted-foreground">Columns: name, price, quantity, category, barcode. Category and barcode are optional.</span>
+        <span className="text-xs text-muted-foreground">{t("bulk.columnsHelp")}</span>
       </div>
       {csvError && (
         <p role="alert" className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -219,7 +224,7 @@ export function BulkAddView() {
 
       <ul className="flex flex-col gap-3">
         {rows.map((row, index) => {
-          const err = isFilled(row) ? fieldError(row) : null;
+          const err = isFilled(row) ? fieldError(row, t) : null;
           // Positional, not row.id: row.id comes from a module-level counter that isn't reset
           // between server and client, so using it in a DOM id (unlike a React `key`, which never
           // touches the DOM) caused a real hydration mismatch here.
@@ -236,11 +241,11 @@ export function BulkAddView() {
               <div className="flex items-center gap-2">
                 <span className="w-5 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{index + 1}</span>
                 <label htmlFor={`${rowId}-name`} className="sr-only">
-                  Name
+                  {t("fields.name")}
                 </label>
                 <Input
                   id={`${rowId}-name`}
-                  placeholder="Item name"
+                  placeholder={t("bulk.itemName")}
                   autoComplete="off"
                   value={row.name}
                   disabled={row.status === "done" || busy}
@@ -249,7 +254,7 @@ export function BulkAddView() {
                 />
                 {row.status === "done" ? (
                   <span className="flex shrink-0 items-center gap-1.5 px-2 text-sm text-success">
-                    <Check className="size-4" /> Created
+                    <Check className="size-4" /> {t("bulk.created")}
                   </span>
                 ) : (
                   <Button
@@ -257,7 +262,7 @@ export function BulkAddView() {
                     variant="ghost"
                     size="icon"
                     className="size-9 shrink-0 text-muted-foreground"
-                    aria-label={`Remove row ${index + 1}`}
+                    aria-label={t("bulk.removeRow", { n: index + 1 })}
                     disabled={busy}
                     onClick={() => removeRow(row.id)}
                   >
@@ -269,12 +274,12 @@ export function BulkAddView() {
               {row.status !== "done" && (
                 <div className="grid grid-cols-2 gap-2 pl-7 sm:grid-cols-4">
                   <label htmlFor={`${rowId}-price`} className="sr-only">
-                    Price
+                    {t("fields.price")}
                   </label>
                   <Input
                     id={`${rowId}-price`}
                     inputMode="decimal"
-                    placeholder="Price"
+                    placeholder={t("fields.price")}
                     autoComplete="off"
                     value={row.price}
                     disabled={busy}
@@ -282,12 +287,12 @@ export function BulkAddView() {
                     className="h-10"
                   />
                   <label htmlFor={`${rowId}-qty`} className="sr-only">
-                    Starting quantity
+                    {t("bulk.startingQuantity")}
                   </label>
                   <Input
                     id={`${rowId}-qty`}
                     inputMode="numeric"
-                    placeholder="Qty"
+                    placeholder={t("bulk.qty")}
                     autoComplete="off"
                     value={row.quantity}
                     disabled={busy}
@@ -295,7 +300,7 @@ export function BulkAddView() {
                     className="h-10"
                   />
                   <Combobox
-                    aria-label={`Category for ${row.name || `row ${index + 1}`}`}
+                    aria-label={row.name ? t("bulk.categoryForNamed", { name: row.name }) : t("bulk.categoryForRow", { n: index + 1 })}
                     value={row.categoryId}
                     onValueChange={(v) => update(row.id, { categoryId: v, unmatchedCategory: null })}
                     options={categoryOptions}
@@ -303,11 +308,11 @@ export function BulkAddView() {
                     className="col-span-2 sm:col-span-1"
                   />
                   <label htmlFor={`${rowId}-barcode`} className="sr-only">
-                    Barcode
+                    {t("fields.barcode")}
                   </label>
                   <Input
                     id={`${rowId}-barcode`}
-                    placeholder="Barcode (optional)"
+                    placeholder={t("bulk.barcodeOptional")}
                     autoComplete="off"
                     autoCapitalize="none"
                     spellCheck={false}
@@ -322,7 +327,7 @@ export function BulkAddView() {
               {row.unmatchedCategory && row.status !== "done" && (
                 <p className="flex items-center gap-1.5 pl-7 text-xs text-warning">
                   <AlertCircle className="size-3.5 shrink-0" />
-                  No category named &quot;{row.unmatchedCategory}&quot; — will save with no category.
+                  {t("bulk.unmatchedCategory", { name: row.unmatchedCategory })}
                 </p>
               )}
               {err && (
@@ -342,24 +347,24 @@ export function BulkAddView() {
 
       <Button type="button" variant="outline" className="h-10 w-fit gap-2" disabled={busy} onClick={() => setRows((rs) => [...rs, blankRow()])}>
         <Plus className="size-4" />
-        Add row
+        {t("bulk.addRow")}
       </Button>
 
       {(doneCount > 0 || errorCount > 0) && (
         <p aria-live="polite" className="text-sm text-muted-foreground">
-          {doneCount > 0 && `${doneCount} created`}
+          {doneCount > 0 && t("bulk.createdCount", { count: doneCount })}
           {doneCount > 0 && errorCount > 0 && " · "}
-          {errorCount > 0 && `${errorCount} failed — fix and try again`}
+          {errorCount > 0 && t("bulk.failedCount", { count: errorCount })}
         </p>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
         <Button type="button" className="h-11 px-6" disabled={busy || invalid || filled.length === 0} onClick={() => void submit()}>
           {busy && <Loader2 className="size-4 animate-spin" />}
-          {errorCount > 0 ? `Retry (${pending.length})` : `Create ${filled.length || ""} ${filled.length === 1 ? "item" : "items"}`}
+          {errorCount > 0 ? t("bulk.retry", { count: pending.length }) : t("bulk.create", { count: filled.length })}
         </Button>
         <Link href="/catalog" className={cn(buttonVariants({ variant: "ghost" }), "h-11")}>
-          {doneCount > 0 && errorCount === 0 && pending.length === 0 ? "Done" : "Cancel"}
+          {doneCount > 0 && errorCount === 0 && pending.length === 0 ? t("bulk.done") : tc("actions.cancel")}
         </Link>
       </div>
     </div>

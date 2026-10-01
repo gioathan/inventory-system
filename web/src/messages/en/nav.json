@@ -1,0 +1,27 @@
+{
+  "mainLabel": "Main",
+  "navigation": "Navigation",
+  "openNavigation": "Open navigation",
+  "groups": {
+    "operations": "Operations",
+    "catalog": "Catalog",
+    "supplyChain": "Supply chain",
+    "teamAndControl": "Team & control"
+  },
+  "items": {
+    "dashboard": "Dashboard",
+    "scanTerminal": "Scan Terminal",
+    "receiveStock": "Receive Stock",
+    "stockLookup": "Stock Lookup",
+    "itemsAndSkus": "Items & SKUs",
+    "categories": "Categories",
+    "discountsAndPromos": "Discounts & Promos",
+    "restockSessions": "Restock Sessions",
+    "staffAccounts": "Staff Accounts",
+    "auditLog": "Audit Log",
+    "scan": "Scan",
+    "receive": "Receive",
+    "stock": "Stock",
+    "console": "Console"
+  }
+}

@@ -1,21 +1,17 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { BarList } from "@/components/charts/bar-list";
 import { ColumnChart } from "@/components/charts/column-chart";
 import { useCategories } from "@/hooks/use-items";
 import { useRestockSessions, useSessionReports } from "@/hooks/use-restock-sessions";
 import { formatMoney } from "@/lib/format";
-import { aggregateInsights, numberSessions, sessionLabel, type Insights } from "@/lib/restock";
+import { aggregateInsights, numberSessions, useSessionLabel, type Insights } from "@/lib/restock";
 import { cn } from "@/lib/utils";
 
-const SCOPES = [
-  { id: 1, label: "Latest" },
-  { id: 3, label: "Last 3" },
-  { id: 5, label: "Last 5" },
-  { id: 10, label: "Last 10" },
-  { id: 0, label: "All" },
-] as const;
+// 0 means every session. Labels are resolved in the component ("Latest", "Last 3", "All").
+const SCOPES = [1, 3, 5, 10, 0] as const;
 const TOP = 10;
 
 function Segmented<T extends string | number>({
@@ -55,6 +51,10 @@ export function InsightsView() {
   const categories = useCategories();
   const [scope, setScope] = useState<number>(5);
   const [measure, setMeasure] = useState<"units" | "revenue">("units");
+  const t = useTranslations("restock");
+  const sessionLabel = useSessionLabel();
+  const noCategory = t("categories.none");
+  const unknownCategory = t("categories.unknown");
 
   const numbered = useMemo(() => numberSessions(sessions.data ?? []), [sessions.data]);
   const inScope = useMemo(() => (scope === 0 ? numbered : numbered.slice(0, scope)), [numbered, scope]);
@@ -74,26 +74,33 @@ export function InsightsView() {
     return aggregateInsights(
       inScope.map((session, i) => ({ session, lines: results[i].data ?? [] })),
       (id) => categoryName.get(id),
+      { none: noCategory, unknown: unknownCategory },
     );
     // dataKey stands in for `results`, whose array identity changes every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [complete, inScope, dataKey, categoryName]);
+  }, [complete, inScope, dataKey, categoryName, noCategory, unknownCategory]);
   if (insights && insights !== last) setLast(insights);
   const shown = insights ?? last;
 
-  if (sessions.isPending) return <div className="h-48 animate-pulse rounded-2xl border bg-muted/40" aria-label="Loading sessions" />;
+  if (sessions.isPending) return <div className="h-48 animate-pulse rounded-2xl border bg-muted/40" aria-label={t("loadingSessions")} />;
   if (numbered.length === 0) {
     return (
       <p className="rounded-2xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
-        No sessions yet. Insights appear once sessions have sales in them.
+        {t("insights.empty")}
       </p>
     );
   }
 
+  const scopeOptions = SCOPES.map((id) => ({
+    id: id as number,
+    label: id === 1 ? t("insights.scopes.latest") : id === 0 ? t("insights.scopes.all") : t("insights.scopes.last", { count: String(id) }),
+  }));
   const money = measure === "revenue";
+  const measureName = money ? t("insights.revenue") : t("insights.unitsSold");
   const valueOf = (r: { sold: number; revenue: number }) => (money ? r.revenue : r.sold);
   const fmt = (v: number) => (money ? formatMoney(v) : Math.round(v).toLocaleString());
-  const other = (r: { sold: number; revenue: number }) => (money ? `${r.sold.toLocaleString()} sold` : formatMoney(r.revenue));
+  const other = (r: { sold: number; revenue: number }) =>
+    money ? t("insights.soldDetail", { count: r.sold.toLocaleString() }) : formatMoney(r.revenue);
   const rank = <R extends { key: string; label: string; sold: number; revenue: number }>(rows: R[]) =>
     [...rows]
       .sort((a, b) => valueOf(b) - valueOf(a) || a.label.localeCompare(b.label))
@@ -101,43 +108,49 @@ export function InsightsView() {
       .map((r) => ({ key: r.key, label: r.label, value: valueOf(r), detail: other(r) }));
 
   const totals = shown
-    ? shown.trend.reduce((t, p) => ({ sold: t.sold + p.sold, revenue: t.revenue + p.revenue }), { sold: 0, revenue: 0 })
+    ? shown.trend.reduce((acc, p) => ({ sold: acc.sold + p.sold, revenue: acc.revenue + p.revenue }), { sold: 0, revenue: 0 })
     : null;
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center gap-3">
-        <Segmented label="Sessions to include" options={SCOPES} value={scope} onChange={setScope} />
+        <Segmented label={t("insights.scopeLabel")} options={scopeOptions} value={scope} onChange={setScope} />
         <Segmented
-          label="Measure"
+          label={t("insights.measureLabel")}
           options={[
-            { id: "units", label: "Units sold" },
-            { id: "revenue", label: "Revenue" },
+            { id: "units", label: t("insights.unitsSold") },
+            { id: "revenue", label: t("insights.revenue") },
           ] as const}
           value={measure}
           onChange={setMeasure}
         />
       </div>
       <p className="-mt-2 text-xs text-muted-foreground">
-        {inScope.length === 1 ? `Session ${sessionLabel(inScope[0])}` : `${inScope.length} sessions, #${inScope.at(-1)?.number} to #${inScope[0]?.number}`}
-        {shown?.estimated && " · ≈ revenue includes sales from before prices were recorded, valued at today's price"}
+        {inScope.length === 1
+          ? t("insights.single", { label: sessionLabel(inScope[0]) })
+          : t("insights.range", {
+              count: String(inScope.length),
+              from: String(inScope.at(-1)?.number ?? ""),
+              to: String(inScope[0]?.number ?? ""),
+            })}
+        {shown?.estimated && <> · {t("insights.estimatedNote")}</>}
       </p>
 
       {error ? (
         <p role="alert" className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          Couldn&apos;t load a session report: {error.message}
+          {t("insights.loadError", { message: error.message })}
         </p>
       ) : !shown ? (
-        <div className="h-64 animate-pulse rounded-2xl border bg-muted/40" aria-label="Loading insights" />
+        <div className="h-64 animate-pulse rounded-2xl border bg-muted/40" aria-label={t("insights.loading")} />
       ) : (
         <div className={cn("flex flex-col gap-5 transition-opacity", pending && "opacity-60")} aria-busy={pending}>
           <dl className="grid grid-cols-3 gap-3">
             {[
-              { label: "Units sold", value: totals!.sold.toLocaleString() },
-              { label: "Revenue", value: `${shown.estimated ? "≈ " : ""}${formatMoney(totals!.revenue)}` },
-              { label: "Items sold", value: shown.items.length.toLocaleString() },
+              { id: "unitsSold", label: t("insights.unitsSold"), value: totals!.sold.toLocaleString() },
+              { id: "revenue", label: t("insights.revenue"), value: `${shown.estimated ? "≈ " : ""}${formatMoney(totals!.revenue)}` },
+              { id: "itemsSold", label: t("insights.itemsSold"), value: shown.items.length.toLocaleString() },
             ].map((s) => (
-              <div key={s.label} className="rounded-2xl border bg-card p-4">
+              <div key={s.id} className="rounded-2xl border bg-card p-4">
                 <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{s.label}</dt>
                 <dd className="mt-1 text-2xl font-semibold">{s.value}</dd>
               </div>
@@ -145,34 +158,34 @@ export function InsightsView() {
           </dl>
 
           <div className="grid gap-5 lg:grid-cols-2">
-            <section aria-label="Top items" className="flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4 sm:p-5">
-              <h2 className="text-sm font-semibold">Top items by {money ? "revenue" : "units sold"}</h2>
+            <section aria-label={t("insights.topItemsLabel")} className="flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4 sm:p-5">
+              <h2 className="text-sm font-semibold">{money ? t("insights.topItemsByRevenue") : t("insights.topItemsByUnits")}</h2>
               <BarList
-                title="Item"
+                title={t("insights.item")}
                 rows={rank(shown.items)}
                 format={fmt}
-                valueHeader={money ? "Revenue" : "Units sold"}
-                emptyText="Nothing sold in these sessions."
+                valueHeader={measureName}
+                emptyText={t("insights.noSales")}
               />
             </section>
-            <section aria-label="Top categories" className="flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4 sm:p-5">
-              <h2 className="text-sm font-semibold">Top categories by {money ? "revenue" : "units sold"}</h2>
+            <section aria-label={t("insights.topCategoriesLabel")} className="flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4 sm:p-5">
+              <h2 className="text-sm font-semibold">{money ? t("insights.topCategoriesByRevenue") : t("insights.topCategoriesByUnits")}</h2>
               <BarList
-                title="Category"
+                title={t("insights.category")}
                 rows={rank(shown.categories)}
                 format={fmt}
-                valueHeader={money ? "Revenue" : "Units sold"}
-                emptyText="Nothing sold in these sessions."
+                valueHeader={measureName}
+                emptyText={t("insights.noSales")}
               />
-              <p className="text-xs text-muted-foreground">Uses each item&apos;s current category.</p>
+              <p className="text-xs text-muted-foreground">{t("insights.currentCategory")}</p>
             </section>
           </div>
 
           {shown.trend.length > 1 && (
-            <section aria-label="Trend across sessions" className="flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4 sm:p-5">
-              <h2 className="text-sm font-semibold">{money ? "Revenue" : "Units sold"} per session</h2>
+            <section aria-label={t("insights.trendLabel")} className="flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4 sm:p-5">
+              <h2 className="text-sm font-semibold">{money ? t("insights.revenuePerSession") : t("insights.unitsPerSession")}</h2>
               <ColumnChart
-                title="Sessions"
+                title={t("insights.sessionsLabel")}
                 points={shown.trend.map((p) => ({
                   key: p.session.id,
                   label: `#${p.session.number}`,
@@ -181,9 +194,9 @@ export function InsightsView() {
                   detail: other(p),
                 }))}
                 format={fmt}
-                valueHeader={money ? "Revenue" : "Units sold"}
+                valueHeader={measureName}
               />
-              <p className="text-xs text-muted-foreground">Totals per session, not per day — longer sessions naturally sell more. Compare per day on the Compare tab.</p>
+              <p className="text-xs text-muted-foreground">{t("insights.trendNote")}</p>
             </section>
           )}
         </div>

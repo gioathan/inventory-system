@@ -1,8 +1,10 @@
+import { useTranslations } from "next-intl";
 import QRCode from "qrcode";
 
 // Built from the QR library's module matrix as a single <path>, rather than injecting its SVG
 // string as HTML — nothing here ever goes through dangerouslySetInnerHTML.
 export function QrSvg({ value, className }: { value: string; className?: string }) {
+  const t = useTranslations("labels");
   const { size, path } = (() => {
     const { modules } = QRCode.create(value, { errorCorrectionLevel: "M" });
     let d = "";
@@ -22,7 +24,7 @@ export function QrSvg({ value, className }: { value: string; className?: string 
       viewBox={`${-margin} ${-margin} ${size + margin * 2} ${size + margin * 2}`}
       shapeRendering="crispEdges"
       role="img"
-      aria-label={`QR code ${value}`}
+      aria-label={t("qrCode", { value })}
       className={className}
     >
       <rect x={-margin} y={-margin} width={size + margin * 2} height={size + margin * 2} fill="#fff" />

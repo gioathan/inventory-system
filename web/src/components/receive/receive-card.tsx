@@ -1,6 +1,7 @@
 "use client";
 
 import { Loader2, Minus, PackagePlus, Plus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { ItemImage } from "@/components/item-image";
 import { StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,8 @@ interface ReceiveCardProps {
 }
 
 export function ReceiveCard({ item, quantity, onQuantityChange, onConfirm, onClear, receiving }: ReceiveCardProps) {
+  const t = useTranslations("receive.card");
+  const tc = useTranslations("common");
   const onHand = item.quantityOnHand ?? 0;
   const level = stockLevel(item.quantityOnHand);
   const valid = quantity >= 1 && quantity <= MAX_RECEIVE_QUANTITY;
@@ -30,7 +33,7 @@ export function ReceiveCard({ item, quantity, onQuantityChange, onConfirm, onCle
     <div className="flex flex-col gap-5 rounded-2xl border bg-card p-4 sm:p-5">
       <div className="flex flex-wrap items-center gap-2">
         <StatusPill tone={level === "ok" ? "success" : level === "low" ? "warning" : "neutral"}>
-          {item.quantityOnHand === null ? "Not stocked yet" : `On hand · ${onHand}`}
+          {item.quantityOnHand === null ? tc("stockLevel.notStockedYet") : t("onHand", { count: onHand })}
         </StatusPill>
         <span className="ml-auto font-mono text-xs text-muted-foreground">{item.sku}</span>
       </div>
@@ -45,14 +48,14 @@ export function ReceiveCard({ item, quantity, onQuantityChange, onConfirm, onCle
 
       <div className="flex flex-col gap-3">
         <label htmlFor="receive-quantity" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Quantity to add
+          {t("quantityToAdd")}
         </label>
         <div className="flex items-center gap-2">
           <Button
             type="button"
             variant="outline"
             size="icon"
-            aria-label="Decrease quantity"
+            aria-label={t("decrease")}
             className="size-12"
             disabled={quantity <= 1 || receiving}
             onClick={() => onQuantityChange(clamp(quantity - 1))}
@@ -72,7 +75,7 @@ export function ReceiveCard({ item, quantity, onQuantityChange, onConfirm, onCle
             type="button"
             variant="outline"
             size="icon"
-            aria-label="Increase quantity"
+            aria-label={t("increase")}
             className="size-12"
             disabled={quantity >= MAX_RECEIVE_QUANTITY || receiving}
             onClick={() => onQuantityChange(clamp(quantity + 1))}
@@ -82,8 +85,8 @@ export function ReceiveCard({ item, quantity, onQuantityChange, onConfirm, onCle
         </div>
 
         {/* Quick adds for counting in cartons or pallets rather than tapping + repeatedly. */}
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Quick add">
-          <span className="text-xs text-muted-foreground">Add</span>
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("quickAdd")}>
+          <span className="text-xs text-muted-foreground">{t("add")}</span>
           {PRESETS.map((amount) => (
             <Button
               key={amount}
@@ -99,18 +102,18 @@ export function ReceiveCard({ item, quantity, onQuantityChange, onConfirm, onCle
         </div>
 
         <p className="text-sm text-muted-foreground">
-          New total{" "}
+          {t("newTotal")}{" "}
           <span className="font-semibold tabular-nums text-foreground">{valid ? onHand + quantity : "—"}</span>
         </p>
       </div>
 
       <Button type="button" className="h-14 text-base font-semibold" disabled={!valid || receiving} onClick={onConfirm}>
         {receiving ? <Loader2 className="size-5 animate-spin" /> : <PackagePlus className="size-5" />}
-        Add {valid ? quantity : ""} to stock
+        {t("addToStock", { quantity: valid ? quantity : "" })}
       </Button>
 
       <Button type="button" variant="ghost" className="h-11" disabled={receiving} onClick={onClear}>
-        Clear · scan next item
+        {t("clear")}
       </Button>
     </div>
   );

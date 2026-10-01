@@ -10,6 +10,7 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Download, ListPlus, Loader2, PackagePlus, Percent, Plus, Printer, Search, Tag, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -25,7 +26,7 @@ import { useCurrentSessionSales } from "@/hooks/use-restock-sessions";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { toCsv, downloadCsv } from "@/lib/csv";
 import { formatMoney, formatPercent } from "@/lib/format";
-import { ITEM_FILTERS, matchesSearch, type ItemFilter } from "@/lib/item-filters";
+import { ITEM_FILTERS, matchesSearch, useItemFilterOptions, type ItemFilter } from "@/lib/item-filters";
 import { stockLevel } from "@/lib/stock";
 import type { CatalogEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -37,20 +38,22 @@ const PAGE_SIZE = 25;
 const columnHelper = createColumnHelper<CatalogEntry>();
 
 function StockPill({ item }: { item: CatalogEntry }) {
+  const t = useTranslations("catalog");
   const level = stockLevel(item.quantityOnHand);
-  if (level === "out") return <StatusPill tone="danger">{item.quantityOnHand === null ? "Not stocked" : "Out"}</StatusPill>;
-  if (level === "low") return <StatusPill tone="warning">Low · {item.quantityOnHand}</StatusPill>;
+  if (level === "out") return <StatusPill tone="danger">{item.quantityOnHand === null ? t("list.stock.notStocked") : t("list.stock.out")}</StatusPill>;
+  if (level === "low") return <StatusPill tone="warning">{t("list.stock.low", { count: item.quantityOnHand! })}</StatusPill>;
   return <StatusPill tone="success">{item.quantityOnHand}</StatusPill>;
 }
 
 function PriceCell({ item }: { item: CatalogEntry }) {
+  const t = useTranslations("catalog");
   return (
     <div className="flex flex-col items-end leading-tight">
       <span className="font-medium tabular-nums">{formatMoney(item.effectivePrice)}</span>
       {item.discountPercentage !== null && (
         <span className="flex items-center gap-1 text-[0.7rem] tabular-nums text-warning">
           <Tag className="size-3" />
-          {formatPercent(item.discountPercentage)} off
+          {t("percentOff", { percent: formatPercent(item.discountPercentage) })}
         </span>
       )}
     </div>
@@ -69,6 +72,7 @@ export function CatalogView() {
   "use no memo";
 
   const router = useRouter();
+  const t = useTranslations("catalog");
   const pathname = usePathname();
   const params = useSearchParams();
   const items = useItems();
@@ -96,6 +100,7 @@ export function CatalogView() {
   const openEntry = openSku ? all.find((i) => i.sku === openSku) : undefined;
   const nameOf = (item: CatalogEntry) => (item.categoryId ? (categoryName.get(item.categoryId) ?? "") : "");
 
+  const filterOptions = useItemFilterOptions();
   const counts = useMemo(
     () => Object.fromEntries(ITEM_FILTERS.map((f) => [f.id, all.filter(f.matches).length])) as Record<ItemFilter, number>,
     [all],
@@ -114,7 +119,7 @@ export function CatalogView() {
         id: "select",
         header: ({ table }) => (
           <Checkbox
-            aria-label="Select all on this page"
+            aria-label={t("list.selectAll")}
             checked={table.getIsAllPageRowsSelected()}
             indeterminate={table.getIsSomePageRowsSelected()}
             onChange={table.getToggleAllPageRowsSelectedHandler()}
@@ -122,7 +127,7 @@ export function CatalogView() {
         ),
         cell: ({ row }) => (
           <Checkbox
-            aria-label={`Select ${row.original.name}`}
+            aria-label={t("list.selectItem", { name: row.original.name })}
             checked={row.getIsSelected()}
             onChange={row.getToggleSelectedHandler()}
             onClick={(event) => event.stopPropagation()}
@@ -133,7 +138,7 @@ export function CatalogView() {
       // no room for a column each, and this is the layout people expect from an item list.
       columnHelper.accessor("name", {
         id: "name",
-        header: "Item",
+        header: t("list.columns.item"),
         cell: ({ row }) => (
           <div className="flex items-center gap-3">
             <ItemImage src={row.original.imageUrl} alt="" className="size-10 rounded-lg" />
@@ -148,32 +153,32 @@ export function CatalogView() {
       }),
       columnHelper.accessor((item) => nameOf(item), {
         id: "category",
-        header: "Category",
+        header: t("fields.category"),
         cell: ({ getValue }) => <span className="text-muted-foreground">{getValue() || "—"}</span>,
       }),
       columnHelper.accessor("effectivePrice", {
         id: "price",
-        header: "Price",
+        header: t("fields.price"),
         meta: { align: "right" },
         cell: ({ row }) => <PriceCell item={row.original} />,
       }),
       columnHelper.accessor((item) => item.quantityOnHand ?? -1, {
         id: "stock",
-        header: "Stock",
+        header: t("fields.stock"),
         meta: { align: "right" },
         cell: ({ row }) => <StockPill item={row.original} />,
       }),
       // Sort by this to see what's selling right now. Only shown while a session is open.
       columnHelper.accessor((item) => soldBySku?.get(item.sku)?.sold ?? 0, {
         id: "sessionSold",
-        header: "Sold this session",
+        header: t("list.columns.sessionSold"),
         meta: { align: "right" },
         cell: ({ getValue }) => <span className={getValue() > 0 ? "font-medium tabular-nums" : "tabular-nums text-muted-foreground"}>{getValue()}</span>,
       }),
     ],
     // openItem/nameOf are recreated each render but only read current state via closures.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [categoryName, soldBySku],
+    [categoryName, soldBySku, t],
   );
 
   // Known, documented incompatibility (see the "use no memo" note above); this component is opted out.
@@ -229,23 +234,23 @@ export function CatalogView() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Items &amp; SKUs</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("list.title")}</h1>
           <p className="text-sm text-muted-foreground">
-            {items.isSuccess ? `${all.length} items in the catalog` : "Everything you sell, with live stock."}
+            {items.isSuccess ? t("list.itemCount", { count: all.length }) : t("list.subtitle")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" className="h-10 gap-2" onClick={exportCsv} disabled={!rows.length}>
             <Download className="size-4" />
-            Export CSV
+            {t("list.exportCsv")}
           </Button>
           <Link href="/catalog/bulk" className={cn(buttonVariants({ variant: "outline" }), "h-10 gap-2")}>
             <ListPlus className="size-4" />
-            Add multiple
+            {t("list.addMultiple")}
           </Link>
           <Link href="/catalog/new" className={cn(buttonVariants(), "h-10 gap-2")}>
             <Plus className="size-4" />
-            New SKU
+            {t("list.newSku")}
           </Link>
         </div>
       </div>
@@ -256,8 +261,8 @@ export function CatalogView() {
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            aria-label="Search items"
-            placeholder="Search by name, SKU, barcode or category"
+            aria-label={t("list.searchLabel")}
+            placeholder={t("list.searchPlaceholder")}
             autoComplete="off"
             spellCheck={false}
             className="h-11 pl-9 pr-10"
@@ -265,7 +270,7 @@ export function CatalogView() {
           {search && (
             <button
               type="button"
-              aria-label="Clear search"
+              aria-label={t("list.clearSearch")}
               onClick={() => setSearch("")}
               className="absolute right-2 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
             >
@@ -273,29 +278,29 @@ export function CatalogView() {
             </button>
           )}
         </div>
-        <FilterChips options={ITEM_FILTERS} value={filter} onChange={setFilter} counts={counts} />
+        <FilterChips options={filterOptions} value={filter} onChange={setFilter} counts={counts} />
       </div>
 
       {selectedSkus.length > 0 && (
-        <div role="region" aria-label="Bulk actions" className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/40 bg-primary/5 px-4 py-2.5">
-          <span className="mr-auto text-sm font-medium">{selectedSkus.length} selected</span>
+        <div role="region" aria-label={t("list.bulkActions")} className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/40 bg-primary/5 px-4 py-2.5">
+          <span className="mr-auto text-sm font-medium">{t("list.selected", { count: selectedSkus.length })}</span>
           <Button type="button" variant="outline" className="h-9 gap-2" onClick={() => setReceiveOpen(true)}>
             <PackagePlus className="size-4" />
-            Receive stock
+            {t("list.receiveStock")}
           </Button>
           <Button type="button" variant="outline" className="h-9 gap-2" onClick={() => setDiscountOpen(true)}>
             <Percent className="size-4" />
-            Batch discount
+            {t("list.batchDiscount")}
           </Button>
           <Link
             href={`/labels/print?${selectedSkus.map((s) => `sku=${encodeURIComponent(s)}`).join("&")}`}
             className={cn(buttonVariants({ variant: "outline" }), "h-9 gap-2")}
           >
             <Printer className="size-4" />
-            Print labels
+            {t("list.printLabels")}
           </Link>
           <Button type="button" variant="ghost" className="h-9" onClick={() => setRowSelection({})}>
-            Clear
+            {t("list.clear")}
           </Button>
         </div>
       )}
@@ -303,22 +308,22 @@ export function CatalogView() {
       <div className={cn("grid gap-6", isWide && openEntry && "lg:grid-cols-[minmax(0,1fr)_23rem]")}>
         <div className="min-w-0">
           {items.isPending ? (
-            <div className="flex flex-col gap-2" aria-label="Loading catalog">
+            <div className="flex flex-col gap-2" aria-label={t("list.loading")}>
               {Array.from({ length: 8 }, (_, i) => (
                 <div key={i} className="h-14 animate-pulse rounded-xl border bg-muted/40" />
               ))}
             </div>
           ) : items.isError ? (
             <div role="alert" className="flex flex-col items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-5 text-sm">
-              <p className="text-destructive">Couldn&apos;t load the catalog: {items.error.message}</p>
+              <p className="text-destructive">{t("list.loadError", { message: items.error.message })}</p>
               <Button type="button" variant="outline" onClick={() => items.refetch()}>
                 {items.isFetching && <Loader2 className="size-4 animate-spin" />}
-                Try again
+                {t("list.tryAgain")}
               </Button>
             </div>
           ) : total === 0 ? (
             <div className="flex min-h-48 items-center justify-center rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-              {all.length === 0 ? "No items yet. Add your first SKU to get started." : "No items match. Try a different search or filter."}
+              {all.length === 0 ? t("list.emptyCatalog") : t("list.noMatches")}
             </div>
           ) : (
             <>
@@ -390,14 +395,14 @@ export function CatalogView() {
                   const item = row.original;
                   return (
                     <li key={row.id} className={cn("flex items-center gap-3 rounded-xl border bg-card p-3", openSku === item.sku && "border-primary")}>
-                      <Checkbox aria-label={`Select ${item.name}`} checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
+                      <Checkbox aria-label={t("list.selectItem", { name: item.name })} checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
                       <button type="button" onClick={() => openItem(item.sku)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
                         <ItemImage src={item.imageUrl} alt="" className="size-12 rounded-lg" />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-medium">{item.name}</span>
                           <span className="block truncate font-mono text-xs text-muted-foreground">{item.sku}</span>
                           {sessionOpen && (soldBySku?.get(item.sku)?.sold ?? 0) > 0 && (
-                            <span className="block text-xs text-muted-foreground">{soldBySku!.get(item.sku)!.sold} sold this session</span>
+                            <span className="block text-xs text-muted-foreground">{t("list.soldThisSession", { count: soldBySku!.get(item.sku)!.sold })}</span>
                           )}
                         </span>
                         <span className="flex shrink-0 flex-col items-end gap-1">
@@ -412,13 +417,13 @@ export function CatalogView() {
 
               <div className="mt-4 flex items-center justify-between gap-3 text-sm text-muted-foreground">
                 <span aria-live="polite">
-                  {pageIndex * PAGE_SIZE + 1}–{Math.min((pageIndex + 1) * PAGE_SIZE, total)} of {total}
+                  {t("list.pageRange", { from: pageIndex * PAGE_SIZE + 1, to: Math.min((pageIndex + 1) * PAGE_SIZE, total), total })}
                 </span>
                 <div className="flex items-center gap-2">
-                  <Button type="button" variant="outline" size="icon" aria-label="Previous page" className="size-10" disabled={!table.getCanPreviousPage()} onClick={() => table.previousPage()}>
+                  <Button type="button" variant="outline" size="icon" aria-label={t("list.previousPage")} className="size-10" disabled={!table.getCanPreviousPage()} onClick={() => table.previousPage()}>
                     <ChevronLeft className="size-4" />
                   </Button>
-                  <Button type="button" variant="outline" size="icon" aria-label="Next page" className="size-10" disabled={!table.getCanNextPage()} onClick={() => table.nextPage()}>
+                  <Button type="button" variant="outline" size="icon" aria-label={t("list.nextPage")} className="size-10" disabled={!table.getCanNextPage()} onClick={() => table.nextPage()}>
                     <ChevronRight className="size-4" />
                   </Button>
                 </div>
@@ -434,7 +439,7 @@ export function CatalogView() {
       {!isWide && (
         <Sheet open={Boolean(openEntry)} onOpenChange={(open) => !open && closeItem()}>
           <SheetContent side="right" className="overflow-y-auto p-5 data-[side=right]:w-full data-[side=right]:sm:max-w-md">
-            <SheetTitle className="sr-only">Item details</SheetTitle>
+            <SheetTitle className="sr-only">{t("list.itemDetails")}</SheetTitle>
             {panel}
           </SheetContent>
         </Sheet>

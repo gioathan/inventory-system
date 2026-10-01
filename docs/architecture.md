@@ -672,6 +672,39 @@ per order. Purchase orders stay admin-only, matching the backend policy on the w
   actually present, so a new kind of entry needs no frontend change, and a failed sign-in is drawn
   in red. Sales, price and stock changes aren't recorded, and the page says so.
 
+### Languages — English and Greek (UI only)
+
+- **next-intl, without its i18n routing.** No `/en` or `/el` URL segments and no middleware: this
+  is an internal tool with no SEO need, and a locale prefix would touch every route and link. The
+  language is a **browser-scoped cookie** (`locale`), like the theme — not stored on the staff
+  account, so it resets on a new device. `src/i18n/request.ts` resolves it per request: cookie
+  first, then the browser's `Accept-Language` (a Greek browser gets Greek on first visit), then
+  English. The header toggle (and one on the login page, which has no shell) writes the cookie and
+  calls `router.refresh()`, since the root layout picks the messages server-side.
+- **What's translated:** everything the frontend itself authors — labels, buttons, headings,
+  aria-labels, validation and empty states, and the BFF login route's own errors. **What isn't:**
+  database content (item/category names, usernames, SKUs, barcodes) and error text that comes
+  from the backend services, which is passed through as-is. Making backend errors translatable
+  would need an error-code contract between services and frontend; not done yet. CSV import
+  column names are a file-format contract and stay English in both languages.
+- **Messages live in `src/messages/<locale>/<namespace>.json`**, one namespace per feature area
+  (catalog, receive, restock, …) mirroring `components/<feature>/`. English is the source of
+  truth: `src/i18n/types.ts` registers its shape with next-intl, so a typo'd or deleted key in
+  any `t()` call is a **tsc error**, and the same file fails to compile if a key exists in
+  English but not in Greek.
+- **Dates and relative times follow the UI language; money and plain numbers don't.** `timeAgo`
+  and `formatDateTime` produce words ("3 hours ago", month names), so they go through next-intl's
+  formatter (`useTimeFormat()` in `lib/time.ts`) in the UI language, in the viewer's own time
+  zone. `formatMoney` deliberately keeps the browser's locale — digits and separators aren't
+  prose, and someone reading a Greek UI on an English OS expects their usual number format.
+- **Data modules hold typed keys, not text.** `lib/navigation.ts` and `lib/item-filters.ts` can't
+  call hooks, so they store keys (typed against the English JSON) that the components resolve.
+- **e2e:** the suite asserts on English text, so `playwright.config.ts` pins `locale: "en-US"`
+  rather than inheriting the OS's. `09-language.spec.ts` toggles to Greek, signs in, and visits
+  every screen checking for raw message keys on screen (next-intl's fallback for a missing
+  message) and missing-message/hydration errors in the console; its expected Greek text is read
+  from the message files rather than duplicated in the test.
+
 Generated barcodes are 12-digit numeric strings. Labels for them must be **Code128, not
 EAN/UPC** — arbitrary 12 digits don't carry a valid UPC check digit. (Decoding existing
 manufacturer UPC/EAN barcodes works regardless.)

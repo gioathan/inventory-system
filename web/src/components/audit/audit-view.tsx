@@ -1,13 +1,14 @@
 "use client";
 
 import { Loader2, Search, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
+import { useCallback, useMemo, useState } from "react";
 import { FilterChips } from "@/components/filter-chips";
 import { StatusPill, type PillTone } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuditLog } from "@/hooks/use-admin-data";
-import { formatDateTime } from "@/lib/time";
+import { useTimeFormat } from "@/lib/time";
 
 const PAGE = 25;
 
@@ -15,12 +16,20 @@ const PAGE = 25;
 // (anything the backend starts recording later) fall back to neutral.
 const TONE: Record<string, PillTone> = { LoginFailed: "danger", UserCreated: "info", LoginSucceeded: "neutral" };
 
+// Actions with a translated label (audit.json "actions"); anything else falls back to humanize().
+const KNOWN_ACTIONS = ["LoginFailed", "LoginSucceeded", "UserCreated"] as const;
+type KnownAction = (typeof KNOWN_ACTIONS)[number];
+const isKnownAction = (action: string): action is KnownAction => (KNOWN_ACTIONS as readonly string[]).includes(action);
+
 // "UserCreated" -> "User created". New action names the backend starts recording read sensibly
-// without a code change here.
-const label = (action: string) => action.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase()).replace(/ ([A-Z])/g, (m) => m.toLowerCase());
+// without a code change here (in English only, until they're added to KNOWN_ACTIONS).
+const humanize = (action: string) => action.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase()).replace(/ ([A-Z])/g, (m) => m.toLowerCase());
 const detail = (details: string | null) => (details ? details.replace(/=/g, ": ").replace(/;\s*/g, " · ") : "—");
 
 export function AuditView() {
+  const t = useTranslations("audit");
+  const { formatDateTime } = useTimeFormat();
+  const label = useCallback((action: string) => (isKnownAction(action) ? t(`actions.${action}`) : humanize(action)), [t]);
   const log = useAuditLog();
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -31,8 +40,8 @@ export function AuditView() {
   // Built from what's actually in the log rather than a fixed list.
   const options = useMemo(() => {
     const actions = [...new Set(all.map((e) => e.action))].sort();
-    return [{ id: "all", label: "All" }, ...actions.map((a) => ({ id: a, label: label(a) }))];
-  }, [all]);
+    return [{ id: "all", label: t("all") }, ...actions.map((a) => ({ id: a, label: label(a) }))];
+  }, [all, label, t]);
   const counts = useMemo(() => {
     const result: Record<string, number> = { all: all.length };
     for (const entry of all) result[entry.action] = (result[entry.action] ?? 0) + 1;
@@ -44,16 +53,13 @@ export function AuditView() {
     return all
       .filter((e) => filter === "all" || e.action === filter)
       .filter((e) => !term || [e.username, e.action, label(e.action), e.details ?? ""].some((f) => f.toLowerCase().includes(term)));
-  }, [all, filter, search]);
+  }, [all, filter, search, label]);
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Audit log</h1>
-        <p className="text-sm text-muted-foreground">
-          Sign-ins (successful and failed) and staff account creation, newest first. Sales, price and stock
-          changes aren&apos;t tracked here yet.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
       </div>
 
       <div className="relative">
@@ -64,15 +70,15 @@ export function AuditView() {
             setSearch(event.target.value);
             setShown(PAGE);
           }}
-          aria-label="Search the audit log"
-          placeholder="Search by person, action or detail"
+          aria-label={t("searchLabel")}
+          placeholder={t("searchPlaceholder")}
           autoComplete="off"
           className="h-11 pl-9 pr-10"
         />
         {search && (
           <button
             type="button"
-            aria-label="Clear search"
+            aria-label={t("clearSearch")}
             onClick={() => setSearch("")}
             className="absolute right-2 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
           >
@@ -94,28 +100,27 @@ export function AuditView() {
       )}
 
       {log.isPending ? (
-        <div className="flex flex-col gap-2" aria-label="Loading the audit log">
+        <div className="flex flex-col gap-2" aria-label={t("loading")}>
           {Array.from({ length: 5 }, (_, i) => (
             <div key={i} className="h-14 animate-pulse rounded-xl border bg-muted/40" />
           ))}
         </div>
       ) : log.isError ? (
         <div role="alert" className="flex flex-col items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-5 text-sm">
-          <p className="text-destructive">Couldn&apos;t load the audit log: {log.error.message}</p>
+          <p className="text-destructive">{t("loadError", { message: log.error.message })}</p>
           <Button type="button" variant="outline" onClick={() => log.refetch()}>
             {log.isFetching && <Loader2 className="size-4 animate-spin" />}
-            Try again
+            {t("tryAgain")}
           </Button>
         </div>
       ) : visible.length === 0 ? (
         <div className="flex min-h-40 items-center justify-center rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-          {all.length === 0 ? "Nothing has been recorded yet." : "No entries match. Try a different search or filter."}
+          {all.length === 0 ? t("emptyLog") : t("noMatches")}
         </div>
       ) : (
         <>
           <p aria-live="polite" className="text-sm text-muted-foreground">
-            {visible.length} {visible.length === 1 ? "entry" : "entries"}
-            {all.length >= 200 && " (the most recent 200 are kept)"}
+            {t("entryCount", { count: visible.length, capped: String(all.length >= 200) })}
           </p>
           <ul className="divide-y rounded-2xl border bg-card">
             {visible.slice(0, shown).map((entry) => (
@@ -136,7 +141,7 @@ export function AuditView() {
           </ul>
           {visible.length > shown && (
             <Button type="button" variant="outline" className="h-10 self-center" onClick={() => setShown((n) => n + PAGE)}>
-              Show more
+              {t("showMore")}
             </Button>
           )}
         </>

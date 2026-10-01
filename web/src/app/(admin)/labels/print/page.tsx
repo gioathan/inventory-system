@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { PrintLabels } from "@/components/labels/print-labels";
 
-export const metadata: Metadata = { title: "Print labels" };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("labels");
+  return { title: t("title") };
+}
 
 // Capped so a hand-edited URL can't ask the browser to lay out an absurd number of labels.
 const MAX_SKUS = 500;

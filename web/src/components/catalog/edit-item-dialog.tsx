@@ -3,7 +3,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ImageUp, Loader2 } from "lucide-react";
-import { useEffect } from "react";
+import { useTranslations } from "next-intl";
+import { useEffect, useMemo } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { FormField } from "@/components/form-field";
@@ -29,21 +30,26 @@ function isHttpUrl(value: string) {
 // Same field-level rules as NewItemForm, minus quantity (stock isn't edited here) and with
 // barcode required — unlike creating an item, there's already one to keep unless this edit
 // changes it.
-const schema = z.object({
-  name: z.string().trim().min(1, "Enter a name.").max(200, "Keep it under 200 characters."),
-  price: z
-    .string()
-    .trim()
-    .regex(/^\d{1,7}(\.\d{1,2})?$/, "Enter a price like 12.99.")
-    .refine((v) => Number(v) > 0, "The price must be more than 0."),
-  categoryId: z.string(),
-  barcode: z.string().trim().regex(/^[A-Za-z0-9._-]{1,64}$/, "Use letters, digits, . _ or - only (up to 64)."),
-  imageUrl: z
-    .string()
-    .trim()
-    .refine((v) => v === "" || isHttpUrl(v), "Enter a full web address starting with http:// or https://."),
-});
-type FormValues = z.infer<typeof schema>;
+// Built inside the component (memoized) rather than at module level: its messages come from the
+// active locale's translations, which are only reachable through a hook.
+type CatalogT = ReturnType<typeof useTranslations<"catalog">>;
+function makeSchema(t: CatalogT) {
+  return z.object({
+    name: z.string().trim().min(1, t("validation.nameRequired")).max(200, t("validation.nameTooLong")),
+    price: z
+      .string()
+      .trim()
+      .regex(/^\d{1,7}(\.\d{1,2})?$/, t("validation.priceFormat"))
+      .refine((v) => Number(v) > 0, t("validation.pricePositive")),
+    categoryId: z.string(),
+    barcode: z.string().trim().regex(/^[A-Za-z0-9._-]{1,64}$/, t("validation.barcodeFormat")),
+    imageUrl: z
+      .string()
+      .trim()
+      .refine((v) => v === "" || isHttpUrl(v), t("validation.imageUrl")),
+  });
+}
+type FormValues = z.infer<ReturnType<typeof makeSchema>>;
 
 // A full replace of the editable fields, matching the backend's own PUT semantics — every field
 // is resubmitted, not just the ones the admin touched. Sku is shown but never editable: it's the
@@ -62,6 +68,9 @@ export function EditItemDialog({
 }) {
   const queryClient = useQueryClient();
   const categories = useCategories();
+  const t = useTranslations("catalog");
+  const tc = useTranslations("common");
+  const schema = useMemo(() => makeSchema(t), [t]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -99,11 +108,11 @@ export function EditItemDialog({
     },
     onError: (error) => {
       if (error instanceof ApiError && error.status === 409) {
-        setError("barcode", { message: "Another item already uses that barcode." });
+        setError("barcode", { message: t("edit.barcodeTaken") });
       } else if (error instanceof ApiError && error.status === 400 && /barcode/i.test(error.message)) {
         setError("barcode", { message: error.message });
       } else {
-        setError("root", { message: error instanceof Error ? error.message : "Couldn't save the changes. Try again." });
+        setError("root", { message: error instanceof Error ? error.message : t("edit.saveFailed") });
       }
     },
   });
@@ -118,10 +127,12 @@ export function EditItemDialog({
     >
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Edit item</DialogTitle>
+          <DialogTitle>{t("edit.title")}</DialogTitle>
           <DialogDescription>
-            SKU <span className="font-mono">{item.sku}</span> stays the same — it&apos;s the key stock, purchase orders and printed
-            labels already carry for this item.
+            {t.rich("edit.description", {
+              sku: item.sku,
+              mono: (chunks) => <span className="font-mono">{chunks}</span>,
+            })}
           </DialogDescription>
         </DialogHeader>
 
@@ -132,34 +143,34 @@ export function EditItemDialog({
           className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_11rem]"
         >
           <div className="flex flex-col gap-4">
-            <FormField id="edit-name" label="Name" error={errors.name?.message}>
+            <FormField id="edit-name" label={t("fields.name")} error={errors.name?.message}>
               <Input id="edit-name" autoComplete="off" aria-invalid={!!errors.name} aria-describedby="edit-name-msg" className="h-11" {...register("name")} />
             </FormField>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <FormField id="edit-price" label="Price" error={errors.price?.message}>
+              <FormField id="edit-price" label={t("fields.price")} error={errors.price?.message}>
                 <Input id="edit-price" inputMode="decimal" autoComplete="off" aria-invalid={!!errors.price} aria-describedby="edit-price-msg" className="h-11" {...register("price")} />
               </FormField>
               <FormField
                 id="edit-categoryId"
-                label="Category"
-                hint={categories.isError ? "Couldn't load categories." : undefined}
+                label={t("fields.category")}
+                hint={categories.isError ? t("edit.categoriesError") : undefined}
               >
                 <Combobox
                   id="edit-categoryId"
                   aria-describedby="edit-categoryId-msg"
                   value={categoryId}
                   onValueChange={(v) => setValue("categoryId", v, { shouldValidate: true, shouldDirty: true })}
-                  options={[{ value: "", label: "No category" }, ...(categories.data ?? []).map((c) => ({ value: c.id, label: c.name }))]}
+                  options={[{ value: "", label: t("fields.noCategory") }, ...(categories.data ?? []).map((c) => ({ value: c.id, label: c.name }))]}
                 />
               </FormField>
             </div>
 
             <FormField
               id="edit-barcode"
-              label="Barcode"
+              label={t("fields.barcode")}
               error={errors.barcode?.message}
-              hint="Changing this won't update labels already printed with the old one."
+              hint={t("edit.barcodeHint")}
             >
               <Input
                 id="edit-barcode"
@@ -181,7 +192,7 @@ export function EditItemDialog({
           </div>
 
           <div className="flex flex-col gap-3">
-            <FormField id="edit-imageUrl" label="Image" error={errors.imageUrl?.message} hint="Paste an address, or upload a file.">
+            <FormField id="edit-imageUrl" label={t("fields.image")} error={errors.imageUrl?.message} hint={t("edit.imageHint")}>
               <Input
                 id="edit-imageUrl"
                 inputMode="url"
@@ -201,13 +212,13 @@ export function EditItemDialog({
               type="file"
               accept="image/*"
               className="sr-only"
-              aria-label="Upload an image file"
+              aria-label={t("image.uploadAria")}
               tabIndex={-1}
               onChange={onFileInputChange}
             />
             <Button type="button" variant="outline" className="h-10 gap-2" disabled={uploading} onClick={pick}>
               {uploading ? <Loader2 className="size-4 animate-spin" /> : <ImageUp className="size-4" />}
-              {uploading ? "Uploading…" : "Upload a file"}
+              {uploading ? t("image.uploading") : t("image.uploadFile")}
             </Button>
             {uploadError && (
               <p role="alert" className="text-sm text-destructive">
@@ -215,17 +226,17 @@ export function EditItemDialog({
               </p>
             )}
 
-            <ItemImage src={imageUrl && isHttpUrl(imageUrl) ? imageUrl : null} alt="Item preview" className="size-28 self-center" />
+            <ItemImage src={imageUrl && isHttpUrl(imageUrl) ? imageUrl : null} alt={t("image.preview")} className="size-28 self-center" />
           </div>
         </form>
 
         <DialogFooter>
           <Button type="button" variant="ghost" className="h-10" onClick={() => onOpenChange(false)} disabled={save.isPending}>
-            Cancel
+            {tc("actions.cancel")}
           </Button>
           <Button type="submit" form="edit-item-form" className="h-10" disabled={save.isPending || uploading}>
             {save.isPending && <Loader2 className="size-4 animate-spin" />}
-            Save changes
+            {t("edit.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

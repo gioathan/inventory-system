@@ -1,0 +1,39 @@
+{
+  "title": "Staff accounts",
+  "subtitle": "Who can sign in, and what they can do.",
+  "addStaff": "Add staff",
+  "loading": "Loading staff",
+  "loadError": "Couldn't load staff: {message}",
+  "tryAgain": "Try again",
+  "username": "Username",
+  "role": "Role",
+  "created": "Created",
+  "you": "(you)",
+  "added": "Added {date}",
+  "footnote": "Accounts can't be removed, and passwords and roles can't be changed after creation yet.",
+  "createdNotice": "Created the {role, select, Admin {admin} Seller {seller} other {{role}}} account “{username}”.",
+  "roles": {
+    "Admin": "Admin",
+    "Seller": "Seller"
+  },
+  "dialog": {
+    "title": "Add a staff account",
+    "description": "They sign in with this username and password. Share the password with them directly.",
+    "password": "Password",
+    "passwordHint": "At least 8 characters.",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "confirmPassword": "Confirm password",
+    "adminHint": "Admins can see and change everything, including staff accounts.",
+    "sellerHint": "Sellers can scan, sell, receive stock and look items up. They can't reach the back office.",
+    "create": "Create account",
+    "usernameTaken": "That username is already taken.",
+    "createFailed": "Couldn't create the account."
+  },
+  "validation": {
+    "username": "Use 3 to 50 characters: letters, digits, . _ or -.",
+    "passwordMin": "Use at least 8 characters.",
+    "passwordMax": "Keep it under 128 characters.",
+    "mismatch": "The passwords don't match."
+  }
+}

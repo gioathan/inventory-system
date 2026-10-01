@@ -1,0 +1,48 @@
+{
+  "title": "Scan & Sell",
+  "subtitle": "Scan an item, check the stock, then confirm the sale.",
+  "lookingUp": "Looking up item",
+  "readyToScan": "Ready to scan. The item appears here.",
+  "salesThisSession": "Sales this session",
+  "thisSession": "This session",
+  "sessionTotal": "{total} total",
+  "sold": "Sold {quantity} × {name} · {left} left",
+  "saleFailed": "The sale didn't go through.",
+  "lookup": {
+    "notFound": "No item found for barcode {barcode}. It needs to be added to the catalog first.",
+    "failed": "Couldn't look that up. Try again."
+  },
+  "input": {
+    "scanWithCamera": "Scan with camera",
+    "barcodeLabel": "Barcode",
+    "placeholder": "Scan or type a barcode",
+    "lookUp": "Look up"
+  },
+  "camera": {
+    "insecure": "The camera needs a secure (HTTPS) connection. You can still type or scan a code with a hardware scanner.",
+    "unsupported": "This browser can't use the camera.",
+    "blocked": "Camera access was blocked. Allow it in your browser's site settings, or type the code instead.",
+    "notFound": "No camera was found on this device.",
+    "inUse": "The camera is in use by another app.",
+    "failed": "Couldn't start the camera. You can still type or scan a code.",
+    "live": "Camera live",
+    "starting": "Starting camera…",
+    "torchOn": "Turn torch on",
+    "torchOff": "Turn torch off",
+    "switch": "Switch camera",
+    "close": "Close camera"
+  },
+  "product": {
+    "lowStockLeft": "Low stock · {count} left",
+    "inStockUnits": "In stock · {count} units",
+    "soldThisSession": "{count} sold this session",
+    "percentOff": "{percent} off",
+    "quantity": "Quantity",
+    "total": "Total {total}",
+    "decrease": "Decrease quantity",
+    "increase": "Increase quantity",
+    "confirmSale": "Confirm sale · {total}",
+    "cantSell": "This item can't be sold right now — there's no stock on hand.",
+    "clear": "Clear · scan next item"
+  }
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { LayoutDashboard } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Wordmark } from "@/components/brand";
@@ -19,16 +20,17 @@ export function SellerShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const t = useTranslations("nav");
 
   // An admin can use the seller screens too; give them a way back to their console.
   const items: NavItem[] =
-    role === "Admin" ? [...SELLER_NAV, { href: "/dashboard", label: "Console", icon: LayoutDashboard }] : SELLER_NAV;
+    role === "Admin" ? [...SELLER_NAV, { href: "/dashboard", labelKey: "items.console", icon: LayoutDashboard }] : SELLER_NAV;
 
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
       {/* Bottom tab bar on phones (thumb reach), left rail from md up. */}
       <nav
-        aria-label="Main"
+        aria-label={t("mainLabel")}
         className={cn(
           "fixed inset-x-0 bottom-0 z-40 flex border-t bg-card/95 backdrop-blur",
           "pb-[env(safe-area-inset-bottom)]",
@@ -38,7 +40,7 @@ export function SellerShell({
         <div className="hidden justify-center pb-3 md:flex">
           <Wordmark className="[&>span:last-child]:hidden" />
         </div>
-        {items.map(({ href, label, icon: Icon }) => {
+        {items.map(({ href, labelKey, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link
@@ -52,7 +54,7 @@ export function SellerShell({
               )}
             >
               <Icon className="size-5" />
-              {label}
+              {t(labelKey)}
             </Link>
           );
         })}

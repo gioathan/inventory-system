@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { backendUrl } from "@/lib/config";
@@ -11,9 +12,12 @@ const LoginBody = z.object({
 });
 
 export async function POST(request: Request) {
+  // Same locale cookie the pages read, so the login form's error comes back in the language the
+  // person is looking at.
+  const t = await getTranslations("auth");
   const parsed = LoginBody.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Enter a username and password." }, { status: 400 });
+    return NextResponse.json({ error: t("enterCredentials") }, { status: 400 });
   }
 
   let upstream: Response;
@@ -25,20 +29,20 @@ export async function POST(request: Request) {
       signal: AbortSignal.timeout(15_000),
     });
   } catch {
-    return NextResponse.json({ error: "Can't reach the server. Try again in a moment." }, { status: 502 });
+    return NextResponse.json({ error: t("serverUnreachable") }, { status: 502 });
   }
 
   if (upstream.status === 401) {
-    return NextResponse.json({ error: "Incorrect username or password." }, { status: 401 });
+    return NextResponse.json({ error: t("incorrectCredentials") }, { status: 401 });
   }
   if (!upstream.ok) {
-    return NextResponse.json({ error: "Sign-in failed. Try again." }, { status: 502 });
+    return NextResponse.json({ error: t("signInFailed") }, { status: 502 });
   }
 
   const { accessToken, expiresAt } = (await upstream.json()) as { accessToken: string; expiresAt: string };
   const claims = decodeSessionToken(accessToken);
   if (!claims) {
-    return NextResponse.json({ error: "Sign-in failed. Try again." }, { status: 502 });
+    return NextResponse.json({ error: t("signInFailed") }, { status: 502 });
   }
 
   await setSessionCookie(accessToken, new Date(expiresAt));

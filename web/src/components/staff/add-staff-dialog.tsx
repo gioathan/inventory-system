@@ -3,7 +3,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useTranslations } from "next-intl";
+import { useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { FormField } from "@/components/form-field";
@@ -15,16 +16,19 @@ import { ApiError, apiFetch } from "@/lib/api";
 import type { StaffUser } from "@/lib/types";
 
 // The same rules the backend enforces (Staff.Api rejects anything else with a 400), checked here
-// first so a typo is caught before a round trip.
-const schema = z
-  .object({
-    username: z.string().trim().regex(/^[A-Za-z0-9._-]{3,50}$/, "Use 3 to 50 characters: letters, digits, . _ or -."),
-    password: z.string().min(8, "Use at least 8 characters.").max(128, "Keep it under 128 characters."),
-    confirm: z.string(),
-    role: z.enum(["Seller", "Admin"]),
-  })
-  .refine((v) => v.password === v.confirm, { path: ["confirm"], message: "The passwords don't match." });
-type FormValues = z.infer<typeof schema>;
+// first so a typo is caught before a round trip. Built from `t` (rather than at module level) so
+// the validation messages follow the UI language.
+function makeSchema(t: ReturnType<typeof useTranslations<"staff.validation">>) {
+  return z
+    .object({
+      username: z.string().trim().regex(/^[A-Za-z0-9._-]{3,50}$/, t("username")),
+      password: z.string().min(8, t("passwordMin")).max(128, t("passwordMax")),
+      confirm: z.string(),
+      role: z.enum(["Seller", "Admin"]),
+    })
+    .refine((v) => v.password === v.confirm, { path: ["confirm"], message: t("mismatch") });
+}
+type FormValues = z.infer<ReturnType<typeof makeSchema>>;
 
 export function AddStaffDialog({
   open,
@@ -35,6 +39,10 @@ export function AddStaffDialog({
   onOpenChange: (open: boolean) => void;
   onCreated: (user: StaffUser) => void;
 }) {
+  const t = useTranslations("staff");
+  const tv = useTranslations("staff.validation");
+  const tc = useTranslations("common");
+  const schema = useMemo(() => makeSchema(tv), [tv]);
   const queryClient = useQueryClient();
   const [showPassword, setShowPassword] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -64,9 +72,9 @@ export function AddStaffDialog({
     },
     onError: (error) => {
       if (error instanceof ApiError && error.status === 409) {
-        setError("username", { message: "That username is already taken." });
+        setError("username", { message: t("dialog.usernameTaken") });
       } else {
-        setSubmitError(error instanceof Error ? error.message : "Couldn't create the account.");
+        setSubmitError(error instanceof Error ? error.message : t("dialog.createFailed"));
       }
     },
   });
@@ -86,8 +94,8 @@ export function AddStaffDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add a staff account</DialogTitle>
-          <DialogDescription>They sign in with this username and password. Share the password with them directly.</DialogDescription>
+          <DialogTitle>{t("dialog.title")}</DialogTitle>
+          <DialogDescription>{t("dialog.description")}</DialogDescription>
         </DialogHeader>
 
         <form
@@ -98,7 +106,7 @@ export function AddStaffDialog({
           })}
           className="flex flex-col gap-4"
         >
-          <FormField id="staff-username" label="Username" error={errors.username?.message}>
+          <FormField id="staff-username" label={t("username")} error={errors.username?.message}>
             <Input
               id="staff-username"
               autoComplete="off"
@@ -111,7 +119,7 @@ export function AddStaffDialog({
             />
           </FormField>
 
-          <FormField id="staff-password" label="Password" error={errors.password?.message} hint="At least 8 characters.">
+          <FormField id="staff-password" label={t("dialog.password")} error={errors.password?.message} hint={t("dialog.passwordHint")}>
             <div className="relative">
               <Input
                 id="staff-password"
@@ -124,7 +132,7 @@ export function AddStaffDialog({
               />
               <button
                 type="button"
-                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-label={showPassword ? t("dialog.hidePassword") : t("dialog.showPassword")}
                 aria-pressed={showPassword}
                 onClick={() => setShowPassword((v) => !v)}
                 className="absolute right-1.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -134,7 +142,7 @@ export function AddStaffDialog({
             </div>
           </FormField>
 
-          <FormField id="staff-confirm" label="Confirm password" error={errors.confirm?.message}>
+          <FormField id="staff-confirm" label={t("dialog.confirmPassword")} error={errors.confirm?.message}>
             <Input
               id="staff-confirm"
               type={showPassword ? "text" : "password"}
@@ -146,18 +154,10 @@ export function AddStaffDialog({
             />
           </FormField>
 
-          <FormField
-            id="staff-role"
-            label="Role"
-            hint={
-              role === "Admin"
-                ? "Admins can see and change everything, including staff accounts."
-                : "Sellers can scan, sell, receive stock and look items up. They can't reach the back office."
-            }
-          >
+          <FormField id="staff-role" label={t("role")} hint={role === "Admin" ? t("dialog.adminHint") : t("dialog.sellerHint")}>
             <NativeSelect id="staff-role" aria-describedby="staff-role-msg" {...register("role")}>
-              <option value="Seller">Seller</option>
-              <option value="Admin">Admin</option>
+              <option value="Seller">{t("roles.Seller")}</option>
+              <option value="Admin">{t("roles.Admin")}</option>
             </NativeSelect>
           </FormField>
 
@@ -169,11 +169,11 @@ export function AddStaffDialog({
 
           <DialogFooter>
             <Button type="button" variant="ghost" className="h-10" disabled={create.isPending} onClick={() => onOpenChange(false)}>
-              Cancel
+              {tc("actions.cancel")}
             </Button>
             <Button type="submit" className="h-10" disabled={create.isPending}>
               {create.isPending && <Loader2 className="size-4 animate-spin" />}
-              Create account
+              {t("dialog.create")}
             </Button>
           </DialogFooter>
         </form>

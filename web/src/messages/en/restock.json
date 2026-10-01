@@ -1,0 +1,179 @@
+{
+  "metaTitle": "Restock sessions",
+  "page": {
+    "title": "Restock sessions",
+    "intro": "A session is one restocking period. Starting a new one ends the previous one, and everything received or sold in between is counted in that session.",
+    "tabsLabel": "Restock sessions views",
+    "tabs": {
+      "sessions": "Sessions",
+      "compare": "Compare",
+      "insights": "Insights"
+    }
+  },
+  "actions": {
+    "startSession": "Start session",
+    "startNewSession": "Start new session",
+    "closeSession": "Close session",
+    "allSessions": "All sessions"
+  },
+  "label": {
+    "base": "#{number} · {date}",
+    "withNote": "#{number} · {date} · {note}",
+    "open": "{label} (open)"
+  },
+  "categories": {
+    "none": "No category",
+    "unknown": "Unknown category"
+  },
+  "loadingSessions": "Loading sessions",
+  "sessions": {
+    "currentOpen": "Session #{number} is open.",
+    "noneOpen": "No session is open right now.",
+    "loadError": "Couldn't load sessions: {message}",
+    "empty": "No restock sessions yet. Start one when a delivery comes in.",
+    "listLabel": "Sessions",
+    "name": "Session #{number}",
+    "open": "Open",
+    "closed": "Closed",
+    "duration": {
+      "days": "{count} days",
+      "hours": "{count} h",
+      "minutes": "{count} min"
+    },
+    "closeTitle": "Close session #{number}?",
+    "closeDescription": "Receives from now on won't belong to any session until a new one starts. Its report stops counting at this moment."
+  },
+  "report": {
+    "label": "Session #{number} report",
+    "range": "{from} → {to}",
+    "nowStillOpen": "now (still open)",
+    "received": "Received",
+    "sold": "Sold",
+    "revenue": "Revenue",
+    "loading": "Loading report…",
+    "loadError": "Couldn't load this report: {message}",
+    "empty": "Nothing was received or sold during this session.",
+    "itemsLabel": "Session #{number} items",
+    "columns": {
+      "item": "Item",
+      "start": "Start",
+      "received": "Received",
+      "sold": "Sold",
+      "end": "End",
+      "revenue": "Revenue"
+    },
+    "removedItem": "Removed item",
+    "revenueNote": "Revenue is what customers paid at each sale.",
+    "revenueNoteEstimated": "Revenue is what customers paid at each sale. ≈ marks items with sales from before prices were recorded, valued at today's price."
+  },
+  "startDialog": {
+    "title": "Start a restock session",
+    "endsCurrent": "This ends the session that opened {time}. Everything received from now on is logged to the new one.",
+    "noCurrent": "Everything received from now on is logged to this session, until the next one starts.",
+    "note": "Note",
+    "noteHint": "Optional, e.g. the supplier or delivery.",
+    "noteTooLong": "Keep it under 200 characters."
+  },
+  "banner": {
+    "loading": "Loading restock session",
+    "label": "Restock session",
+    "open": "Restock session open",
+    "openWithNote": "Restock session open · {note}",
+    "since": "Since {date} ({ago}). Everything you receive is logged to it.",
+    "none": "No restock session open",
+    "adminHint": "Start one to group this delivery's receives for reporting.",
+    "sellerHint": "Receives still count; an admin can start a session to group them."
+  },
+  "compare": {
+    "filters": {
+      "all": "All",
+      "up": "Selling more",
+      "down": "Selling less",
+      "new": "New sellers",
+      "stopped": "Stopped selling",
+      "soldout": "Sold out"
+    },
+    "dayOrLess": "a day or less",
+    "days": "{days} days",
+    "lengths": "Lengths: {a} vs {b}. Per day divides by each session's length (anything under a day counts as one day), so sessions of different lengths compare fairly.",
+    "change": {
+      "up": "up",
+      "down": "down",
+      "none": "no change"
+    },
+    "needTwo": "Comparing needs at least two sessions. Start another one when the next delivery comes in.",
+    "compare": "Compare",
+    "with": "with",
+    "firstSession": "First session",
+    "secondSession": "Second session",
+    "perDay": "Per day",
+    "loadError": "Couldn't load a report: {message}",
+    "loading": "Loading reports…",
+    "kpi": {
+      "unitsSold": "Units sold",
+      "revenue": "Revenue",
+      "unitsReceived": "Units received",
+      "itemsSold": "Items sold",
+      "perDay": "{label} / day",
+      "was": "was {value}"
+    },
+    "byLabel": "Compare by",
+    "byItem": "By item",
+    "byCategory": "By category",
+    "searchItems": "Search items",
+    "searchCategories": "Search categories",
+    "noMatches": "Nothing matches.",
+    "tableLabel": "Comparison",
+    "columns": {
+      "item": "Item",
+      "category": "Category",
+      "soldIn": "Sold #{number}",
+      "change": "Change",
+      "revenue": "Revenue #{a} → #{b}"
+    },
+    "tags": {
+      "newSeller": "New seller",
+      "stopped": "Stopped selling",
+      "soldOutIn": "Sold out in #{number}"
+    }
+  },
+  "insights": {
+    "scopes": {
+      "latest": "Latest",
+      "last": "Last {count}",
+      "all": "All"
+    },
+    "scopeLabel": "Sessions to include",
+    "measureLabel": "Measure",
+    "unitsSold": "Units sold",
+    "revenue": "Revenue",
+    "itemsSold": "Items sold",
+    "empty": "No sessions yet. Insights appear once sessions have sales in them.",
+    "single": "Session {label}",
+    "range": "{count} sessions, #{from} to #{to}",
+    "estimatedNote": "≈ revenue includes sales from before prices were recorded, valued at today's price",
+    "loadError": "Couldn't load a session report: {message}",
+    "loading": "Loading insights",
+    "topItemsLabel": "Top items",
+    "topCategoriesLabel": "Top categories",
+    "topItemsByUnits": "Top items by units sold",
+    "topItemsByRevenue": "Top items by revenue",
+    "topCategoriesByUnits": "Top categories by units sold",
+    "topCategoriesByRevenue": "Top categories by revenue",
+    "item": "Item",
+    "category": "Category",
+    "noSales": "Nothing sold in these sessions.",
+    "currentCategory": "Uses each item's current category.",
+    "trendLabel": "Trend across sessions",
+    "unitsPerSession": "Units sold per session",
+    "revenuePerSession": "Revenue per session",
+    "sessionsLabel": "Sessions",
+    "trendNote": "Totals per session, not per day — longer sessions naturally sell more. Compare per day on the Compare tab.",
+    "soldDetail": "{count} sold"
+  },
+  "charts": {
+    "showNumbers": "Show the numbers",
+    "other": "Other",
+    "session": "Session"
+  }
+}

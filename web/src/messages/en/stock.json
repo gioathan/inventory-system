@@ -1,0 +1,20 @@
+{
+  "title": "Stock",
+  "subtitle": "Look up any item. A hardware scanner works in the search box too.",
+  "refresh": "Refresh stock",
+  "searchLabel": "Search items",
+  "searchPlaceholder": "Search by name, SKU or barcode",
+  "clearSearch": "Clear search",
+  "loading": "Loading stock",
+  "loadFailed": "Couldn't load stock: {error}",
+  "tryAgain": "Try again",
+  "emptyCatalog": "No items in the catalog yet.",
+  "noMatches": "No items match. Try a different search or filter.",
+  "itemCount": "{count, plural, one {# item} other {# items}}",
+  "card": {
+    "soldThisSession": "{count} sold this session",
+    "lowLeft": "Low · {count} left",
+    "inStock": "{count} in stock",
+    "receive": "Receive"
+  }
+}

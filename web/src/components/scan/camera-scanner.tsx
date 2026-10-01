@@ -2,33 +2,36 @@
 
 import type { IScannerControls } from "@zxing/browser";
 import { CameraOff, Loader2, SwitchCamera, X, Zap } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type Status = "starting" | "live" | "error";
 type Facing = "environment" | "user";
+// Keys under scan.camera; state holds the key, the text is resolved at render (so it follows the UI language).
+type CameraProblem = "insecure" | "unsupported" | "blocked" | "notFound" | "inUse" | "failed";
 
 // The camera API only exists in a secure context (HTTPS or localhost). On a phone reaching the
 // dev machine by LAN IP over plain http it silently doesn't exist, which is far more confusing
 // than a clear message.
-function cameraSupportProblem(): string | null {
+function cameraSupportProblem(): CameraProblem | null {
   if (typeof window === "undefined") return null;
   if (!window.isSecureContext) {
-    return "The camera needs a secure (HTTPS) connection. You can still type or scan a code with a hardware scanner.";
+    return "insecure";
   }
-  if (!navigator.mediaDevices?.getUserMedia) return "This browser can't use the camera.";
+  if (!navigator.mediaDevices?.getUserMedia) return "unsupported";
   return null;
 }
 
-function describeCameraError(error: unknown): string {
+function describeCameraError(error: unknown): CameraProblem {
   const name = error instanceof DOMException ? error.name : "";
   if (name === "NotAllowedError") {
-    return "Camera access was blocked. Allow it in your browser's site settings, or type the code instead.";
+    return "blocked";
   }
-  if (name === "NotFoundError" || name === "OverconstrainedError") return "No camera was found on this device.";
-  if (name === "NotReadableError") return "The camera is in use by another app.";
-  return "Couldn't start the camera. You can still type or scan a code.";
+  if (name === "NotFoundError" || name === "OverconstrainedError") return "notFound";
+  if (name === "NotReadableError") return "inUse";
+  return "failed";
 }
 
 interface CameraScannerProps {
@@ -37,6 +40,7 @@ interface CameraScannerProps {
 }
 
 export function CameraScanner({ onScan, onClose }: CameraScannerProps) {
+  const t = useTranslations("scan.camera");
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
   const onScanRef = useRef(onScan);
@@ -47,7 +51,7 @@ export function CameraScanner({ onScan, onClose }: CameraScannerProps) {
   const [problem] = useState(cameraSupportProblem);
   const [facing, setFacing] = useState<Facing>("environment");
   const [status, setStatus] = useState<Status>(problem ? "error" : "starting");
-  const [error, setError] = useState<string | null>(problem);
+  const [error, setError] = useState<CameraProblem | null>(problem);
   const [torch, setTorch] = useState({ supported: false, on: false });
   const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
 
@@ -163,7 +167,7 @@ export function CameraScanner({ onScan, onClose }: CameraScannerProps) {
           </div>
           <div className="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 text-[0.7rem] font-medium text-white">
             <span className="size-1.5 rounded-full bg-primary" />
-            Camera live
+            {t("live")}
           </div>
         </>
       )}
@@ -171,14 +175,14 @@ export function CameraScanner({ onScan, onClose }: CameraScannerProps) {
       {status === "starting" && (
         <div className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-white/80">
           <Loader2 className="size-4 animate-spin" />
-          Starting camera…
+          {t("starting")}
         </div>
       )}
 
       {status === "error" && (
         <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 text-center text-sm text-white/85">
           <CameraOff className="size-6 text-white/60" />
-          <p className="max-w-xs">{error}</p>
+          <p className="max-w-xs">{error && t(error)}</p>
         </div>
       )}
 
@@ -188,7 +192,7 @@ export function CameraScanner({ onScan, onClose }: CameraScannerProps) {
             type="button"
             size="icon"
             variant="secondary"
-            aria-label={torch.on ? "Turn torch off" : "Turn torch on"}
+            aria-label={torch.on ? t("torchOff") : t("torchOn")}
             aria-pressed={torch.on}
             className="size-10 bg-black/60 text-white hover:bg-black/75"
             onClick={toggleTorch}
@@ -201,7 +205,7 @@ export function CameraScanner({ onScan, onClose }: CameraScannerProps) {
             type="button"
             size="icon"
             variant="secondary"
-            aria-label="Switch camera"
+            aria-label={t("switch")}
             className="size-10 bg-black/60 text-white hover:bg-black/75"
             onClick={flipCamera}
           >
@@ -212,7 +216,7 @@ export function CameraScanner({ onScan, onClose }: CameraScannerProps) {
           type="button"
           size="icon"
           variant="secondary"
-          aria-label="Close camera"
+          aria-label={t("close")}
           className="size-10 bg-black/60 text-white hover:bg-black/75"
           onClick={onClose}
         >

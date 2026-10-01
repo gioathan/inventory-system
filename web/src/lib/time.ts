@@ -1,19 +1,20 @@
-const relative = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
-const dateTime = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+import { useFormatter, useTranslations } from "next-intl";
 
-const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
-  ["day", 86_400_000],
-  ["hour", 3_600_000],
-  ["minute", 60_000],
-];
-
-// "3 hours ago" for recent things, where the exact clock time matters less than how fresh it is.
-export function timeAgo(iso: string, now = Date.now()): string {
-  const diff = new Date(iso).getTime() - now;
-  for (const [unit, size] of UNITS) {
-    if (Math.abs(diff) >= size) return relative.format(Math.round(diff / size), unit);
-  }
-  return "just now";
+// Dates and relative times follow the UI language, not the browser's locale: they contain words
+// ("3 hours ago", month names), so a Greek UI on an English OS would otherwise mix languages.
+// Money and plain numbers (format.ts) deliberately still use the browser locale — they're
+// digits and separators, not prose.
+export function useTimeFormat() {
+  const format = useFormatter();
+  const t = useTranslations("common");
+  return {
+    // "3 hours ago" for recent things, where the exact clock time matters less than how fresh it is.
+    timeAgo(iso: string, now = Date.now()): string {
+      const date = new Date(iso);
+      if (Math.abs(now - date.getTime()) < 60_000) return t("justNow");
+      return format.relativeTime(date, now);
+    },
+    formatDateTime: (iso: string) => format.dateTime(new Date(iso), { dateStyle: "medium", timeStyle: "short" }),
+    formatTime: (date: Date) => format.dateTime(date, { hour: "2-digit", minute: "2-digit" }),
+  };
 }
-
-export const formatDateTime = (iso: string) => dateTime.format(new Date(iso));

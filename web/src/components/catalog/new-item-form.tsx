@@ -3,8 +3,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ImageUp, Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { FormField } from "@/components/form-field";
@@ -28,32 +29,40 @@ function isHttpUrl(value: string) {
 
 // Fields are strings (that's what inputs hold); they're converted to numbers at submit, after
 // validation has guaranteed the conversion is safe.
-const schema = z.object({
-  name: z.string().trim().min(1, "Enter a name.").max(200, "Keep it under 200 characters."),
-  price: z
-    .string()
-    .trim()
-    .regex(/^\d{1,7}(\.\d{1,2})?$/, "Enter a price like 12.99.")
-    .refine((v) => Number(v) > 0, "The price must be more than 0."),
-  quantity: z
-    .string()
-    .trim()
-    .regex(/^\d+$/, "Enter a whole number.")
-    .refine((v) => Number(v) >= 1 && Number(v) <= 99_999, "Enter a number from 1 to 99,999."),
-  categoryId: z.string(),
-  barcode: z.string().trim().regex(/^[A-Za-z0-9._-]{0,64}$/, "Use letters, digits, . _ or - only (up to 64)."),
-  imageUrl: z
-    .string()
-    .trim()
-    .refine((v) => v === "" || isHttpUrl(v), "Enter a full web address starting with http:// or https://."),
-});
-type FormValues = z.infer<typeof schema>;
+// Built inside the component (memoized) rather than at module level, because its messages come
+// from the active locale's translations, and those are only reachable through a hook.
+type CatalogT = ReturnType<typeof useTranslations<"catalog">>;
+function makeSchema(t: CatalogT) {
+  return z.object({
+    name: z.string().trim().min(1, t("validation.nameRequired")).max(200, t("validation.nameTooLong")),
+    price: z
+      .string()
+      .trim()
+      .regex(/^\d{1,7}(\.\d{1,2})?$/, t("validation.priceFormat"))
+      .refine((v) => Number(v) > 0, t("validation.pricePositive")),
+    quantity: z
+      .string()
+      .trim()
+      .regex(/^\d+$/, t("validation.wholeNumber"))
+      .refine((v) => Number(v) >= 1 && Number(v) <= 99_999, t("validation.quantityRange")),
+    categoryId: z.string(),
+    barcode: z.string().trim().regex(/^[A-Za-z0-9._-]{0,64}$/, t("validation.barcodeFormat")),
+    imageUrl: z
+      .string()
+      .trim()
+      .refine((v) => v === "" || isHttpUrl(v), t("validation.imageUrl")),
+  });
+}
+type FormValues = z.infer<ReturnType<typeof makeSchema>>;
 
 export function NewItemForm() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const categories = useCategories();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const t = useTranslations("catalog");
+  const tc = useTranslations("common");
+  const schema = useMemo(() => makeSchema(t), [t]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -85,11 +94,11 @@ export function NewItemForm() {
     onError: (error) => {
       // A taken barcode belongs on the barcode field, not in a generic banner.
       if (error instanceof ApiError && error.status === 409) {
-        setError("barcode", { message: "An item with that barcode already exists." });
+        setError("barcode", { message: t("newItem.barcodeTaken") });
       } else if (error instanceof ApiError && error.status === 400 && /barcode/i.test(error.message)) {
         setError("barcode", { message: error.message });
       } else {
-        setSubmitError(error instanceof Error ? error.message : "Couldn't create the item. Try again.");
+        setSubmitError(error instanceof Error ? error.message : t("newItem.createFailed"));
       }
     },
   });
@@ -104,38 +113,38 @@ export function NewItemForm() {
       className="grid gap-8 md:grid-cols-[minmax(0,1fr)_16rem]"
     >
       <div className="flex flex-col gap-5">
-        <FormField id="name" label="Name" error={errors.name?.message}>
+        <FormField id="name" label={t("fields.name")} error={errors.name?.message}>
           <Input id="name" autoComplete="off" aria-invalid={!!errors.name} aria-describedby="name-msg" className="h-11" {...register("name")} />
         </FormField>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <FormField id="price" label="Price" error={errors.price?.message}>
+          <FormField id="price" label={t("fields.price")} error={errors.price?.message}>
             <Input id="price" inputMode="decimal" placeholder="0.00" autoComplete="off" aria-invalid={!!errors.price} aria-describedby="price-msg" className="h-11" {...register("price")} />
           </FormField>
-          <FormField id="quantity" label="Starting stock" error={errors.quantity?.message} hint="How many you're adding to stock now.">
+          <FormField id="quantity" label={t("fields.startingStock")} error={errors.quantity?.message} hint={t("newItem.startingStockHint")}>
             <Input id="quantity" inputMode="numeric" autoComplete="off" aria-invalid={!!errors.quantity} aria-describedby="quantity-msg" className="h-11" {...register("quantity")} />
           </FormField>
         </div>
 
         <FormField
           id="categoryId"
-          label="Category"
-          hint={categories.isError ? "Couldn't load categories. You can still create the item without one." : "Optional."}
+          label={t("fields.category")}
+          hint={categories.isError ? t("newItem.categoriesError") : t("newItem.optional")}
         >
           <Combobox
             id="categoryId"
             aria-describedby="categoryId-msg"
             value={categoryId}
             onValueChange={(v) => setValue("categoryId", v, { shouldValidate: true, shouldDirty: true })}
-            options={[{ value: "", label: "No category" }, ...(categories.data ?? []).map((c) => ({ value: c.id, label: c.name }))]}
+            options={[{ value: "", label: t("fields.noCategory") }, ...(categories.data ?? []).map((c) => ({ value: c.id, label: c.name }))]}
           />
         </FormField>
 
         <FormField
           id="barcode"
-          label="Barcode"
+          label={t("fields.barcode")}
           error={errors.barcode?.message}
-          hint="Leave empty to generate one. If the product already has a barcode, enter it exactly as printed."
+          hint={t("newItem.barcodeHint")}
         >
           <Input id="barcode" autoComplete="off" autoCapitalize="none" spellCheck={false} aria-invalid={!!errors.barcode} aria-describedby="barcode-msg" className="h-11 font-mono" {...register("barcode")} />
         </FormField>
@@ -149,16 +158,16 @@ export function NewItemForm() {
         <div className="flex flex-wrap gap-3">
           <Button type="submit" className="h-11 px-6" disabled={create.isPending || uploading}>
             {create.isPending && <Loader2 className="size-4 animate-spin" />}
-            Create item
+            {t("newItem.create")}
           </Button>
           <Button type="button" variant="ghost" className="h-11" onClick={() => router.push("/catalog")} disabled={create.isPending}>
-            Cancel
+            {tc("actions.cancel")}
           </Button>
         </div>
       </div>
 
       <div className="flex flex-col gap-3">
-        <FormField id="imageUrl" label="Image" error={errors.imageUrl?.message} hint="Paste an image address, or upload a file.">
+        <FormField id="imageUrl" label={t("fields.image")} error={errors.imageUrl?.message} hint={t("newItem.imageHint")}>
           <Input id="imageUrl" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false} placeholder="https://…" aria-invalid={!!errors.imageUrl} aria-describedby="imageUrl-msg" className="h-11" {...register("imageUrl")} />
         </FormField>
 
@@ -167,13 +176,13 @@ export function NewItemForm() {
           type="file"
           accept="image/*"
           className="sr-only"
-          aria-label="Upload an image file"
+          aria-label={t("image.uploadAria")}
           tabIndex={-1}
           onChange={onFileInputChange}
         />
         <Button type="button" variant="outline" className="h-11 gap-2" disabled={uploading} onClick={pick}>
           {uploading ? <Loader2 className="size-4 animate-spin" /> : <ImageUp className="size-4" />}
-          {uploading ? "Uploading…" : "Upload a file"}
+          {uploading ? t("image.uploading") : t("image.uploadFile")}
         </Button>
         {uploadError && (
           <p role="alert" className="text-sm text-destructive">
@@ -181,7 +190,7 @@ export function NewItemForm() {
           </p>
         )}
 
-        <ItemImage src={imageUrl && isHttpUrl(imageUrl) ? imageUrl : null} alt="Item preview" className="size-40 self-center md:self-start" />
+        <ItemImage src={imageUrl && isHttpUrl(imageUrl) ? imageUrl : null} alt={t("image.preview")} className="size-40 self-center md:self-start" />
       </div>
     </form>
   );
