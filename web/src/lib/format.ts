@@ -1,4 +1,4 @@
-const CURRENCY = process.env.NEXT_PUBLIC_CURRENCY ?? "USD";
+const CURRENCY = process.env.NEXT_PUBLIC_CURRENCY ?? "EUR";
 
 // Only called from client components rendering fetched data, never during SSR, so using the
 // browser's own locale here can't cause a server/client mismatch.

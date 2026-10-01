@@ -13,7 +13,7 @@ COPY . .
 # NEXT_PUBLIC_* values are baked into the browser bundle at build time, so they're build args,
 # not runtime env: changing them means rebuilding the image.
 ARG NEXT_PUBLIC_LABEL_FORMAT=both
-ARG NEXT_PUBLIC_CURRENCY=USD
+ARG NEXT_PUBLIC_CURRENCY=EUR
 ENV NEXT_PUBLIC_LABEL_FORMAT=$NEXT_PUBLIC_LABEL_FORMAT \
     NEXT_PUBLIC_CURRENCY=$NEXT_PUBLIC_CURRENCY \
     NEXT_TELEMETRY_DISABLED=1
