@@ -32,7 +32,7 @@ function StockCard({
   return (
     <li className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
       <div className="flex gap-3">
-        <ItemImage src={item.imageUrl} alt={item.name} className="size-16" />
+        <ItemImage src={item.imageUrl} alt={item.name} className="size-16" zoomable />
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-semibold leading-tight">{item.name}</h3>
           <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{item.sku}</p>

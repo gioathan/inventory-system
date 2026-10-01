@@ -39,7 +39,7 @@ export function ReceiveCard({ item, quantity, onQuantityChange, onConfirm, onCle
       </div>
 
       <div className="flex gap-4">
-        <ItemImage src={item.imageUrl} alt={item.name} />
+        <ItemImage src={item.imageUrl} alt={item.name} zoomable />
         <div className="min-w-0">
           <h2 className="text-xl font-semibold leading-tight tracking-tight sm:text-2xl">{item.name}</h2>
           <p className="mt-1 font-mono text-xs text-muted-foreground">{item.barcode}</p>

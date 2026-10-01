@@ -52,7 +52,7 @@ export function ItemPanel({
   return (
     <div className="flex flex-col gap-5">
       <div className={cn("flex items-start gap-3", !onClose && "pr-8")}>
-        <ItemImage src={item.imageUrl} alt={item.name} className="size-20" />
+        <ItemImage src={item.imageUrl} alt={item.name} className="size-20" zoomable />
         <div className="min-w-0 flex-1">
           <h2 className="text-lg font-semibold leading-tight">{item.name}</h2>
           <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{item.sku}</p>

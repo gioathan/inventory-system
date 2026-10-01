@@ -2,6 +2,7 @@
 
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { Check, ChevronDown } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 export type ComboboxOption = { value: string; label: string };
@@ -16,7 +17,7 @@ export function Combobox({
   options,
   value,
   onValueChange,
-  placeholder = "Search…",
+  placeholder,
   disabled,
   className,
   "aria-describedby": ariaDescribedby,
@@ -34,6 +35,7 @@ export function Combobox({
   "aria-invalid"?: boolean;
   "aria-label"?: string;
 }) {
+  const t = useTranslations("common");
   const selected = options.find((o) => o.value === value) ?? null;
 
   return (
@@ -47,7 +49,7 @@ export function Combobox({
       <ComboboxPrimitive.InputGroup className={cn("relative", className)}>
         <ComboboxPrimitive.Input
           id={id}
-          placeholder={placeholder}
+          placeholder={placeholder ?? t("searchPlaceholder")}
           aria-describedby={ariaDescribedby}
           aria-invalid={ariaInvalid}
           aria-label={ariaLabel}
@@ -59,7 +61,7 @@ export function Combobox({
         />
         <ComboboxPrimitive.Trigger
           className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground disabled:pointer-events-none"
-          aria-label="Show options"
+          aria-label={t("showOptions")}
         >
           <ChevronDown className="size-4" />
         </ComboboxPrimitive.Trigger>
@@ -69,7 +71,7 @@ export function Combobox({
         <ComboboxPrimitive.Positioner className="z-50 outline-none" sideOffset={4}>
           <ComboboxPrimitive.Popup className="w-[var(--anchor-width)] max-w-[var(--available-width)] origin-[var(--transform-origin)] rounded-lg border bg-popover text-popover-foreground shadow-md transition-[scale,opacity] duration-100 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0">
             <ComboboxPrimitive.Empty className="px-3 py-2.5 text-sm text-muted-foreground data-empty:hidden">
-              No matches.
+              {t("noMatches")}
             </ComboboxPrimitive.Empty>
             <ComboboxPrimitive.List className="max-h-72 overflow-y-auto overscroll-contain p-1 outline-none">
               {(item: ComboboxOption) => (

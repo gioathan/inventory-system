@@ -33,6 +33,11 @@
     "Admin": "Administrator",
     "Seller": "Seller"
   },
+  "viewFullImage": "View full image",
+  "viewFullImageOf": "View full image of {name}",
+  "showOptions": "Show options",
+  "noMatches": "No matches.",
+  "searchPlaceholder": "Search…",
   "justNow": "just now",
   "progressUnits": "{value} of {max} units",
   "appDescription": "Inventory, barcode scanning and purchasing for the shop floor and back office.",

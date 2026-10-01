@@ -33,6 +33,11 @@
     "Admin": "Διαχειριστής",
     "Seller": "Πωλητής"
   },
+  "viewFullImage": "Προβολή εικόνας σε πλήρες μέγεθος",
+  "viewFullImageOf": "Προβολή εικόνας σε πλήρες μέγεθος: {name}",
+  "showOptions": "Εμφάνιση επιλογών",
+  "noMatches": "Δεν βρέθηκαν αποτελέσματα.",
+  "searchPlaceholder": "Αναζήτηση…",
   "justNow": "μόλις τώρα",
   "progressUnits": "{value} από {max} τεμάχια",
   "appDescription": "Απόθεμα, σκανάρισμα barcode και αγορές για το κατάστημα και το back office.",
