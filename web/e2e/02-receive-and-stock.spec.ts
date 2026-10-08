@@ -118,7 +118,7 @@ test("receiving stock and the stock lookup screen", async () => {
     await page.getByRole("button", { name: /^On promo/ }).click();
     names = await listNames();
     check("stock: Promo filter shows only the discounted item", names.length === 1 && names[0].startsWith("Promo"), names.join(" | "));
-    check("stock: promo card shows 25% and the sale price", (await visible(page, "25%")) && (await visible(page, "$75.00")));
+    check("stock: promo card shows 25% and the sale price", (await visible(page, "25%")) && (await visible(page, "€75.00")));
     check("stock: filter counts are numbers", Number.isFinite(await count("All")) && Number.isFinite(await count("Low stock")));
 
     await page.getByRole("button", { name: /^All/ }).click();

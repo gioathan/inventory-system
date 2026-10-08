@@ -76,7 +76,7 @@ test("restock sessions: starting one closes the last, and each report covers onl
   await block.waitFor();
   const blockText = (await block.innerText()).replace(/\s+/g, " ");
   check("item: session block shows start → received → sold → now (0, +8, −2, 6)", /Start 0 Received \+8 Sold −2 Now 6/i.test(blockText), blockText);
-  check("item: session block shows revenue and sell-through (2 of 8 = 25%)", blockText.includes("$20.00") && blockText.includes("25%"), blockText);
+  check("item: session block shows revenue and sell-through (2 of 8 = 25%)", blockText.includes("€20.00") && blockText.includes("25%"), blockText);
   check("catalog: a Sold this session column appears while a session is open", (await page.getByRole("columnheader", { name: /Sold this session/ }).count()) === 1);
 
   // ---- receive screen banner -------------------------------------------------------------------------
@@ -102,7 +102,7 @@ test("restock sessions: starting one closes the last, and each report covers onl
   await page.getByRole("button", { name: new RegExp(`e2e first ${tag}`) }).click();
   const firstReport = page.getByRole("region", { name: /Session #\d+ report/ });
   const row = firstReport.locator("tr", { hasText: `Session Item ${tag}` });
-  check("page: the first session's report lists the item", (await row.innerText()).replace(/\s+/g, " ").includes("0 +8 −2 6 $20.00"), await row.innerText());
+  check("page: the first session's report lists the item", (await row.innerText()).replace(/\s+/g, " ").includes("0 +8 −2 6 €20.00"), await row.innerText());
   check("page: the first session reads as closed", (await firstReport.innerText()).includes("→") && !(await firstReport.innerText()).includes("still open"));
 
   // ---- compare: latest vs the one before (the defaults) ------------------------------------------------
@@ -128,7 +128,7 @@ test("restock sessions: starting one closes the last, and each report covers onl
   const itemBar = topItems.getByRole("listitem", { name: new RegExp(`^Session Item ${tag}: 2\\b`) });
   check("insights: top items include the test item with its 2 units sold", (await itemBar.count()) === 1);
   await page.getByRole("button", { name: "Revenue" }).click();
-  check("insights: switching to revenue ranks it by $20.00", (await topItems.getByRole("listitem", { name: new RegExp(`^Session Item ${tag}: \\$20\\.00`) }).count()) === 1);
+  check("insights: switching to revenue ranks it by €20.00", (await topItems.getByRole("listitem", { name: new RegExp(`^Session Item ${tag}: €20\\.00`) }).count()) === 1);
   const trendColumns = await page.getByRole("list", { name: "Sessions" }).getByRole("listitem").count();
   check("insights: the trend has one column per session in scope (3)", trendColumns === 3, String(trendColumns));
   await page.getByRole("button", { name: "Latest" }).click();

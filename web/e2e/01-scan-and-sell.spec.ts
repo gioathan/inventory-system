@@ -68,8 +68,8 @@ test("seller scans, looks up and sells, by camera, hardware scanner or typing", 
     await page.getByLabel("Barcode").fill(A);
     await page.getByRole("button", { name: "Look up" }).click();
     check("manual: item name shown", await visible(page, "Sony WH-1000XM5 Headphones"));
-    check("manual: discounted price shown", await visible(page, "$351.12"));
-    check("manual: original price struck through", await visible(page, "$399.00"));
+    check("manual: discounted price shown", await visible(page, "€351.12"));
+    check("manual: original price struck through", await visible(page, "€399.00"));
     check("manual: discount pill", await visible(page, "12% off"));
     check("manual: stock pill", await visible(page, "In stock · 20 units"));
     await page.screenshot({ path: `${SCREENS}/p1-phone-result.png`, fullPage: true });
@@ -131,7 +131,7 @@ test("seller scans, looks up and sells, by camera, hardware scanner or typing", 
     await visible(page, "Logitech MX Master 3S");
     await page.getByRole("button", { name: "Increase quantity" }).click();
     await page.getByRole("button", { name: "Increase quantity" }).click();
-    check("sale: total reflects quantity", await visible(page, "Confirm sale · $299.97"));
+    check("sale: total reflects quantity", await visible(page, "Confirm sale · €299.97"));
     await page.screenshot({ path: `${SCREENS}/p1-desktop-result.png` });
     await page.getByRole("button", { name: /Confirm sale/ }).click();
     check("sale: success notice with remaining stock", await visible(page, "Sold 3 × Logitech MX Master 3S · 0 left"));
