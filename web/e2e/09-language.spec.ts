@@ -25,6 +25,7 @@ const ADMIN_PAGES = [
   "/audit-log",
   "/scan",
   "/receive",
+  "/receive/delivery",
   "/stock",
 ];
 

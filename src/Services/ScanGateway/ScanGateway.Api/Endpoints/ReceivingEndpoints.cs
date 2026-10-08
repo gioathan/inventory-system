@@ -64,7 +64,71 @@ public static partial class ReceivingEndpoints
 
             return Results.Ok(new ReceiveResponse(item.Sku, item.Name, item.Barcode, item.Price, stock.QuantityOnHand));
         }).RequireAuthorization(AuthPolicies.SellerOrAdmin);
+
+        // A whole delivery in one request: many existing items, each with its own quantity.
+        // Deliberately NOT all-or-nothing — every line gets its own outcome and a 200 comes back
+        // even if some failed, so one unknown SKU can't block the other ninety-nine lines of a
+        // delivery that has physically arrived. The caller retries only the lines that failed;
+        // resending a line that already succeeded would add its stock twice.
+        app.MapPost("/receive/batch", async (
+            BatchReceiveRequest request,
+            CatalogApiClient catalog,
+            InventoryApiClient inventory,
+            CancellationToken cancellationToken) =>
+        {
+            if (request.Lines is null || request.Lines.Count == 0)
+                return Results.BadRequest("Add at least one line.");
+            if (request.Lines.Count > MaxBatchLines)
+                return Results.BadRequest($"A batch can hold at most {MaxBatchLines} lines; split it into several requests.");
+
+            // One catalog call for the whole batch instead of one lookup per line. Inventory's
+            // receive is an upsert, so without this check an unknown SKU would silently create
+            // stock for an item that has no name or price.
+            var knownSkus = (await catalog.GetAllItemsAsync(cancellationToken)).Select(i => i.Sku).ToHashSet(StringComparer.Ordinal);
+
+            var results = new List<BatchReceiveLineResult>(request.Lines.Count);
+            foreach (var line in request.Lines)
+            {
+                if (line.Quantity <= 0)
+                {
+                    results.Add(new BatchReceiveLineResult(line.Sku, BatchReceiveStatus.Invalid, null, "Quantity must be positive."));
+                    continue;
+                }
+                if (string.IsNullOrWhiteSpace(line.Sku) || !knownSkus.Contains(line.Sku))
+                {
+                    results.Add(new BatchReceiveLineResult(line.Sku, BatchReceiveStatus.NotFound, null, "No catalog item has this SKU."));
+                    continue;
+                }
+
+                try
+                {
+                    var stock = await inventory.ReceiveStockAsync(line.Sku, line.Quantity, MovementReason.Restock, cancellationToken);
+                    results.Add(new BatchReceiveLineResult(line.Sku, BatchReceiveStatus.Received, stock.QuantityOnHand, null));
+                }
+                catch (global::Grpc.Core.RpcException ex)
+                {
+                    results.Add(new BatchReceiveLineResult(line.Sku, BatchReceiveStatus.Failed, null, ex.Status.Detail));
+                }
+            }
+
+            return Results.Ok(new BatchReceiveResponse(results));
+        }).RequireAuthorization(AuthPolicies.SellerOrAdmin);
     }
+
+    private const int MaxBatchLines = 500;
+}
+
+public record BatchReceiveLine(string Sku, int Quantity);
+public record BatchReceiveRequest(List<BatchReceiveLine> Lines);
+public record BatchReceiveLineResult(string Sku, string Status, int? QuantityOnHand, string? Error);
+public record BatchReceiveResponse(List<BatchReceiveLineResult> Results);
+
+public static class BatchReceiveStatus
+{
+    public const string Received = "received";
+    public const string NotFound = "notFound";
+    public const string Invalid = "invalid";
+    public const string Failed = "failed";
 }
 
 public record IntakeNewItemRequest(string Name, decimal Price, Guid? CategoryId, string? ImageUrl, int Quantity, string? Barcode = null);

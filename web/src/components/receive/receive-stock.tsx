@@ -1,8 +1,11 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { PackageOpen } from "lucide-react";
+import { ListPlus, PackageOpen } from "lucide-react";
 import { useTranslations } from "next-intl";
+import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { useTimeFormat } from "@/lib/time";
 import { useEffect, useRef, useState } from "react";
 import { NoticeBanner } from "@/components/notice-banner";
@@ -72,9 +75,18 @@ export function ReceiveStock({ initialCode, isAdmin = false }: { initialCode?: s
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+        </div>
+        <Link href="/receive/delivery" className={cn(buttonVariants({ variant: "outline" }), "h-auto min-h-10 gap-2 py-1.5")}>
+          <ListPlus className="size-4" />
+          <span className="flex flex-col items-start leading-tight">
+            {t("deliveryLink")}
+            <span className="text-xs font-normal text-muted-foreground">{t("deliveryLinkHint")}</span>
+          </span>
+        </Link>
       </div>
 
       <SessionBanner isAdmin={isAdmin} />

@@ -162,5 +162,72 @@ public class ReceivingEndpointTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Fact]
+    public async Task BatchReceive_AppliesGoodLinesAndReportsBadOnesWithoutBlockingTheRest()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+        var (app, scanGateway) = await StartAsync(cts.Token);
+        await using var _ = app;
+
+        async Task<ReceiveResponse> IntakeAsync(int quantity)
+        {
+            var response = await scanGateway.PostAsJsonAsync(
+                "/items/intake",
+                new { Name = $"Batch Test Item {Guid.NewGuid():N}", Price = 2.00m, CategoryId = (Guid?)null, ImageUrl = (string?)null, Quantity = quantity },
+                cts.Token);
+            return (await response.Content.ReadFromJsonAsync<ReceiveResponse>(cts.Token))!;
+        }
+
+        var a = await IntakeAsync(10);
+        var b = await IntakeAsync(1);
+
+        var response = await scanGateway.PostAsJsonAsync(
+            "/receive/batch",
+            new
+            {
+                Lines = new[]
+                {
+                    new { Sku = a.Sku, Quantity = 24 },
+                    new { Sku = "NO-SUCH-SKU", Quantity = 5 },
+                    new { Sku = b.Sku, Quantity = 0 },
+                    new { Sku = b.Sku, Quantity = 6 },
+                },
+            },
+            cts.Token);
+
+        // 200 even though two lines were rejected: the outcome is per line, not per request.
+        response.EnsureSuccessStatusCode();
+        var results = (await response.Content.ReadFromJsonAsync<BatchReceiveResponse>(cts.Token))!.Results;
+
+        Assert.Equal(4, results.Count);
+        Assert.Equal(("received", 34), (results[0].Status, results[0].QuantityOnHand!.Value));
+        Assert.Equal("notFound", results[1].Status);
+        Assert.Equal("invalid", results[2].Status);
+        Assert.Equal(("received", 7), (results[3].Status, results[3].QuantityOnHand!.Value));
+
+        // The stock really moved for the good lines...
+        Assert.Equal(34, (await scanGateway.GetFromJsonAsync<ReceiveResponse>($"/scan/{a.Barcode}", cts.Token))!.QuantityOnHand);
+        Assert.Equal(7, (await scanGateway.GetFromJsonAsync<ReceiveResponse>($"/scan/{b.Barcode}", cts.Token))!.QuantityOnHand);
+    }
+
+    [Fact]
+    public async Task BatchReceive_WithNoLinesOrTooMany_ReturnsBadRequest()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+        var (app, scanGateway) = await StartAsync(cts.Token);
+        await using var _ = app;
+
+        var empty = await scanGateway.PostAsJsonAsync("/receive/batch", new { Lines = Array.Empty<object>() }, cts.Token);
+        Assert.Equal(HttpStatusCode.BadRequest, empty.StatusCode);
+
+        var tooMany = await scanGateway.PostAsJsonAsync(
+            "/receive/batch",
+            new { Lines = Enumerable.Range(0, 501).Select(_ => new { Sku = "X", Quantity = 1 }) },
+            cts.Token);
+        Assert.Equal(HttpStatusCode.BadRequest, tooMany.StatusCode);
+    }
+
     private record ReceiveResponse(string Sku, string Name, string Barcode, decimal Price, int QuantityOnHand);
+    private record BatchReceiveLineResult(string Sku, string Status, int? QuantityOnHand, string? Error);
+    private record BatchReceiveResponse(List<BatchReceiveLineResult> Results);
 }

@@ -68,9 +68,10 @@ test("no accessibility violations across the app, both themes, desktop and phone
     `/labels/print?sku=${firstSku}`,
     "/scan",
     "/receive",
+    "/receive/delivery",
     "/stock",
   ];
-  const sellerPages = ["/scan", "/receive", "/stock"];
+  const sellerPages = ["/scan", "/receive", "/receive/delivery", "/stock"];
 
   const violationSummaries: string[] = [];
 

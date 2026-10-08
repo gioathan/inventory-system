@@ -19,6 +19,79 @@
     "addToStock": "Add {quantity} to stock",
     "clear": "Clear · scan next item"
   },
+  "deliveryLink": "Receive a delivery",
+  "deliveryLinkHint": "Many items at once",
+  "delivery": {
+    "title": "Receive a delivery",
+    "subtitle": "Build the list of what arrived, then add it all to stock at once.",
+    "oneAtATime": "One item at a time",
+    "add": {
+      "label": "Scan or search for an item",
+      "placeholder": "Scan a barcode, or type a name or SKU",
+      "hint": "Scan the same item again to add one more. Enter adds the highlighted item.",
+      "loading": "Loading items…",
+      "noMatch": "No item matches “{code}”.",
+      "inStock": "{count} in stock",
+      "camera": "Scan with camera",
+      "onList": "{name} · {quantity} on the list"
+    },
+    "import": {
+      "button": "Paste or upload a list",
+      "title": "Add from a list",
+      "description": "Paste rows from a spreadsheet, or upload a CSV file. Each row needs a barcode or SKU, then a quantity. A header row is optional, and a row with no quantity counts as 1.",
+      "pasteLabel": "Rows to add",
+      "upload": "Upload a CSV file",
+      "add": "Add to list",
+      "empty": "There are no rows to add.",
+      "result": "Added {matched, plural, one {# row} other {# rows}} to the list.",
+      "resultUnmatched": "Added {matched, plural, one {# row} other {# rows}} to the list. {unmatched, plural, one {# row needs} other {# rows need}} your attention."
+    },
+    "list": {
+      "label": "Items in this delivery",
+      "empty": "Nothing on the list yet. Scan the first item to begin.",
+      "item": "Item",
+      "inStock": "In stock",
+      "arriving": "Arriving",
+      "newTotal": "New total",
+      "quantityFor": "Quantity for {name}",
+      "decrease": "One less of {name}",
+      "increase": "One more of {name}",
+      "remove": "Remove {name} from the list"
+    },
+    "unmatched": {
+      "title": "{count, plural, one {# row couldn't be matched} other {# rows couldn't be matched}}",
+      "hint": "Nothing in the catalog has that barcode or SKU. Find the right item, or remove the row.",
+      "notFound": "Not in the catalog",
+      "badQuantity": "The quantity isn't a whole number",
+      "find": "Find item",
+      "remove": "Remove row {code}",
+      "resolving": "Pick the item for “{code}”. It will be added with a quantity of {quantity}.",
+      "cancel": "Cancel"
+    },
+    "summary": "{items, plural, one {# item} other {# items}} · {units, plural, one {# unit} other {# units}}",
+    "submit": "Receive all",
+    "retry": "Retry {count} failed",
+    "receiving": "Receiving…",
+    "fixQuantities": "{count, plural, one {Fix # quantity} other {Fix # quantities}} to continue.",
+    "clear": "Clear list",
+    "clearTitle": "Clear this delivery?",
+    "clearDescription": "This removes every row from the list. Nothing on it has been added to stock yet.",
+    "draftRestored": "Picked up where you left off: {count, plural, one {# row} other {# rows}} from an unfinished delivery.",
+    "result": {
+      "all": "Received {items, plural, one {# item} other {# items}} · {units, plural, one {# unit} other {# units}}.",
+      "partial": "Received {received, plural, one {# item} other {# items}}. {failed, plural, one {# row needs} other {# rows need}} attention."
+    },
+    "errors": {
+      "notFound": "This item is no longer in the catalog.",
+      "invalid": "The quantity was rejected.",
+      "failed": "Couldn't add this one.",
+      "unconfirmed": "Couldn't confirm this was saved. Check the item's stock before retrying."
+    },
+    "received": {
+      "title": "Received in this delivery",
+      "now": "now {total}"
+    }
+  },
   "dialog": {
     "titleSingle": "Receive {name}",
     "titleMany": "Receive {count} items",

@@ -512,6 +512,47 @@ real stock instead of leaving a stale number.
 - `gql()` turns GraphQL's HTTP-200-with-`errors` failures into the same `ApiError` the REST calls
   throw, so there is one error path (including "don't retry a 403").
 
+### Receive a delivery (`/receive/delivery`) — many items, one confirm
+
+The opposite trade-off from the Receive screen above, on purpose. That one posts each item
+immediately (nothing to lose, nothing to reconcile); this one builds a list first, because for a
+delivery of dozens of lines the slow part is entering them, and the list needs checking against
+the delivery note before stock changes. Both stay: one item at a time for odd arrivals, the
+worksheet for a pallet. Open to sellers and admins, like the rest of receiving.
+
+- **One list, three ways to fill it**, all ending in the same rows:
+  - **Scan.** The cursor lives in one box. A scanned barcode adds the item with quantity 1 and
+    the cursor stays put; scanning the same item again adds one more.
+  - **Search.** The same box searches name/SKU/barcode. Picking a result puts the cursor in that
+    row's quantity with the number selected; Enter there returns to the box. No mouse needed.
+  - **Paste or upload** a supplier's list (`lib/delivery.ts`): tabs (pasted from a spreadsheet),
+    commas or semicolons; with or without a header row; barcode or SKU; a single column of codes
+    counts repeats. Codes the catalog doesn't know are **listed, not dropped**: "Find item" points
+    one at the right item and carries its quantity over.
+- **A scanner firing inside a quantity box** would type its 12 digits in as the quantity. Each
+  row watches for a burst of keystrokes under 80 ms apart ending in Enter (the same signature
+  `useKeyboardWedge` uses), puts the quantity back and treats the digits as the next item. It
+  measures `event.timeStamp` (when the key was pressed), not when the handler ran, so a busy page
+  can't stretch a scanner's gaps into something that looks like a person typing.
+- **Rows are memoized** (`DeliveryRow`, with referentially stable actions), so a keystroke
+  re-renders one row, not the list. Found the hard way: before this, per-keystroke re-renders of
+  the whole list were slow enough to break the scan detection above.
+- **`POST /receive/batch`** (Scan Gateway) takes `{ lines: [{ sku, quantity }] }`, up to 500, and
+  returns an outcome per line (`received` / `notFound` / `invalid` / `failed`) with HTTP 200.
+  **Deliberately not all-or-nothing**: one unknown SKU must not block the rest of a delivery that
+  has physically arrived. It validates SKUs against one `GetAllItems` call, since Inventory's
+  receive is an upsert and would otherwise create stock for an item with no name or price. Lines
+  are applied one after another through the existing `ReceiveStock` RPC, so each is tagged with
+  the open restock session exactly like a single receive. The page sends chunks of 200.
+- **After "Receive all"**, received rows leave the list and appear under "Received in this
+  delivery" with their new totals; failed rows stay, each with its reason, and the button becomes
+  "Retry N failed". If a request dies without an answer (timeout, dropped connection, 5xx), its
+  rows say "couldn't confirm this was saved" rather than "failed": whether the stock was added is
+  genuinely unknown, and inviting a blind retry would risk adding it twice.
+- **The list is a draft in `localStorage`** until confirmed, so a refresh or closed tab doesn't
+  lose an 80-line delivery. Browser-scoped like the theme and language; not shared between
+  devices or people.
+
 ### Catalog, labels and discounts (admin)
 
 - **Items & SKUs** (`/catalog`): a sortable, paginated table (TanStack Table v8) with search,
