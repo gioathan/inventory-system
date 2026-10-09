@@ -21,7 +21,7 @@ export function computeStats(items: CatalogEntry[]): DashboardStats {
     const quantity = item.quantityOnHand ?? 0;
     unitsOnHand += quantity;
     retailValue += quantity * item.effectivePrice;
-    if (item.discountPercentage !== null) onPromo++;
+    if (item.activeDiscountPercentage !== null) onPromo++;
     const level = stockLevel(item.quantityOnHand);
     if (level === "ok") inStock++;
     else if (level === "low") low++;

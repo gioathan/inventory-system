@@ -1,7 +1,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { apiFetch } from "@/lib/api";
+import { buildCategoryTree } from "@/lib/categories";
 import { gql } from "@/lib/graphql";
 import type { CatalogEntry, Category } from "@/lib/types";
 
@@ -13,6 +15,8 @@ const ITEMS_QUERY = /* GraphQL */ `
       barcode
       price
       discountPercentage
+      activeDiscountPercentage
+      datedDiscountName
       effectivePrice
       imageUrl
       categoryId
@@ -30,10 +34,19 @@ export function useItems() {
   });
 }
 
-// Admin-only in the backend, so only call this from admin screens.
+// Readable by sellers too (the Stock screen filters by category); changing them is admin-only.
 export function useCategories() {
   return useQuery({
     queryKey: ["categories"],
     queryFn: () => apiFetch<Category[]>("gateway", "categories"),
   });
+}
+
+const NO_CATEGORIES: Category[] = [];
+
+// The categories as a tree (see lib/categories.ts). Empty while loading or on error, so callers
+// can filter and label without special-casing either.
+export function useCategoryTree() {
+  const categories = useCategories();
+  return useMemo(() => buildCategoryTree(categories.data ?? NO_CATEGORIES), [categories.data]);
 }

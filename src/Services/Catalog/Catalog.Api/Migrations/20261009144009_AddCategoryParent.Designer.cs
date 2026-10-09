@@ -3,6 +3,7 @@ using System;
 using InventorySystem.Catalog.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace InventorySystem.Catalog.Api.Migrations
 {
     [DbContext(typeof(CatalogDbContext))]
-    partial class CatalogDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261009144009_AddCategoryParent")]
+    partial class AddCategoryParent
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -44,67 +47,6 @@ namespace InventorySystem.Catalog.Api.Migrations
                     b.HasIndex("ParentId");
 
                     b.ToTable("Categories");
-                });
-
-            modelBuilder.Entity("InventorySystem.Catalog.Api.Data.DatedDiscount", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<double>("Percentage")
-                        .HasColumnType("double precision");
-
-                    b.Property<int?>("SkippedYear")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("DatedDiscounts");
-                });
-
-            modelBuilder.Entity("InventorySystem.Catalog.Api.Data.DatedDiscountItem", b =>
-                {
-                    b.Property<Guid>("DatedDiscountId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Sku")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.HasKey("DatedDiscountId", "Sku");
-
-                    b.ToTable("DatedDiscountItem");
-                });
-
-            modelBuilder.Entity("InventorySystem.Catalog.Api.Data.DatedDiscountPeriod", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("DatedDiscountId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateOnly>("EndDate")
-                        .HasColumnType("date");
-
-                    b.Property<DateOnly>("StartDate")
-                        .HasColumnType("date");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DatedDiscountId");
-
-                    b.ToTable("DatedDiscountPeriod");
                 });
 
             modelBuilder.Entity("InventorySystem.Catalog.Api.Data.Item", b =>
@@ -158,31 +100,6 @@ namespace InventorySystem.Catalog.Api.Migrations
                         .WithMany()
                         .HasForeignKey("ParentId")
                         .OnDelete(DeleteBehavior.Restrict);
-                });
-
-            modelBuilder.Entity("InventorySystem.Catalog.Api.Data.DatedDiscountItem", b =>
-                {
-                    b.HasOne("InventorySystem.Catalog.Api.Data.DatedDiscount", null)
-                        .WithMany("Items")
-                        .HasForeignKey("DatedDiscountId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("InventorySystem.Catalog.Api.Data.DatedDiscountPeriod", b =>
-                {
-                    b.HasOne("InventorySystem.Catalog.Api.Data.DatedDiscount", null)
-                        .WithMany("Periods")
-                        .HasForeignKey("DatedDiscountId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("InventorySystem.Catalog.Api.Data.DatedDiscount", b =>
-                {
-                    b.Navigation("Items");
-
-                    b.Navigation("Periods");
                 });
 #pragma warning restore 612, 618
         }

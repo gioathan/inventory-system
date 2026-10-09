@@ -120,11 +120,14 @@ export function compareCategories(
   b: SessionReportLine[],
   categoryName: (id: string) => string | undefined,
   fallbacks: CategoryFallbacks,
+  // Which category a line is counted under — the top-level one, so "Earrings" sales show up as
+  // "Jewelry". Identity by default.
+  groupOf: (id: string) => string = (id) => id,
 ): ComparedRow[] {
   return compareBy(
     a,
     b,
-    (l) => l.categoryId ?? "none",
+    (l) => (l.categoryId ? groupOf(l.categoryId) : "none"),
     (key) => (key === "none" ? fallbacks.none : (categoryName(key) ?? fallbacks.unknown)),
   );
 }
@@ -157,6 +160,7 @@ export function aggregateInsights(
   reports: { session: NumberedSession; lines: SessionReportLine[] }[],
   categoryName: (id: string) => string | undefined,
   fallbacks: CategoryFallbacks,
+  groupOf: (id: string) => string = (id) => id, // see compareCategories
 ): Insights {
   const items = new Map<string, RankedRow>();
   const categories = new Map<string, RankedRow>();
@@ -178,7 +182,7 @@ export function aggregateInsights(
         if (l.revenueEstimated) est = true;
         if (l.sold === 0) continue;
         add(items, l.sku, l.name ?? l.sku, l.sold, r);
-        const catKey = l.categoryId ?? "none";
+        const catKey = l.categoryId ? groupOf(l.categoryId) : "none";
         add(categories, catKey, catKey === "none" ? fallbacks.none : (categoryName(catKey) ?? fallbacks.unknown), l.sold, r);
       }
       if (est) estimated = true;

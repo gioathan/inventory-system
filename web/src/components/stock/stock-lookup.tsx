@@ -6,10 +6,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { FilterChips } from "@/components/filter-chips";
 import { ItemImage } from "@/components/item-image";
 import { QuickReceiveDialog } from "@/components/receive/quick-receive-dialog";
+import { CategoryFilter } from "@/components/category-filter";
 import { StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useItems } from "@/hooks/use-items";
+import { useCategoryTree, useItems } from "@/hooks/use-items";
 import { useCurrentSessionSales } from "@/hooks/use-restock-sessions";
 import { formatMoney, formatPercent } from "@/lib/format";
 import { ITEM_FILTERS as FILTERS, matchesSearch, useItemFilterOptions, type ItemFilter as Filter } from "@/lib/item-filters";
@@ -40,12 +41,12 @@ function StockCard({
           {soldThisSession !== null && <p className="mt-0.5 text-xs text-muted-foreground">{t("soldThisSession", { count: soldThisSession })}</p>}
           <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2">
             <span className="text-lg font-semibold tabular-nums">{formatMoney(item.effectivePrice)}</span>
-            {item.discountPercentage !== null && (
+            {item.activeDiscountPercentage !== null && (
               <>
                 <span className="text-xs tabular-nums text-muted-foreground line-through">{formatMoney(item.price)}</span>
                 <StatusPill tone="warning" className="px-2 py-0.5">
                   <Tag className="size-3" />
-                  {formatPercent(item.discountPercentage)}
+                  {formatPercent(item.activeDiscountPercentage)}
                 </StatusPill>
               </>
             )}
@@ -73,9 +74,11 @@ export function StockLookup({ canReceive = false }: { canReceive?: boolean }) {
   const t = useTranslations("stock");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const [category, setCategory] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
 
   const items = useItems();
+  const tree = useCategoryTree();
   // Counts only, readable by sellers; null per item when no session is open.
   const sessionSales = useCurrentSessionSales();
   const soldOf = (sku: string) => (sessionSales.data?.session ? (sessionSales.data.bySku.get(sku)?.sold ?? 0) : null);
@@ -97,11 +100,15 @@ export function StockLookup({ canReceive = false }: { canReceive?: boolean }) {
 
   const visible = useMemo(() => {
         const active = FILTERS.find((f) => f.id === filter)!;
+    // A parent category means everything beneath it too; search matches the whole category
+    // path, so "jewelry" finds an item filed under Earrings.
+    const within = category ? tree.withDescendants(category) : null;
     return all
       .filter(active.matches)
-      .filter((item) => matchesSearch(item, search))
+      .filter((item) => !within || (item.categoryId !== null && within.has(item.categoryId)))
+      .filter((item) => matchesSearch(item, search, item.categoryId ? [tree.pathLabel(item.categoryId)] : []))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [all, filter, search]);
+  }, [all, filter, search, category, tree]);
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
@@ -149,6 +156,8 @@ export function StockLookup({ canReceive = false }: { canReceive?: boolean }) {
           </button>
         )}
       </div>
+
+      <CategoryFilter tree={tree} value={category} onChange={setCategory} className="w-full sm:w-72" />
 
       <FilterChips options={filterOptions} value={filter} onChange={setFilter} counts={counts} />
 

@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { FilterChips } from "@/components/filter-chips";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
-import { useCategories } from "@/hooks/use-items";
+import { useCategoryTree } from "@/hooks/use-items";
 import { useRestockSessions, useSessionReport } from "@/hooks/use-restock-sessions";
 import { formatMoney } from "@/lib/format";
 import {
@@ -52,7 +52,7 @@ function Change({ value, pct, money = false, neutral = false }: { value: number;
 
 export function CompareView() {
   const sessions = useRestockSessions();
-  const categories = useCategories();
+  const tree = useCategoryTree();
   const numbered = useMemo(() => numberSessions(sessions.data ?? []), [sessions.data]);
   const t = useTranslations("restock");
   const sessionLabel = useSessionLabel();
@@ -74,13 +74,12 @@ export function CompareView() {
   const [filter, setFilter] = useState<RowFilter>("all");
   const [search, setSearch] = useState("");
 
-  const categoryName = useMemo(() => new Map((categories.data ?? []).map((c) => [c.id, c.name])), [categories.data]);
   const rows = useMemo(() => {
     if (!reportA.data || !reportB.data) return [];
     return by === "item"
       ? compareItems(reportA.data, reportB.data)
-      : compareCategories(reportA.data, reportB.data, (id) => categoryName.get(id), { none: noCategory, unknown: unknownCategory });
-  }, [reportA.data, reportB.data, by, categoryName, noCategory, unknownCategory]);
+      : compareCategories(reportA.data, reportB.data, (id) => tree.get(id)?.name, { none: noCategory, unknown: unknownCategory }, (id) => tree.topLevel(id)?.id ?? id);
+  }, [reportA.data, reportB.data, by, tree, noCategory, unknownCategory]);
 
   const counts = useMemo(
     () => Object.fromEntries(ROW_FILTERS.map((id) => [id, rows.filter(MATCHES[id]).length])) as Record<RowFilter, number>,

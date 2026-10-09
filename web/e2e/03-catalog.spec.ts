@@ -237,7 +237,7 @@ test("catalog, labels that really scan, printing, new SKUs, categories and disco
     await page.goto(`${baseUrl}/catalog?sku=${alpha.sku}`);
     await page.getByRole("button", { name: "Edit item" }).click();
     check("edit: dialog opens pre-filled with the current values", (await page.getByLabel("Name").inputValue()) === `Alpha ${tag}`);
-    check("edit: current category is pre-selected, not blank", (await page.getByRole("combobox", { name: "Category" }).inputValue()).startsWith(`Cat ${tag}`));
+    check("edit: current category is pre-selected, not blank", (await page.getByRole("combobox", { name: "Category", exact: true }).inputValue()).startsWith(`Cat ${tag}`));
 
     await page.getByLabel("Name").fill(`Alpha Edited ${tag}`);
     await page.getByLabel("Price").fill("12.34");
@@ -291,12 +291,29 @@ test("catalog, labels that really scan, printing, new SKUs, categories and disco
     const page = admin.page;
     await page.goto(`${baseUrl}/categories`);
     check("categories: existing category shows its item count", await visible(page, `Cat ${tag}`) && (await visible(page, "3 items")));
-    await page.getByLabel("New category").fill(`Cat2 ${tag}`);
+    await page.getByLabel("New top-level category").fill(`Cat2 ${tag}`);
     await page.getByRole("button", { name: "Add category" }).click();
     check("categories: new category appears with 0 items", await visible(page, `Cat2 ${tag}`) && (await visible(page, "0 items")));
-    await page.getByLabel("New category").fill(`Cat2 ${tag}`);
+    await page.getByLabel("New top-level category").fill(`Cat2 ${tag}`);
     await page.getByRole("button", { name: "Add category" }).click();
     check("categories: duplicate name is refused", await visible(page, "already exists"));
+
+    // Sub-categories: added from inside the parent; the parent's own items wait to be sorted,
+    // can't be joined by new ones, and still count (and filter) under the parent afterwards.
+    await page.getByRole("link", { name: new RegExp(`^Cat ${tag}`) }).click();
+    await page.getByLabel(`New category inside Cat ${tag}`).fill(`Sub ${tag}`);
+    await page.getByRole("button", { name: "Add category" }).click();
+    check("categories: a first sub-category asks for the parent's items to be sorted", await visible(page, "3 items need sorting"));
+    const intoParent = await page.evaluate(async (categoryId) =>
+      (await fetch("/api/backend/gateway/items/intake", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "Into a parent", price: 1, quantity: 1, categoryId }) })).status, cat.id);
+    check("categories: a new item can't be filed under a category that has sub-categories", intoParent === 400, `status=${intoParent}`);
+    await page.getByLabel("Select all").check();
+    await page.getByRole("button", { name: "Move 3 items" }).click();
+    check("categories: the items move into the sub-category", await visible(page, `Moved 3 items to Sub ${tag}.`));
+    await page.goto(`${baseUrl}/catalog?category=${cat.id}`);
+    await page.locator("tbody tr").first().waitFor();
+    check("catalog: filtering by a parent category includes its sub-categories' items", (await page.locator("tbody tr").count()) === 3);
+    check("catalog: the category column shows the full path", await visible(page, `Cat ${tag} › Sub ${tag}`));
   }
 
   // ---- discounts page -------------------------------------------------------------------------

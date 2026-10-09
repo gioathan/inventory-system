@@ -52,7 +52,9 @@
       "notStocked": "Not stocked",
       "out": "Out",
       "low": "Low · {count}"
-    }
+    },
+    "moveToCategory": "Move to category",
+    "datedDiscount": "Dated discount"
   },
   "panel": {
     "closeDetails": "Close details",
@@ -63,7 +65,8 @@
     "label": "Label",
     "editItem": "Edit item",
     "printLabel": "Print label",
-    "receiveStock": "Receive stock"
+    "receiveStock": "Receive stock",
+    "datedDiscounts": "Dated discounts"
   },
   "session": {
     "loading": "Loading this session",
@@ -140,7 +143,7 @@
     "categoryForNamed": "Category for {name}",
     "categoryForRow": "Category for row {n}",
     "barcodeOptional": "Barcode (optional)",
-    "unmatchedCategory": "No category named \"{name}\" — will save with no category.",
+    "unmatchedCategory": "No category named \"{name}\" that items can go in — will save with no category.",
     "addRow": "Add row",
     "createdCount": "{count} created",
     "failedCount": "{count} failed — fix and try again",
@@ -153,5 +156,12 @@
     "nameTooLong": "Keep the name under 200 characters.",
     "barcodeTaken": "That barcode is already used by another item.",
     "createFailed": "Couldn't create this item."
+  },
+  "move": {
+    "title": "Move {count, plural, one {# item} other {# items}} to a category",
+    "description": "Only categories with no sub-categories are listed, because items go in the most specific category.",
+    "cancel": "Cancel",
+    "confirm": "Move {count, plural, one {# item} other {# items}}",
+    "failed": "Couldn't move the items."
   }
 }

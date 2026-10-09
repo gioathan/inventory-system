@@ -3,22 +3,27 @@
 import { ListFilter, Percent, Tag } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Checkbox } from "@/components/checkbox";
 import { ItemImage } from "@/components/item-image";
 import { StatusPill } from "@/components/status-pill";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
-import { useCategories, useItems } from "@/hooks/use-items";
+import { useCategoryTree, useItems } from "@/hooks/use-items";
+import { countItems } from "@/lib/categories";
 import { formatMoney, formatPercent } from "@/lib/format";
 import type { CatalogEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { DatedDiscountsSection } from "./dated-discounts";
 import { DiscountDialog } from "./discount-dialog";
 
 export function DiscountsView() {
   const t = useTranslations("discounts");
+  // ?dated=new&sku=… (from the Catalog's selection bar) opens the dated-discount form with those items.
+  const params = useSearchParams();
   const items = useItems();
-  const categories = useCategories();
+  const tree = useCategoryTree();
   const [target, setTarget] = useState("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dialogItems, setDialogItems] = useState<CatalogEntry[] | null>(null);
@@ -28,15 +33,16 @@ export function DiscountsView() {
     () => all.filter((i) => i.discountPercentage !== null).sort((a, b) => a.name.localeCompare(b.name)),
     [all],
   );
-  const targetItems = useMemo(() => (target === "all" ? all : all.filter((i) => i.categoryId === target)), [all, target]);
+  // A category means everything beneath it too: discounting Jewelry discounts Earrings.
+  const targetItems = useMemo(() => {
+    if (target === "all") return all;
+    const within = tree.withDescendants(target);
+    return all.filter((i) => i.categoryId !== null && within.has(i.categoryId));
+  }, [all, target, tree]);
   const selectedItems = discounted.filter((i) => selected.has(i.sku));
   const allSelected = discounted.length > 0 && selectedItems.length === discounted.length;
 
-  const categoryCounts = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const item of all) if (item.categoryId) map.set(item.categoryId, (map.get(item.categoryId) ?? 0) + 1);
-    return map;
-  }, [all]);
+  const categoryCounts = useMemo(() => countItems(tree, all), [tree, all]);
 
   function toggle(sku: string) {
     setSelected((previous) => {
@@ -75,7 +81,7 @@ export function DiscountsView() {
             disabled={items.isPending}
             options={[
               { value: "all", label: t("allItems", { count: all.length }) },
-              ...(categories.data ?? []).map((c) => ({ value: c.id, label: `${c.name} (${categoryCounts.get(c.id) ?? 0})` })),
+              ...tree.nested.map(({ category: c }) => ({ value: c.id, label: `${tree.pathLabel(c.id)} (${categoryCounts.total(c.id)})` })),
             ]}
           />
         </div>
@@ -139,6 +145,8 @@ export function DiscountsView() {
           </ul>
         )}
       </section>
+
+      <DatedDiscountsSection prefillSkus={params.get("dated") === "new" ? params.getAll("sku") : undefined} />
 
       <DiscountDialog
         open={dialogItems !== null}

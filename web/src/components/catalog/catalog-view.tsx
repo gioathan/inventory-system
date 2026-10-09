@@ -9,19 +9,20 @@ import {
   type RowSelectionState,
   type SortingState,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Download, ListPlus, Loader2, PackagePlus, Percent, Plus, Printer, Search, Tag, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, CalendarPlus, ChevronLeft, ChevronRight, Download, FolderInput, ListPlus, Loader2, PackagePlus, Percent, Plus, Printer, Search, Tag, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Checkbox } from "@/components/checkbox";
+import { CategoryFilter } from "@/components/category-filter";
 import { FilterChips } from "@/components/filter-chips";
 import { ItemImage } from "@/components/item-image";
 import { StatusPill } from "@/components/status-pill";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { useCategories, useItems } from "@/hooks/use-items";
+import { useCategoryTree, useItems } from "@/hooks/use-items";
 import { useCurrentSessionSales } from "@/hooks/use-restock-sessions";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { toCsv, downloadCsv } from "@/lib/csv";
@@ -30,6 +31,7 @@ import { ITEM_FILTERS, matchesSearch, useItemFilterOptions, type ItemFilter } fr
 import { stockLevel } from "@/lib/stock";
 import type { CatalogEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { MoveCategoryDialog } from "./move-category-dialog";
 import { DiscountDialog } from "./discount-dialog";
 import { QuickReceiveDialog } from "@/components/receive/quick-receive-dialog";
 import { ItemPanel } from "./item-panel";
@@ -50,10 +52,10 @@ function PriceCell({ item }: { item: CatalogEntry }) {
   return (
     <div className="flex flex-col items-end leading-tight">
       <span className="font-medium tabular-nums">{formatMoney(item.effectivePrice)}</span>
-      {item.discountPercentage !== null && (
+      {item.activeDiscountPercentage !== null && (
         <span className="flex items-center gap-1 text-[0.7rem] tabular-nums text-warning">
           <Tag className="size-3" />
-          {t("percentOff", { percent: formatPercent(item.discountPercentage) })}
+          {t("percentOff", { percent: formatPercent(item.activeDiscountPercentage) })}
         </span>
       )}
     </div>
@@ -76,7 +78,7 @@ export function CatalogView() {
   const pathname = usePathname();
   const params = useSearchParams();
   const items = useItems();
-  const categories = useCategories();
+  const tree = useCategoryTree();
   const sessionSales = useCurrentSessionSales();
   const isWide = useMediaQuery("(min-width: 1024px)");
   const soldBySku = sessionSales.data?.bySku;
@@ -88,17 +90,20 @@ export function CatalogView() {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [discountOpen, setDiscountOpen] = useState(false);
   const [receiveOpen, setReceiveOpen] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
+  // "" = all. Starts from ?category= so the Categories screen can link straight to a category's
+  // items; picking a parent shows everything beneath it too.
+  const [category, setCategory] = useState(() => params.get("category") ?? "");
 
   const all = useMemo(() => items.data ?? [], [items.data]);
-  const categoryName = useMemo(
-    () => new Map((categories.data ?? []).map((c) => [c.id, c.name])),
-    [categories.data],
-  );
   // The open item lives in the URL (?sku=), so a panel is linkable and survives a refresh, and
   // Back/Forward behave.
   const openSku = params.get("sku");
   const openEntry = openSku ? all.find((i) => i.sku === openSku) : undefined;
-  const nameOf = (item: CatalogEntry) => (item.categoryId ? (categoryName.get(item.categoryId) ?? "") : "");
+  // The category's own name (what the CSV export and re-import use) and its full path
+  // ("Jewelry › Earrings" — what's shown, and what search matches, so "jewelry" finds earrings).
+  const nameOf = (item: CatalogEntry) => (item.categoryId ? (tree.get(item.categoryId)?.name ?? "") : "");
+  const pathOf = (item: CatalogEntry) => (item.categoryId ? tree.pathLabel(item.categoryId) : "");
 
   const filterOptions = useItemFilterOptions();
   const counts = useMemo(
@@ -108,10 +113,14 @@ export function CatalogView() {
 
   const rows = useMemo(() => {
     const active = ITEM_FILTERS.find((f) => f.id === filter)!;
-    return all.filter(active.matches).filter((item) => matchesSearch(item, search, [nameOf(item)]));
-    // nameOf reads categoryName, which is what actually changes.
+    const within = category && tree.get(category) ? tree.withDescendants(category) : null;
+    return all
+      .filter(active.matches)
+      .filter((item) => !within || (item.categoryId !== null && within.has(item.categoryId)))
+      .filter((item) => matchesSearch(item, search, [pathOf(item)]));
+    // pathOf reads tree, which is what actually changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [all, filter, search, categoryName]);
+  }, [all, filter, search, category, tree]);
 
   const columns = useMemo(
     () => [
@@ -151,7 +160,7 @@ export function CatalogView() {
           </div>
         ),
       }),
-      columnHelper.accessor((item) => nameOf(item), {
+      columnHelper.accessor((item) => pathOf(item), {
         id: "category",
         header: t("fields.category"),
         cell: ({ getValue }) => <span className="text-muted-foreground">{getValue() || "—"}</span>,
@@ -178,7 +187,7 @@ export function CatalogView() {
     ],
     // openItem/nameOf are recreated each render but only read current state via closures.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [categoryName, soldBySku, t],
+    [tree, soldBySku, t],
   );
 
   // Known, documented incompatibility (see the "use no memo" note above); this component is opted out.
@@ -219,7 +228,7 @@ export function CatalogView() {
         ["SKU", "Name", "Barcode", "Category", "List price", "Discount %", "Price", "Stock"],
         sorted.map((i) => [
           i.sku, i.name, i.barcode, nameOf(i), i.price,
-          i.discountPercentage === null ? null : Math.round(i.discountPercentage * 100),
+          i.activeDiscountPercentage === null ? null : Math.round(i.activeDiscountPercentage * 100),
           i.effectivePrice, i.quantityOnHand,
         ]),
       ),
@@ -227,7 +236,7 @@ export function CatalogView() {
   }
 
   const panel = openEntry && (
-    <ItemPanel item={openEntry} categoryName={nameOf(openEntry) || null} onClose={isWide ? closeItem : undefined} />
+    <ItemPanel item={openEntry} categoryName={pathOf(openEntry) || null} onClose={isWide ? closeItem : undefined} />
   );
 
   return (
@@ -278,7 +287,10 @@ export function CatalogView() {
             </button>
           )}
         </div>
-        <FilterChips options={filterOptions} value={filter} onChange={setFilter} counts={counts} />
+        <div className="flex flex-wrap items-center gap-3">
+          <CategoryFilter tree={tree} value={tree.get(category) ? category : ""} onChange={setCategory} className="w-full sm:w-64" />
+          <FilterChips options={filterOptions} value={filter} onChange={setFilter} counts={counts} />
+        </div>
       </div>
 
       {selectedSkus.length > 0 && (
@@ -288,10 +300,21 @@ export function CatalogView() {
             <PackagePlus className="size-4" />
             {t("list.receiveStock")}
           </Button>
+          <Button type="button" variant="outline" className="h-9 gap-2" onClick={() => setMoveOpen(true)}>
+            <FolderInput className="size-4" />
+            {t("list.moveToCategory")}
+          </Button>
           <Button type="button" variant="outline" className="h-9 gap-2" onClick={() => setDiscountOpen(true)}>
             <Percent className="size-4" />
             {t("list.batchDiscount")}
           </Button>
+          <Link
+            href={`/discounts?dated=new&${selectedSkus.map((s) => `sku=${encodeURIComponent(s)}`).join("&")}`}
+            className={cn(buttonVariants({ variant: "outline" }), "h-9 gap-2")}
+          >
+            <CalendarPlus className="size-4" />
+            {t("list.datedDiscount")}
+          </Link>
           <Link
             href={`/labels/print?${selectedSkus.map((s) => `sku=${encodeURIComponent(s)}`).join("&")}`}
             className={cn(buttonVariants({ variant: "outline" }), "h-9 gap-2")}
@@ -448,6 +471,12 @@ export function CatalogView() {
       <DiscountDialog
         open={discountOpen}
         onOpenChange={setDiscountOpen}
+        items={all.filter((i) => selectedSkus.includes(i.sku))}
+        onDone={() => setRowSelection({})}
+      />
+      <MoveCategoryDialog
+        open={moveOpen}
+        onOpenChange={setMoveOpen}
         items={all.filter((i) => selectedSkus.includes(i.sku))}
         onDone={() => setRowSelection({})}
       />

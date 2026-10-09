@@ -43,5 +43,9 @@
   "appDescription": "Απόθεμα, σκανάρισμα barcode και αγορές για το κατάστημα και το back office.",
   "toggleTheme": "Αλλαγή θέματος",
   "switchLanguage": "Αλλαγή γλώσσας",
-  "signOut": "Αποσύνδεση"
+  "signOut": "Αποσύνδεση",
+  "categoryFilter": {
+    "label": "Φιλτράρισμα ανά κατηγορία",
+    "all": "Όλες οι κατηγορίες"
+  }
 }

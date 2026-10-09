@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
   // Emits a self-contained server bundle (server.js + only the node_modules it needs), which is
   // what the container image runs and what Aspire's publish step expects for a Next.js app.
   output: "standalone",
+  // Dev server only: lets a Cloudflare quick tunnel (for trying the app on a phone) load the
+  // dev assets, which Next.js otherwise serves to localhost alone.
+  allowedDevOrigins: ["*.trycloudflare.com"],
 };
 
 export default withNextIntl(nextConfig);

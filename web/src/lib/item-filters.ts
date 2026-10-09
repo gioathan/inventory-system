@@ -11,7 +11,7 @@ export const ITEM_FILTERS: { id: ItemFilter; labelKey: `itemFilters.${keyof type
   { id: "all", labelKey: "itemFilters.all", matches: () => true },
   { id: "low", labelKey: "itemFilters.low", matches: (item) => stockLevel(item.quantityOnHand) === "low" },
   { id: "out", labelKey: "itemFilters.out", matches: (item) => stockLevel(item.quantityOnHand) === "out" },
-  { id: "promo", labelKey: "itemFilters.promo", matches: (item) => item.discountPercentage !== null },
+  { id: "promo", labelKey: "itemFilters.promo", matches: (item) => item.activeDiscountPercentage !== null },
 ];
 
 // ITEM_FILTERS with each label resolved in the current UI language, ready for <FilterChips>.

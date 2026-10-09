@@ -25,7 +25,7 @@ export function ProductCard({ item, quantity, onQuantityChange, onConfirm, onCle
   const tc = useTranslations("common");
   const level = stockLevel(item.quantityOnHand);
   const inStock = item.quantityOnHand ?? 0;
-  const discounted = item.discountPercentage !== null;
+  const discounted = item.activeDiscountPercentage !== null;
   const total = item.effectivePrice * quantity;
   const canSell = level !== "out";
 
@@ -56,7 +56,7 @@ export function ProductCard({ item, quantity, onQuantityChange, onConfirm, onCle
             <div className="pb-1 text-sm tabular-nums text-muted-foreground line-through">{formatMoney(item.price)}</div>
             <StatusPill tone="warning" className="mb-1">
               <Tag className="size-3" />
-              {t("percentOff", { percent: formatPercent(item.discountPercentage!) })}
+              {t("percentOff", { percent: formatPercent(item.activeDiscountPercentage!) })}
             </StatusPill>
           </>
         )}

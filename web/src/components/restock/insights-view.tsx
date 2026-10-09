@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { BarList } from "@/components/charts/bar-list";
 import { ColumnChart } from "@/components/charts/column-chart";
-import { useCategories } from "@/hooks/use-items";
+import { useCategoryTree } from "@/hooks/use-items";
 import { useRestockSessions, useSessionReports } from "@/hooks/use-restock-sessions";
 import { formatMoney } from "@/lib/format";
 import { aggregateInsights, numberSessions, useSessionLabel, type Insights } from "@/lib/restock";
@@ -48,7 +48,7 @@ function Segmented<T extends string | number>({
 
 export function InsightsView() {
   const sessions = useRestockSessions();
-  const categories = useCategories();
+  const tree = useCategoryTree();
   const [scope, setScope] = useState<number>(5);
   const [measure, setMeasure] = useState<"units" | "revenue">("units");
   const t = useTranslations("restock");
@@ -59,7 +59,6 @@ export function InsightsView() {
   const numbered = useMemo(() => numberSessions(sessions.data ?? []), [sessions.data]);
   const inScope = useMemo(() => (scope === 0 ? numbered : numbered.slice(0, scope)), [numbered, scope]);
   const results = useSessionReports(inScope.map((s) => s.id));
-  const categoryName = useMemo(() => new Map((categories.data ?? []).map((c) => [c.id, c.name])), [categories.data]);
 
   const pending = results.some((r) => r.isPending);
   const error = results.find((r) => r.error)?.error;
@@ -73,12 +72,13 @@ export function InsightsView() {
     if (!complete) return null;
     return aggregateInsights(
       inScope.map((session, i) => ({ session, lines: results[i].data ?? [] })),
-      (id) => categoryName.get(id),
+      (id) => tree.get(id)?.name,
       { none: noCategory, unknown: unknownCategory },
+      (id) => tree.topLevel(id)?.id ?? id,
     );
     // dataKey stands in for `results`, whose array identity changes every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [complete, inScope, dataKey, categoryName, noCategory, unknownCategory]);
+  }, [complete, inScope, dataKey, tree, noCategory, unknownCategory]);
   if (insights && insights !== last) setLast(insights);
   const shown = insights ?? last;
 

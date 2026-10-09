@@ -2,11 +2,18 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
-import type { AuditEntry, StaffUser, StockAlert } from "@/lib/types";
+import type { AuditEntry, DatedDiscount, StaffUser, StockAlert } from "@/lib/types";
 
 // Everything here is admin-only in the backend; only call these from admin screens.
 export function useStaff() {
   return useQuery({ queryKey: ["staff"], queryFn: () => apiFetch<StaffUser[]>("staff", "staff") });
+}
+
+// Discounts that apply by themselves on chosen dates and repeat every year. The schedule fields
+// (running today, next occurrence, days until it) are worked out by the server on the shop's own
+// calendar day.
+export function useDatedDiscounts() {
+  return useQuery({ queryKey: ["dated-discounts"], queryFn: () => apiFetch<DatedDiscount[]>("gateway", "dated-discounts") });
 }
 
 export function useAuditLog() {

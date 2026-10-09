@@ -1,18 +1,20 @@
 "use client";
 
-import { AlertTriangle, ArrowRight, Boxes, ClipboardList, PackagePlus, Tag } from "lucide-react";
+import { AlertTriangle, ArrowRight, Boxes, CalendarClock, ClipboardList, PackagePlus, Tag } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useDateRangeLabel } from "@/components/catalog/dated-discounts";
 import { ItemImage } from "@/components/item-image";
 import { QuickReceiveDialog } from "@/components/receive/quick-receive-dialog";
 import { StatusPill } from "@/components/status-pill";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { useAlerts } from "@/hooks/use-admin-data";
+import { useAlerts, useDatedDiscounts } from "@/hooks/use-admin-data";
 import { useItems } from "@/hooks/use-items";
 import { useCurrentSession, useSessionReport } from "@/hooks/use-restock-sessions";
 import { computeStats, needsAttention } from "@/lib/dashboard";
-import { formatMoney } from "@/lib/format";
+import { stageOf } from "@/lib/dated-discounts";
+import { formatMoney, formatPercent } from "@/lib/format";
 import { useTimeFormat } from "@/lib/time";
 import type { CatalogEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -94,6 +96,8 @@ export function DashboardView() {
           </Link>
         </div>
       </div>
+
+      <DatedDiscountReminder />
 
       {items.isError ? (
         <p role="alert" className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -240,5 +244,44 @@ export function DashboardView() {
 
       <QuickReceiveDialog open={receiving !== null} onOpenChange={(open) => !open && setReceiving(null)} items={receiving ? [receiving] : []} />
     </div>
+  );
+}
+
+// Dated discounts repeat every year by themselves, so the one thing an admin needs is a nudge
+// before each comes round: is it still wanted, on these dates, for these items? Shown from two
+// weeks ahead and while one is running; silent otherwise.
+function DatedDiscountReminder() {
+  const t = useTranslations("dashboard.datedDiscounts");
+  const rangeLabel = useDateRangeLabel();
+  const relevant = (useDatedDiscounts().data ?? [])
+    .filter((d) => stageOf(d) !== "later")
+    .sort((a, b) => (a.daysUntilNext ?? 0) - (b.daysUntilNext ?? 0));
+  if (relevant.length === 0) return null;
+
+  return (
+    <section aria-label={t("title")} className="flex flex-col gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-4 sm:flex-row sm:items-center">
+      <CalendarClock aria-hidden className="size-5 shrink-0 text-primary" />
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <h2 className="text-sm font-semibold">{t("title")}</h2>
+        <ul className="flex flex-col gap-0.5 text-sm text-muted-foreground">
+          {relevant.map((d) => (
+            <li key={d.id}>
+              <span className="font-medium text-foreground">{d.name}</span>
+              {" · "}
+              {formatPercent(d.percentage)}
+              {" · "}
+              {t("items", { count: d.skus.length })}
+              {" · "}
+              {d.activeToday
+                ? t("runningUntil", { date: d.nextEnd ? rangeLabel(d.nextEnd, d.nextEnd) : "" })
+                : t("startsIn", { count: d.daysUntilNext ?? 0, dates: d.nextStart && d.nextEnd ? rangeLabel(d.nextStart, d.nextEnd) : "" })}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <Link href="/discounts" className={cn(buttonVariants({ variant: "outline" }), "h-9 shrink-0")}>
+        {t("review")}
+      </Link>
+    </section>
   );
 }

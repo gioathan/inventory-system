@@ -45,5 +45,12 @@
     "title": "Recent low-stock alerts",
     "empty": "No low-stock alerts have been raised yet.",
     "dropped": "Dropped to {quantity} (alerts at {threshold} or fewer)"
+  },
+  "datedDiscounts": {
+    "title": "Dated discounts to check",
+    "items": "{count, plural, one {# item} other {# items}}",
+    "runningUntil": "running until {date}",
+    "startsIn": "{count, plural, one {starts tomorrow} other {starts in # days}} ({dates})",
+    "review": "Review"
   }
 }

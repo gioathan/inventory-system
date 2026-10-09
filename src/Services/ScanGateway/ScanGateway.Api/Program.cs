@@ -99,6 +99,7 @@ app.MapReceivingEndpoints();
 app.MapItemsEndpoints();
 app.MapCategoryEndpoints();
 app.MapDiscountEndpoints();
+app.MapDatedDiscountEndpoints();
 app.MapPurchaseOrderEndpoints();
 app.MapRestockSessionEndpoints();
 app.MapImageEndpoints();

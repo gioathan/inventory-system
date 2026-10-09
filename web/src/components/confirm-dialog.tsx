@@ -16,6 +16,7 @@ export function ConfirmDialog({
   confirmLabel,
   destructive = false,
   pending = false,
+  confirmDisabled = false,
   error,
   onConfirm,
 }: {
@@ -26,6 +27,8 @@ export function ConfirmDialog({
   confirmLabel: string;
   destructive?: boolean;
   pending?: boolean;
+  /** For when the description explains why the action can't be taken yet. */
+  confirmDisabled?: boolean;
   error?: string | null;
   onConfirm: () => void;
 }) {
@@ -46,7 +49,7 @@ export function ConfirmDialog({
           <Button type="button" variant="ghost" className="h-10" disabled={pending} onClick={() => onOpenChange(false)}>
             {t("keepAsIs")}
           </Button>
-          <Button type="button" variant={destructive ? "destructive" : "default"} className="h-10" disabled={pending} onClick={onConfirm}>
+          <Button type="button" variant={destructive ? "destructive" : "default"} className="h-10" disabled={pending || confirmDisabled} onClick={onConfirm}>
             {pending && <Loader2 className="size-4 animate-spin" />}
             {confirmLabel}
           </Button>

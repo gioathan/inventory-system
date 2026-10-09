@@ -16,6 +16,14 @@ service CatalogGrpcService {
   rpc UpdateItem (UpdateItemRequest) returns (ItemReply);
   rpc CreateCategory (CreateCategoryRequest) returns (CategoryReply);
   rpc ListCategories (ListCategoriesRequest) returns (ListCategoriesReply);
+  rpc MoveItemsToCategory (MoveItemsToCategoryRequest) returns (MoveItemsToCategoryReply);
+  rpc RenameCategory (RenameCategoryRequest) returns (CategoryReply);
+  rpc MoveCategory (MoveCategoryRequest) returns (CategoryReply);
+  rpc DeleteCategory (DeleteCategoryRequest) returns (DeleteCategoryReply);
+  rpc ListDatedDiscounts (ListDatedDiscountsRequest) returns (ListDatedDiscountsReply);
+  rpc SaveDatedDiscount (SaveDatedDiscountRequest) returns (DatedDiscountReply);
+  rpc SetDatedDiscountSkip (SetDatedDiscountSkipRequest) returns (DatedDiscountReply);
+  rpc DeleteDatedDiscount (DeleteDatedDiscountRequest) returns (DeleteDatedDiscountReply);
   rpc ApplyDiscount (ApplyDiscountRequest) returns (DiscountReply);
   rpc RemoveDiscount (RemoveDiscountRequest) returns (DiscountReply);
 }
@@ -43,10 +51,16 @@ message ItemReply {
   // Fraction in (0, 1) taken off Price, e.g. 0.2 = 20% off. Unset means no active discount.
   // Price itself is never overwritten, so removing a discount is an exact, lossless revert.
   optional double discount_percentage = 7;
-  // Price with discount_percentage already applied — equal to price when there's no discount.
+  // Price with today's discount applied (see active_discount_percentage) — equal to price when
+  // there's none.
   // Precomputed here so every reader (Scan Gateway's popup, Dashboard) shows the same number
   // without re-deriving the multiplication itself.
   string effective_price = 8;
+  // The discount actually setting effective_price today: discount_percentage (the manual one)
+  // or a dated discount running today, whichever is bigger. Unset when neither applies.
+  optional double active_discount_percentage = 9;
+  // Set when a dated discount is the one setting the price today — its name, for display.
+  optional string dated_discount_name = 10;
 }
 
 message ListItemsRequest {
@@ -82,13 +96,49 @@ message UpdateItemRequest {
   optional string image_url = 6;
 }
 
+// parent_id unset creates a top-level category; set, a sub-category of that one.
 message CreateCategoryRequest {
   string name = 1;
+  optional string parent_id = 2;
 }
 
 message CategoryReply {
   string id = 1;
   string name = 2;
+  optional string parent_id = 3; // unset for a top-level category
+}
+
+// Many items into one category at once — sorting a category's items into its new
+// sub-categories. All-or-nothing over the SKU list, like the discount RPCs. category_id unset
+// clears the category. The target must have no sub-categories of its own.
+message MoveItemsToCategoryRequest {
+  repeated string skus = 1;
+  optional string category_id = 2;
+}
+
+message MoveItemsToCategoryReply {
+  repeated ItemReply items = 1;
+}
+
+message RenameCategoryRequest {
+  string id = 1;
+  string name = 2;
+}
+
+// Re-parents a category, taking everything beneath it along. parent_id unset makes it
+// top-level. Refused if the new parent is the category itself or anything beneath it (that
+// would loop the chain), or if the move would push its deepest descendant past the nesting limit.
+message MoveCategoryRequest {
+  string id = 1;
+  optional string parent_id = 2;
+}
+
+// Only a category with no sub-categories and no items can be deleted.
+message DeleteCategoryRequest {
+  string id = 1;
+}
+
+message DeleteCategoryReply {
 }
 
 message ListCategoriesRequest {
@@ -111,4 +161,58 @@ message RemoveDiscountRequest {
 
 message DiscountReply {
   repeated ItemReply items = 1;
+}
+
+// A discount that applies by itself on chosen dates and repeats every year until deleted — see
+// DatedDiscount in Catalog.Api. Dates are ISO yyyy-MM-dd, both ends of a period included.
+message DatedDiscountPeriodMessage {
+  string start_date = 1;
+  string end_date = 2;
+}
+
+// id unset creates one; set, replaces that one whole (name, percentage, periods and items), like
+// the form that submits it.
+message SaveDatedDiscountRequest {
+  optional string id = 1;
+  string name = 2;
+  double percentage = 3; // strictly between 0 and 1
+  repeated DatedDiscountPeriodMessage periods = 4;
+  repeated string skus = 5;
+}
+
+// The schedule fields are worked out by Catalog against the shop's own calendar day, so every
+// client agrees on what "today" and "in 14 days" mean.
+message DatedDiscountReply {
+  string id = 1;
+  string name = 2;
+  double percentage = 3;
+  repeated DatedDiscountPeriodMessage periods = 4; // as first set; later years are derived
+  repeated string skus = 5;
+  bool active_today = 6;
+  optional string next_start = 7;    // the occurrence running now, or the next one to come
+  optional string next_end = 8;
+  optional int32 days_until_next = 9; // 0 while it is running
+  optional string last_start = 10;   // the most recent occurrence that has fully passed
+  optional string last_end = 11;
+  optional int32 skipped_year = 12;
+}
+
+message ListDatedDiscountsRequest {
+}
+
+message ListDatedDiscountsReply {
+  repeated DatedDiscountReply dated_discounts = 1;
+}
+
+// skip = true turns off the coming occurrence only (its calendar year); false turns it back on.
+message SetDatedDiscountSkipRequest {
+  string id = 1;
+  bool skip = 2;
+}
+
+message DeleteDatedDiscountRequest {
+  string id = 1;
+}
+
+message DeleteDatedDiscountReply {
 }

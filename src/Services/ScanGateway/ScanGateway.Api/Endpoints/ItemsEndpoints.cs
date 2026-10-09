@@ -44,6 +44,10 @@ public static partial class ItemsEndpoints
             {
                 return Results.Conflict(ex.Message);
             }
+            catch (CatalogRuleException ex)
+            {
+                return Results.BadRequest(ex.Message);
+            }
         }).RequireAuthorization(AuthPolicies.AdminOnly);
     }
 }

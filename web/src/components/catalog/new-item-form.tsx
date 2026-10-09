@@ -13,7 +13,8 @@ import { ItemImage } from "@/components/item-image";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
-import { useCategories } from "@/hooks/use-items";
+import { useCategories, useCategoryTree } from "@/hooks/use-items";
+import { leafOptions } from "@/lib/categories";
 import { useImageUpload } from "@/hooks/use-image-upload";
 import { ApiError, apiFetch } from "@/lib/api";
 import type { ReceiveResult } from "@/lib/types";
@@ -59,6 +60,7 @@ export function NewItemForm() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const categories = useCategories();
+  const tree = useCategoryTree();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const t = useTranslations("catalog");
   const tc = useTranslations("common");
@@ -136,7 +138,7 @@ export function NewItemForm() {
             aria-describedby="categoryId-msg"
             value={categoryId}
             onValueChange={(v) => setValue("categoryId", v, { shouldValidate: true, shouldDirty: true })}
-            options={[{ value: "", label: t("fields.noCategory") }, ...(categories.data ?? []).map((c) => ({ value: c.id, label: c.name }))]}
+            options={[{ value: "", label: t("fields.noCategory") }, ...leafOptions(tree)]}
           />
         </FormField>
 

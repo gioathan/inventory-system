@@ -8,7 +8,9 @@ import { useId, useMemo, useRef, useState } from "react";
 import { Combobox } from "@/components/ui/combobox";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useCategories } from "@/hooks/use-items";
+import { useCategoryTree } from "@/hooks/use-items";
+import { buildCategoryTree, leafOptions } from "@/lib/categories";
+import type { Category } from "@/lib/types";
 import { ApiError, apiFetch } from "@/lib/api";
 import { downloadCsv, parseCsvAsObjects, toCsv } from "@/lib/csv";
 import type { ReceiveResult } from "@/lib/types";
@@ -69,7 +71,7 @@ export function BulkAddView() {
   const t = useTranslations("catalog");
   const tc = useTranslations("common");
   const queryClient = useQueryClient();
-  const categories = useCategories();
+  const tree = useCategoryTree();
   const fileInput = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<Row[]>(() => [blankRow(), blankRow(), blankRow()]);
   const [csvError, setCsvError] = useState<string | null>(null);
@@ -77,8 +79,8 @@ export function BulkAddView() {
   const [busy, setBusy] = useState(false);
 
   const categoryOptions = useMemo(
-    () => [{ value: "", label: t("fields.noCategory") }, ...(categories.data ?? []).map((c) => ({ value: c.id, label: c.name }))],
-    [categories.data, t],
+    () => [{ value: "", label: t("fields.noCategory") }, ...leafOptions(tree)],
+    [tree, t],
   );
 
   function update(id: string, patch: Partial<Row>) {
@@ -100,9 +102,17 @@ export function BulkAddView() {
       // after mount the file was chosen.
       const list = await queryClient.ensureQueryData({
         queryKey: ["categories"],
-        queryFn: () => apiFetch<{ id: string; name: string }[]>("gateway", "categories"),
+        queryFn: () => apiFetch<Category[]>("gateway", "categories"),
       });
-      const categoryByName = new Map(list.map((c) => [c.name.trim().toLowerCase(), c.id]));
+      // Only categories with no sub-categories can hold items, so only those match — by their
+      // own name (names are unique) or by the full "Jewelry › Earrings" path.
+      const fresh = buildCategoryTree(list);
+      const categoryByName = new Map(
+        fresh.leaves.flatMap((c) => [
+          [c.name.trim().toLowerCase(), c.id],
+          [fresh.pathLabel(c.id).toLowerCase(), c.id],
+        ]),
+      );
 
       const text = await file.text();
       const parsed = parseCsvAsObjects(text);

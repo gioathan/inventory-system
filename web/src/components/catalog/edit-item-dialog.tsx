@@ -13,7 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useCategories } from "@/hooks/use-items";
+import { useCategories, useCategoryTree } from "@/hooks/use-items";
+import { leafOptions } from "@/lib/categories";
 import { useImageUpload } from "@/hooks/use-image-upload";
 import { ApiError, apiFetch } from "@/lib/api";
 import type { CatalogEntry } from "@/lib/types";
@@ -69,6 +70,14 @@ export function EditItemDialog({
   const queryClient = useQueryClient();
   const categories = useCategories();
   const t = useTranslations("catalog");
+  const tree = useCategoryTree();
+  // Only categories with no sub-categories can be chosen — plus the one this item is already in,
+  // if that has since gained sub-categories, so the form can still show where it currently is.
+  const categoryOptions = [
+    { value: "", label: t("fields.noCategory") },
+    ...leafOptions(tree),
+    ...(item.categoryId && tree.hasChildren(item.categoryId) ? [{ value: item.categoryId, label: tree.pathLabel(item.categoryId) }] : []),
+  ];
   const tc = useTranslations("common");
   const schema = useMemo(() => makeSchema(t), [t]);
 
@@ -161,7 +170,7 @@ export function EditItemDialog({
                   aria-describedby="edit-categoryId-msg"
                   value={categoryId}
                   onValueChange={(v) => setValue("categoryId", v, { shouldValidate: true, shouldDirty: true })}
-                  options={[{ value: "", label: t("fields.noCategory") }, ...(categories.data ?? []).map((c) => ({ value: c.id, label: c.name }))]}
+                  options={categoryOptions}
                 />
               </FormField>
             </div>

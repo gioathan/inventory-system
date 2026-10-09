@@ -20,6 +20,8 @@ builder.AddNpgsqlDbContext<CatalogDbContext>("catalogdb");
 builder.Services.AddGrpc();
 
 builder.Services.AddScoped<ItemCreationService>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<DatedDiscountService>();
 
 var app = builder.Build();
 

@@ -43,5 +43,9 @@
   "appDescription": "Inventory, barcode scanning and purchasing for the shop floor and back office.",
   "toggleTheme": "Toggle theme",
   "switchLanguage": "Switch language",
-  "signOut": "Sign out"
+  "signOut": "Sign out",
+  "categoryFilter": {
+    "label": "Filter by category",
+    "all": "All categories"
+  }
 }

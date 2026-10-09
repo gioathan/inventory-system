@@ -28,6 +28,8 @@ public class Query
             item.Price,
             item.DiscountPercentage,
             item.EffectivePrice,
+            item.ActiveDiscountPercentage,
+            item.DatedDiscountName,
             item.ImageUrl,
             item.CategoryId,
             stockBySku.TryGetValue(item.Sku, out var quantity) ? quantity : null));
@@ -78,6 +80,9 @@ public class Query
 
 public record DashboardItem(
     string Sku, string Name, string Barcode, decimal Price, double? DiscountPercentage, decimal EffectivePrice,
+    // The discount setting EffectivePrice today (the manual DiscountPercentage or a dated discount,
+    // whichever is bigger), and the dated discount's name when that is the one.
+    double? ActiveDiscountPercentage, string? DatedDiscountName,
     string? ImageUrl, Guid? CategoryId, int? QuantityOnHand);
 public record SessionReportLine(
     string Sku, string? Name, Guid? CategoryId, int Restocked, int Sold, int NetDelta,

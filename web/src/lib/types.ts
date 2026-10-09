@@ -7,10 +7,14 @@ export interface ScanItem {
   name: string;
   barcode: string;
   price: number;
-  /** Fraction in (0, 1) taken off `price`, or null when no discount is active. */
+  /** The manual discount: a fraction in (0, 1), or null when none is set. */
   discountPercentage: number | null;
-  /** What's actually charged: `price` with any discount applied. */
+  /** What's actually charged: `price` with today's discount applied. */
   effectivePrice: number;
+  /** The discount setting `effectivePrice` today: the manual one or a dated one, whichever is bigger. */
+  activeDiscountPercentage: number | null;
+  /** The dated discount's name, when that is the one setting the price today. */
+  datedDiscountName: string | null;
   /** Null when the item has a catalog entry but has never been stocked. */
   quantityOnHand: number | null;
   imageUrl: string | null;
@@ -31,17 +35,49 @@ export interface CatalogEntry {
   name: string;
   barcode: string;
   price: number;
+  /** The manual discount only; `activeDiscountPercentage` is what applies today. */
   discountPercentage: number | null;
   effectivePrice: number;
+  activeDiscountPercentage: number | null;
+  datedDiscountName: string | null;
   imageUrl: string | null;
   categoryId: string | null;
   /** Null when the item exists in the catalog but has never been stocked. */
   quantityOnHand: number | null;
 }
 
+/** One run of days, ISO yyyy-MM-dd, both ends included. */
+export interface DatedDiscountPeriod {
+  startDate: string;
+  endDate: string;
+}
+
+/** A discount that applies by itself on chosen dates and comes round again every year. */
+export interface DatedDiscount {
+  id: string;
+  name: string;
+  /** Fraction in (0, 1). */
+  percentage: number;
+  /** As first set; later years repeat the same dates. */
+  periods: DatedDiscountPeriod[];
+  skus: string[];
+  activeToday: boolean;
+  /** The occurrence running now, or the next one to come (skipped years left out). */
+  nextStart: string | null;
+  nextEnd: string | null;
+  /** 0 while it is running. */
+  daysUntilNext: number | null;
+  lastStart: string | null;
+  lastEnd: string | null;
+  /** Set when the occurrence in that calendar year has been switched off. */
+  skippedYear: number | null;
+}
+
 export interface Category {
   id: string;
   name: string;
+  /** The category this one sits inside; null for a top-level category. */
+  parentId: string | null;
 }
 
 export interface StaffUser {

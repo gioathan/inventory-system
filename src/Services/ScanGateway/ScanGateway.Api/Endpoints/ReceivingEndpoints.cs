@@ -46,6 +46,10 @@ public static partial class ReceivingEndpoints
             {
                 return Results.Conflict(ex.Message);
             }
+            catch (CatalogRuleException ex)
+            {
+                return Results.BadRequest(ex.Message);
+            }
 
             // Two services, no shared transaction: if Inventory fails here the catalog item
             // already exists. Say so, with its barcode — a plain error would invite a retry, and

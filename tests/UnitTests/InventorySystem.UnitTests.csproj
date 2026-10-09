@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Services\ScanGateway\ScanGateway.Api\InventorySystem.ScanGateway.Api.csproj" />
+    <ProjectReference Include="..\..\src\Services\Catalog\Catalog.Api\InventorySystem.Catalog.Api.csproj" />
   </ItemGroup>
 
 </Project>

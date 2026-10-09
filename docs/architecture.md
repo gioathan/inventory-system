@@ -169,6 +169,69 @@ e.g. 20% off 10 SKUs — without touching their base `Price`.
   "revenue uses today's Catalog price, not price-at-time-of-sale" tradeoff already in
   TECH_DEBT.md; a discount is just today's price being lower than it was.
 
+## Dated discounts (2026-10-09)
+
+A second kind of discount beside the manual one (`Item.DiscountPercentage`, unchanged): a
+`DatedDiscount` is a name, a percentage, a set of items (by Sku) and one or more date ranges. It
+applies by itself on those dates, and comes round on the same dates every year until deleted.
+
+- **Evaluated on read, not switched by a job.** `CatalogGrpcServiceImpl` builds every `ItemReply`
+  through `ItemRepliesAsync`, which loads the dated discounts running today once per call. There
+  is no midnight task to fail and leave a sale running, or not started. "Today" is the shop's
+  calendar day (`Shop:TimeZone`, default `Europe/Athens`), not the server's.
+- **The bigger discount wins; the manual one is never touched.** `effective_price` uses
+  `max(manual, dated)`. `discount_percentage` still reports the manual one alone, so "remove
+  discount" keeps meaning what it says; `active_discount_percentage` and `dated_discount_name`
+  say what is actually setting the price. When the dates pass, the item is simply back to what it
+  had — its manual discount or its list price — with nothing to restore.
+- **Yearly repeat is derived, never written.** A period stores the dates of its first occurrence;
+  `DatedDiscountSchedule` (pure, unit-tested) moves that span forward whole years. Nothing applies
+  before the first occurrence; 29 February falls back to the 28th. `SkippedYear` switches off the
+  occurrence in one calendar year only, so a skip can't quietly become permanent.
+- **Review, not confirmation.** Repeating is automatic (the owner's choice over confirm-first:
+  a forgotten confirmation would silently cancel a sale). The safeguard is visibility: from 14
+  days ahead the dashboard and the Discounts page list what is coming, with edit / skip this year
+  / delete. Catalog computes `days_until_next` so every client agrees on the count.
+- **Cache.** Scan Gateway's barcode cache carries today's price, so its TTL is cut short at the
+  shop's midnight, and saving, skipping or deleting a dated discount drops the cached entries of
+  every item it touched.
+- **Sales** need nothing new: each sale already records the unit price actually charged.
+
+## Category tree (2026-10-09)
+
+Categories nest: `Category.ParentId` (nullable self-reference, `Restrict` on delete) makes
+"Earrings" a sub-category of "Jewelry". An adjacency list and nothing more — the tree is a few
+dozen rows, so every reader loads the flat list and assembles it (`web/src/lib/categories.ts`
+is the one place that does, for browsing, pickers, filters and roll-up counts alike).
+
+- **One parent each, names unique across the whole tree.** One parent means a category can't
+  appear twice in its own chain; global uniqueness keeps CSV import matching by name and answers
+  "which Earrings?" before it's asked. Nesting is capped at 5 levels (`MaxCategoryDepth`) as a
+  guard against a runaway chain, not as a product rule.
+- **Items go in categories with no sub-categories.** Catalog refuses to create, edit or move an
+  item into a category that has children (`RequireAssignableCategoryAsync`, `FailedPrecondition`
+  → 400 at the gateway). The pickers only offer those categories, labelled with their path.
+- **Reading rolls up.** An item in Earrings is in Jewelry for every filter, search, count,
+  discount target and (by top-level category) session insight. This is done where the data is
+  read — the item itself carries only its own category.
+- **Giving a category its first sub-category does not move its items.** They stay, still show
+  under the parent, and the Categories screen flags them ("9 to sort") and offers a tick-and-move
+  list backed by `MoveItemsToCategory` / `POST /items/category` (all-or-nothing, like discounts).
+  Auto-moving them into the first sub-category was rejected: it files everything under whichever
+  one happened to be created first, and wrong data that looks right is worse than data marked
+  unsorted. `UpdateItem` therefore only checks the category when it changes, so an unsorted item
+  stays editable.
+- **Rename, move, delete.** Rename keeps names unique. Move re-parents a category with its whole
+  branch and is checked in memory against the full (small) tree: the target can't be the category
+  itself or anything beneath it, and the branch's deepest level must still fit the limit. Delete
+  is refused while the category has sub-categories or items — nothing is ever cascaded or
+  orphaned. A category that loses its last sub-category can hold items again.
+- **Who can do what.** Listing categories is `SellerOrAdmin` (the Stock screen filters by them);
+  every change to them, and moving items, is `AdminOnly`.
+- **UI.** `/categories` shows one level at a time with a trail back up; the level is in the URL
+  (`?in=`), and the add box adds to the level on screen. Catalog and Stock have a nested category
+  dropdown (`CategoryFilter`); Catalog also takes `?category=` and has a bulk "Move to category".
+
 ## Kubernetes (Step 10) — local k3d
 
 Every service now also runs as a plain-YAML Kubernetes deployment (`k8s/`), rehearsed locally

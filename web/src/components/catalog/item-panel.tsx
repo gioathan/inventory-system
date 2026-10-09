@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { ItemImage } from "@/components/item-image";
 import { Label } from "@/components/labels/label";
+import { useDatedDiscounts } from "@/hooks/use-admin-data";
+import { useDateRangeLabel } from "./dated-discounts";
 import { StatusPill } from "@/components/status-pill";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { formatMoney, formatPercent } from "@/lib/format";
@@ -43,7 +45,9 @@ export function ItemPanel({
   onClose?: () => void;
 }) {
   const level = stockLevel(item.quantityOnHand);
-  const discounted = item.discountPercentage !== null;
+  const discounted = item.activeDiscountPercentage !== null;
+  const rangeLabel = useDateRangeLabel();
+  const dated = (useDatedDiscounts().data ?? []).filter((d) => d.skus.includes(item.sku));
   const [editOpen, setEditOpen] = useState(false);
   const [receiveOpen, setReceiveOpen] = useState(false);
   const t = useTranslations("catalog");
@@ -63,7 +67,7 @@ export function ItemPanel({
                 <span className="text-xs tabular-nums text-muted-foreground line-through">{formatMoney(item.price)}</span>
                 <StatusPill tone="warning" className="px-2 py-0.5">
                   <Tag className="size-3" />
-                  {t("percentOff", { percent: formatPercent(item.discountPercentage!) })}
+                  {t("percentOff", { percent: formatPercent(item.activeDiscountPercentage!) })}
                 </StatusPill>
               </>
             )}
@@ -92,6 +96,25 @@ export function ItemPanel({
         </Field>
         <Field label={t("fields.listPrice")}>{formatMoney(item.price)}</Field>
       </dl>
+
+      {dated.length > 0 && (
+        <section aria-label={t("panel.datedDiscounts")} className="flex flex-col gap-2">
+          <h3 className="text-sm font-medium">{t("panel.datedDiscounts")}</h3>
+          <ul className="flex flex-col gap-1.5 text-sm">
+            {dated.map((d) => (
+              <li key={d.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <StatusPill tone={d.activeToday ? "success" : "neutral"} className="px-2 py-0.5">
+                  {t("percentOff", { percent: formatPercent(d.percentage) })}
+                </StatusPill>
+                <Link href="/discounts" className="font-medium underline-offset-2 hover:underline">
+                  {d.name}
+                </Link>
+                {d.nextStart && d.nextEnd && <span className="text-muted-foreground">{rangeLabel(d.nextStart, d.nextEnd)}</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <ItemSession item={item} />
 
