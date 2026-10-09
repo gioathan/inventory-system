@@ -49,10 +49,11 @@ Track anything done quick-and-dirty here the moment you do it — future you wil
 - **Why:** Not documented anywhere obvious — found by hitting the actual `InvalidOperationException` at runtime and reasoning through where GrpcChannel vs HttpClient diverge in how they interpret the URI.
 - **Fix later by:** N/A — this is just the correct pattern going forward for any future gRPC client added to the system.
 
-## [2026-08-09] CreateItem's category_id/image_url aren't validated before Guid.Parse
+## [2026-08-09] CreateItem's category_id/image_url aren't validated before Guid.Parse — RESOLVED 2026-10-09
 - **What:** `CatalogGrpcServiceImpl.CreateItem` calls `Guid.Parse(request.CategoryId)` directly on the incoming string with no try/catch — a malformed value throws an unhandled `FormatException`, surfacing as a generic gRPC `INTERNAL` error rather than a clean `INVALID_ARGUMENT`.
 - **Why:** Scan Gateway's intake flow only ever passes a real `Guid.ToString()` or omits the field entirely, so this can't happen through the one caller that exists today. Left unvalidated to keep the first cut of intake/restock focused.
 - **Fix later by:** Wrap the parse in a try/catch mapping to `RpcException(StatusCode.InvalidArgument)` before any other caller (e.g. a future admin UI) can hit this with untrusted input.
+- **Resolved:** `CreateItem` and `UpdateItem` now parse the price and category id through shared helpers that return `INVALID_ARGUMENT` (and reject a blank name) instead of throwing.
 
 ## [2026-09-12, mostly resolved 2026-09-28] Sales before 2026-09-28 have no recorded price
 - **What:** Since 2026-09-28 every sale stores the unit price actually charged (`StockMovement.UnitPrice`, passed by Scan Gateway, discount included), and `sessionReport` sums those — the fix this entry originally proposed, done because comparing sessions made it matter. Sales recorded before that have no price; their revenue is still estimated at today's effective price, and the line is flagged `revenueEstimated` (shown as ≈ in the UI).
@@ -212,10 +213,11 @@ Track anything done quick-and-dirty here the moment you do it — future you wil
 - **Why:** The endpoint predates any frontend; a plain "latest N" was enough for curl. The UI is honest about the cap ("the most recent 200 are kept").
 - **Fix later by:** Add `action`, `username`, `from`/`to` and paging parameters to the endpoint and query them server-side, and consider not logging routine successful sign-ins at the same level as security events.
 
-## [2026-09-26] Staff accounts can't be removed, disabled, or have their password or role changed
+## [2026-09-26] Staff accounts can't be removed, disabled, or have their password or role changed — delete added 2026-10-09
 - **What:** The backend only creates and lists staff. A departed employee's account stays active, a forgotten password can't be reset, and a Seller can't be promoted; the only fix today is editing the database.
 - **Why:** Account lifecycle wasn't part of the original auth step. The Staff screen states the limitation rather than offering buttons that can't work.
 - **Fix later by:** Add disable (preferred over delete, to keep audit entries meaningful), password reset, and role change endpoints, each audited, plus the matching UI. Disabling should also invalidate live tokens, which today can't be revoked before their ~8 hour expiry.
+- **Update 2026-10-09:** Admins can now delete an account (`DELETE /staff/{id}`, audited as `UserDeleted`; not your own, not the last admin). It is a hard delete, not the disable preferred above — the audit log keeps its own copy of the username. Still open: password reset, role change, and above all token revocation — a deleted user's token keeps working on every service except this delete endpoint until it expires (up to 8 hours).
 
 ## [2026-09-26] The dashboard has no sales or stock-over-time view
 - **What:** Nothing records sales or stock levels over time in a queryable form, so there are no revenue, velocity or trend charts, and "today's sales" doesn't exist.

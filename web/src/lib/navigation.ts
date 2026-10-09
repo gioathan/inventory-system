@@ -50,6 +50,12 @@ export const ADMIN_NAV: NavGroup[] = [
 
 export const SELLER_NAV: NavItem[] = [
   { href: "/scan", labelKey: "items.scan", icon: ScanBarcode },
-  { href: "/receive", labelKey: "items.receive", icon: PackagePlus },
   { href: "/stock", labelKey: "items.stock", icon: PackageSearch },
+];
+
+// What an admin sees in the same shell: the seller screens plus Receive, which is admin-only.
+export const SELLER_SHELL_ADMIN_NAV: NavItem[] = [
+  SELLER_NAV[0],
+  { href: "/receive", labelKey: "items.receive", icon: PackagePlus },
+  SELLER_NAV[1],
 ];

@@ -101,7 +101,7 @@ test("language: toggle to Greek and back, Accept-Language fallback, every screen
     await greek.page.fill("#password", seller.password);
     await greek.page.click("button[type=submit]");
     await greek.page.waitForURL("**/scan", { timeout: 30000 });
-    check("seller: tab bar is Greek", await visible(greek.page, elNav.items.receive));
+    check("seller: tab bar is Greek", await visible(greek.page, elNav.items.stock));
     await greek.context.close();
   }
 });

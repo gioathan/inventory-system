@@ -15,6 +15,7 @@
   "actions": {
     "LoginFailed": "Login failed",
     "LoginSucceeded": "Login succeeded",
-    "UserCreated": "User created"
+    "UserCreated": "User created",
+    "UserDeleted": "User deleted"
   }
 }

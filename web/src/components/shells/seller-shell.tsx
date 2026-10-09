@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { Wordmark } from "@/components/brand";
 import { UserMenu } from "@/components/user-menu";
 import type { Role } from "@/lib/jwt";
-import { SELLER_NAV, type NavItem } from "@/lib/navigation";
+import { SELLER_NAV, SELLER_SHELL_ADMIN_NAV, type NavItem } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 export function SellerShell({
@@ -24,7 +24,7 @@ export function SellerShell({
 
   // An admin can use the seller screens too; give them a way back to their console.
   const items: NavItem[] =
-    role === "Admin" ? [...SELLER_NAV, { href: "/dashboard", labelKey: "items.console", icon: LayoutDashboard }] : SELLER_NAV;
+    role === "Admin" ? [...SELLER_SHELL_ADMIN_NAV, { href: "/dashboard", labelKey: "items.console", icon: LayoutDashboard }] : SELLER_NAV;
 
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">

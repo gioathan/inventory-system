@@ -1,3 +1,5 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text.RegularExpressions;
 using InventorySystem.Auth.Contracts;
 using InventorySystem.Staff.Api.Data;
@@ -50,6 +52,23 @@ public static partial class StaffEndpoints
                 .Select(u => new StaffUserResponse(u.Id, u.Username, u.Role, u.CreatedAt))
                 .ToListAsync(cancellationToken);
             return Results.Ok(users);
+        }).RequireAuthorization(AuthPolicies.AdminOnly);
+        // Admin-only, like creating one. Who is asking comes from the token's subject claim —
+        // AuthService needs it to refuse deleting yourself and to record who did it.
+        app.MapDelete("/staff/{id:guid}", async (Guid id, ClaimsPrincipal caller, AuthService auth, CancellationToken cancellationToken) =>
+        {
+            var subject = caller.FindFirstValue(ClaimTypes.NameIdentifier) ?? caller.FindFirstValue(JwtRegisteredClaimNames.Sub);
+            if (!Guid.TryParse(subject, out var actorId))
+                return Results.Forbid();
+
+            return await auth.DeleteUserAsync(id, actorId, cancellationToken) switch
+            {
+                DeleteUserOutcome.Deleted => Results.NoContent(),
+                DeleteUserOutcome.NotFound => Results.NotFound(),
+                DeleteUserOutcome.IsSelf => Results.Conflict("You can't delete your own account."),
+                DeleteUserOutcome.LastAdmin => Results.Conflict("This is the only admin account, so it can't be deleted."),
+                _ => Results.Forbid()
+            };
         }).RequireAuthorization(AuthPolicies.AdminOnly);
     }
 

@@ -46,16 +46,18 @@ public class CatalogGrpcServiceImpl(CatalogDbContext db, ItemCreationService ite
         return reply;
     }
 
+    // Admin-only, matching Scan Gateway's /items/intake — creating an item also stocks it.
+    [Authorize(Policy = AuthPolicies.AdminOnly)]
     public override async Task<ItemReply> CreateItem(CreateItemRequest request, ServerCallContext context)
     {
         try
         {
             var item = await itemCreation.CreateItemAsync(
-                request.Name,
-                decimal.Parse(request.Price, CultureInfo.InvariantCulture),
+                RequireName(request.Name),
+                ParsePrice(request.Price),
                 request.HasBarcode ? request.Barcode : null,
                 request.HasSku ? request.Sku : null,
-                request.HasCategoryId ? Guid.Parse(request.CategoryId) : null,
+                request.HasCategoryId ? ParseCategoryId(request.CategoryId) : null,
                 request.HasImageUrl ? request.ImageUrl : null,
                 context.CancellationToken);
 
@@ -68,8 +70,7 @@ public class CatalogGrpcServiceImpl(CatalogDbContext db, ItemCreationService ite
     }
 
     // A full replace of the editable fields (see UpdateItemRequest), admin-only like the rest of
-    // catalog management (categories, discounts) — a seller creating an item during receiving
-    // doesn't also get to edit an existing one.
+    // catalog management (categories, discounts, creating items).
     [Authorize(Policy = AuthPolicies.AdminOnly)]
     public override async Task<ItemReply> UpdateItem(UpdateItemRequest request, ServerCallContext context)
     {
@@ -77,10 +78,10 @@ public class CatalogGrpcServiceImpl(CatalogDbContext db, ItemCreationService ite
         if (item is null)
             throw new RpcException(new Status(StatusCode.NotFound, $"No catalog item found for SKU '{request.Sku}'."));
 
-        item.Name = request.Name;
-        item.Price = decimal.Parse(request.Price, CultureInfo.InvariantCulture);
+        item.Name = RequireName(request.Name);
+        item.Price = ParsePrice(request.Price);
         item.Barcode = request.Barcode;
-        item.CategoryId = request.HasCategoryId ? Guid.Parse(request.CategoryId) : null;
+        item.CategoryId = request.HasCategoryId ? ParseCategoryId(request.CategoryId) : null;
         item.ImageUrl = request.HasImageUrl ? request.ImageUrl : null;
 
         try
@@ -166,13 +167,32 @@ public class CatalogGrpcServiceImpl(CatalogDbContext db, ItemCreationService ite
         return items;
     }
 
+    // Shared by CreateItem/UpdateItem: malformed input is the caller's mistake, so it comes back
+    // as InvalidArgument rather than an unhandled FormatException (a generic Internal error).
+    private static string RequireName(string name) =>
+        string.IsNullOrWhiteSpace(name)
+            ? throw new RpcException(new Status(StatusCode.InvalidArgument, "name is required."))
+            : name;
+
+    private static decimal ParsePrice(string value) =>
+        decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var price) && price >= 0
+            ? price
+            : throw new RpcException(new Status(StatusCode.InvalidArgument, $"'{value}' is not a valid price."));
+
+    private static Guid ParseCategoryId(string value) =>
+        Guid.TryParse(value, out var id)
+            ? id
+            : throw new RpcException(new Status(StatusCode.InvalidArgument, $"'{value}' is not a valid category id."));
+
     private static CategoryReply ToReply(Category category) =>
         new() { Id = category.Id.ToString(), Name = category.Name };
 
     private static ItemReply ToReply(Item item)
     {
+        // Rounded to cents: this is what a seller charges and what a sale records as its unit
+        // price, so 9.99 at 15% off must be 8.49, not 8.4915.
         var effectivePrice = item.DiscountPercentage is { } discount
-            ? item.Price * (1 - (decimal)discount)
+            ? decimal.Round(item.Price * (1 - (decimal)discount), 2, MidpointRounding.AwayFromZero)
             : item.Price;
 
         var reply = new ItemReply

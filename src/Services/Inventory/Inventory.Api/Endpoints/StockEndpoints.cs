@@ -16,6 +16,11 @@ public static class StockEndpoints
         // on for a clean starting fixture.
         app.MapPost("/stock", async (CreateStockItemRequest request, InventoryDbContext db, StockReceivingService receiving) =>
         {
+            if (string.IsNullOrWhiteSpace(request.Sku))
+                return Results.BadRequest("Sku is required.");
+            if (request.InitialQuantity < 0)
+                return Results.BadRequest("InitialQuantity can't be negative.");
+
             if (await db.StockItems.AnyAsync(s => s.Sku == request.Sku))
                 return Results.Conflict($"Stock item '{request.Sku}' already exists.");
 

@@ -9,7 +9,7 @@ import { Label } from "@/components/labels/label";
 import { StatusPill } from "@/components/status-pill";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { formatMoney, formatPercent } from "@/lib/format";
-import { LABEL_FORMAT, LABEL_HEIGHT_IN, LABEL_WIDTH_IN } from "@/lib/label";
+import { DEFAULT_LABEL_SIZE, LABEL_FORMAT } from "@/lib/label";
 import { stockLevel } from "@/lib/stock";
 import type { CatalogEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -99,7 +99,7 @@ export function ItemPanel({
         <div className="flex items-baseline justify-between">
           <h3 className="text-sm font-medium">{t("panel.label")}</h3>
           <span className="text-xs text-muted-foreground">
-            {FORMAT_NOTE[LABEL_FORMAT]} · {LABEL_WIDTH_IN}&Prime; × {LABEL_HEIGHT_IN}&Prime;
+            {FORMAT_NOTE[LABEL_FORMAT]} · {DEFAULT_LABEL_SIZE.widthMm} × {DEFAULT_LABEL_SIZE.heightMm} mm
           </span>
         </div>
         {/* Rendered at its real size then scaled, so proportions match what will print. The scale
@@ -111,7 +111,7 @@ export function ItemPanel({
           aria-label={t("panel.labelPreview")}
           className="overflow-x-auto rounded-xl border bg-muted/40 p-3 [--scale:1.15] focus-visible:outline-2 focus-visible:outline-ring min-[420px]:[--scale:1.5]"
         >
-          <div style={{ width: `calc(${LABEL_WIDTH_IN}in * var(--scale))`, height: `calc(${LABEL_HEIGHT_IN}in * var(--scale))` }}>
+          <div style={{ width: `calc(${DEFAULT_LABEL_SIZE.widthMm}mm * var(--scale))`, height: `calc(${DEFAULT_LABEL_SIZE.heightMm}mm * var(--scale))` }}>
             <div style={{ transform: "scale(var(--scale))", transformOrigin: "top left" }}>
               <Label item={item} format={LABEL_FORMAT} className="shadow-sm" />
             </div>

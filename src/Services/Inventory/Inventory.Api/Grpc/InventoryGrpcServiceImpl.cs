@@ -44,6 +44,8 @@ public class InventoryGrpcServiceImpl(
         return reply;
     }
 
+    // Admin-only, matching Scan Gateway's receive/intake routes — the only callers.
+    [Authorize(Policy = AuthPolicies.AdminOnly)]
     public override async Task<StockReply> ReceiveStock(ReceiveStockRequest request, ServerCallContext context)
     {
         if (request.Quantity <= 0)

@@ -14,10 +14,10 @@ const PAGE = 25;
 
 // A failed sign-in is the entry an admin most needs to notice, so it stands out; unknown actions
 // (anything the backend starts recording later) fall back to neutral.
-const TONE: Record<string, PillTone> = { LoginFailed: "danger", UserCreated: "info", LoginSucceeded: "neutral" };
+const TONE: Record<string, PillTone> = { LoginFailed: "danger", UserCreated: "info", UserDeleted: "warning", LoginSucceeded: "neutral" };
 
 // Actions with a translated label (audit.json "actions"); anything else falls back to humanize().
-const KNOWN_ACTIONS = ["LoginFailed", "LoginSucceeded", "UserCreated"] as const;
+const KNOWN_ACTIONS = ["LoginFailed", "LoginSucceeded", "UserCreated", "UserDeleted"] as const;
 type KnownAction = (typeof KNOWN_ACTIONS)[number];
 const isKnownAction = (action: string): action is KnownAction => (KNOWN_ACTIONS as readonly string[]).includes(action);
 

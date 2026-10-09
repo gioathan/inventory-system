@@ -121,8 +121,8 @@ service) since it only needs Inventory's own data, not cross-service events yet.
 
 A new `Staff.Api` service (Postgres `staffdb`) is the sole issuer of JWTs; every other service
 only validates. Two roles, no more: **Admin** (staff management, audit log, category creation,
-manual stock corrections, restock sessions, low-stock alerts) and **Seller** (scan/sell/intake —
-the shop-floor day-to-day). Two policies compose them: `SellerOrAdmin` and `AdminOnly`.
+manual stock corrections, restock sessions, low-stock alerts, and since 2026-10-09 receiving
+stock and creating items) and **Seller** (scan, sell, stock lookup — the shop-floor day-to-day). Two policies compose them: `SellerOrAdmin` and `AdminOnly`.
 
 - **Scope is everything, not just the front door** — every endpoint on every service requires a
   valid JWT, including the internal gRPC calls Scan Gateway/Dashboard make to Catalog/Inventory.
@@ -518,7 +518,8 @@ The opposite trade-off from the Receive screen above, on purpose. That one posts
 immediately (nothing to lose, nothing to reconcile); this one builds a list first, because for a
 delivery of dozens of lines the slow part is entering them, and the list needs checking against
 the delivery note before stock changes. Both stay: one item at a time for odd arrivals, the
-worksheet for a pallet. Open to sellers and admins, like the rest of receiving.
+worksheet for a pallet. Admin-only, like the rest of receiving (since 2026-10-09: sellers have no
+Receive tab, the pages redirect them, and the gateway and gRPC receive/intake calls refuse them).
 
 - **One list, three ways to fill it**, all ending in the same rows:
   - **Scan.** The cursor lives in one box. A scanned barcode adds the item with quantity 1 and
@@ -561,14 +562,18 @@ worksheet for a pallet. Open to sellers and admins, like the rest of receiving.
   linkable and survives a refresh; it docks as a right column from `lg` and becomes a sheet below
   that. Below `md` the same rows render as cards, since a wide table would scroll sideways on a
   phone. CSV export neutralises cells that start with `= + - @` (formula injection).
-- **Labels** are drawn as SVG at their real size (2in x 1in), black on white whatever the theme.
+- **Labels** are drawn as SVG at their real size, black on white whatever the theme. Four sizes
+  (`LABEL_SIZES` in `lib/label.ts`: 50x25, 60x30, 75x40, 90x50 mm), picked on the print page; type
+  and spacing scale with the label's height.
   Code128 via `jsbarcode`; the QR is built from the `qrcode` module matrix as one `<path>`, never
   injected HTML. `NEXT_PUBLIC_LABEL_FORMAT` (`code128 | qr | both`, default both) is a deploy-time
   choice for what gets printed; scanning is symbology-agnostic. Verified by decoding the rendered
   images with a real barcode reader, not just by looking at them.
 - **Printing** (`/labels/print?sku=…&sku=…`): the admin shell hides itself under `@media print`.
-  "Label printer" mode sets `@page` to the label size so each label is its own page (verified by
-  generating a PDF: 6 labels = 6 pages of 2in x 1in); "sheet" mode packs labels onto normal paper.
+  Sheet printing only: labels are packed edge to edge onto normal A4 paper, neighbours sharing
+  one dashed cut line so a single scissor cut separates them (the one-label-per-page
+  thermal-roll mode was removed 2026-10-09). Copies are set per item, with one field that sets
+  them all; the summary estimates the page count, checked against generated PDFs.
 - **New SKU** (`/catalog/new`): react-hook-form + zod, strings converted to numbers only after
   validation. Barcode is optional: blank generates one, a value registers goods under the barcode
   they already carry (gateway intake now passes it through; a duplicate is a 409, unsafe

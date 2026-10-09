@@ -5,6 +5,8 @@ namespace InventorySystem.ScanGateway.Api.Endpoints;
 
 public static class ImageEndpoints
 {
+    private const long MaxImageBytes = 10 * 1024 * 1024;
+
     public static void MapImageEndpoints(this WebApplication app)
     {
         // Deliberately separate from /items/intake, not a combined "create item with an
@@ -30,6 +32,11 @@ public static class ImageEndpoints
 
             if (file is null || file.Length == 0)
                 return Results.BadRequest("An image file is required.");
+
+            // Same limit the upload form enforces in the browser, checked here too since the
+            // browser's check is only a courtesy.
+            if (file.Length > MaxImageBytes)
+                return Results.BadRequest("That image is over 10 MB. Choose a smaller one.");
 
             if (!file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
                 return Results.BadRequest($"'{file.ContentType}' is not an image content type.");

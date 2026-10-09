@@ -26,6 +26,12 @@ public class StockMovementRecordedHandler
         if (message.ResultingQuantity > threshold)
             return;
 
+        // Alert once, on the movement that crosses the line — not again on every further sale
+        // while the item is still low.
+        var previousQuantity = message.ResultingQuantity - message.Delta;
+        if (previousQuantity <= threshold)
+            return;
+
         logger.LogInformation(
             "Low stock: {Sku} at {Quantity} (threshold {Threshold})",
             message.Sku, message.ResultingQuantity, threshold);

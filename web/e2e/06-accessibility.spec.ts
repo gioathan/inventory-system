@@ -71,7 +71,7 @@ test("no accessibility violations across the app, both themes, desktop and phone
     "/receive/delivery",
     "/stock",
   ];
-  const sellerPages = ["/scan", "/receive", "/receive/delivery", "/stock"];
+  const sellerPages = ["/scan", "/stock"]; // receiving is admin-only, covered by the admin sweep above
 
   const violationSummaries: string[] = [];
 

@@ -35,6 +35,9 @@ export async function POST(request: Request) {
   if (upstream.status === 401) {
     return NextResponse.json({ error: t("incorrectCredentials") }, { status: 401 });
   }
+  if (upstream.status === 429) {
+    return NextResponse.json({ error: t("tooManyAttempts") }, { status: 429 });
+  }
   if (!upstream.ok) {
     return NextResponse.json({ error: t("signInFailed") }, { status: 502 });
   }
