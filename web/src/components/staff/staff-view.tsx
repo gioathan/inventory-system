@@ -1,13 +1,16 @@
 "use client";
 
-import { Loader2, UserPlus } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Loader2, Trash2, UserPlus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { NoticeBanner } from "@/components/notice-banner";
 import { StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
 import { useStaff } from "@/hooks/use-admin-data";
 import type { Notice } from "@/hooks/use-item-lookup";
+import { apiFetch } from "@/lib/api";
 import { useTimeFormat } from "@/lib/time";
 import type { StaffUser } from "@/lib/types";
 import { AddStaffDialog } from "./add-staff-dialog";
@@ -23,6 +26,38 @@ export function StaffView({ currentUsername }: { currentUsername: string }) {
   const staff = useStaff();
   const [adding, setAdding] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [deleting, setDeleting] = useState<StaffUser | null>(null);
+  const queryClient = useQueryClient();
+
+  const remove = useMutation({
+    mutationFn: (user: StaffUser) => apiFetch<void>("staff", `staff/${user.id}`, { method: "DELETE" }),
+    onSuccess: (_, user) => {
+      // A deleted account is also a new audit entry.
+      queryClient.invalidateQueries({ queryKey: ["staff"] });
+      queryClient.invalidateQueries({ queryKey: ["audit-log"] });
+      setNotice({ kind: "success", text: t("deletedNotice", { username: user.username }) });
+      setDeleting(null);
+    },
+  });
+
+  // Your own account has no delete button: the server refuses it anyway, and an admin who
+  // removed themselves would be locked out with no way back in.
+  const deleteButton = (user: StaffUser) =>
+    user.username === currentUsername ? null : (
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label={t("deleteNamed", { username: user.username })}
+        className="size-9 text-muted-foreground hover:text-destructive"
+        onClick={() => {
+          remove.reset();
+          setDeleting(user);
+        }}
+      >
+        <Trash2 className="size-4" />
+      </Button>
+    );
 
   const sorted = useMemo(
     () => [...(staff.data ?? [])].sort((a, b) => (a.role === b.role ? a.username.localeCompare(b.username) : a.role === "Admin" ? -1 : 1)),
@@ -67,6 +102,9 @@ export function StaffView({ currentUsername }: { currentUsername: string }) {
                   <th scope="col" className="px-4 py-3 font-medium">{t("username")}</th>
                   <th scope="col" className="px-4 py-3 font-medium">{t("role")}</th>
                   <th scope="col" className="px-4 py-3 text-right font-medium">{t("created")}</th>
+                  <th scope="col" className="w-14 px-2 py-3">
+                    <span className="sr-only">{t("actions")}</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -78,6 +116,7 @@ export function StaffView({ currentUsername }: { currentUsername: string }) {
                     </td>
                     <td className="px-4 py-3"><RolePill role={user.role} /></td>
                     <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatDateTime(user.createdAt)}</td>
+                    <td className="px-2 py-1.5 text-right">{deleteButton(user)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -94,7 +133,10 @@ export function StaffView({ currentUsername }: { currentUsername: string }) {
                   </div>
                   <div className="text-xs text-muted-foreground">{t("added", { date: formatDateTime(user.createdAt) })}</div>
                 </div>
-                <RolePill role={user.role} />
+                <div className="flex shrink-0 items-center gap-1">
+                  <RolePill role={user.role} />
+                  {deleteButton(user)}
+                </div>
               </li>
             ))}
           </ul>
@@ -107,6 +149,18 @@ export function StaffView({ currentUsername }: { currentUsername: string }) {
         open={adding}
         onOpenChange={setAdding}
         onCreated={(user) => setNotice({ kind: "success", text: t("createdNotice", { role: user.role, username: user.username }) })}
+      />
+
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title={t("deleteDialog.title", { username: deleting?.username ?? "" })}
+        description={t("deleteDialog.description")}
+        confirmLabel={t("deleteDialog.confirm")}
+        destructive
+        pending={remove.isPending}
+        error={remove.isError ? (remove.error instanceof Error ? remove.error.message : t("deleteDialog.failed")) : null}
+        onConfirm={() => deleting && remove.mutate(deleting)}
       />
     </div>
   );

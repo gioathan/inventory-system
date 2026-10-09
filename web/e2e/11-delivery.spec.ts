@@ -155,7 +155,7 @@ test("receive a delivery: scan, search, paste a list, survive a refresh, then re
   check("receive: a refresh afterwards doesn't bring the received rows back", (await page.getByLabel(/^Quantity for /).count()) === 0);
   await context.close();
 
-  // ---- sellers receive stock too, so the page is theirs as well ---------------------------------
+  // ---- receiving is admin-only: a seller is sent home, and the backend refuses the batch --------
   {
     const s = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const sp = await s.newPage();
@@ -165,14 +165,30 @@ test("receive a delivery: scan, search, paste a list, survive a refresh, then re
     await sp.click("button[type=submit]");
     await sp.waitForURL("**/scan", { timeout: 30000 });
     await sp.goto(`${baseUrl}/receive/delivery`);
-    check("seller: can open the delivery page", new URL(sp.url()).pathname === "/receive/delivery" && (await visible(sp, "Receive a delivery")));
-    const sellerBox = sp.getByRole("combobox", { name: "Scan or search for an item" });
+    check("seller: opening the delivery page lands back on /scan", new URL(sp.url()).pathname === "/scan");
+    const refused = await sp.evaluate(async (sku) =>
+      (await fetch("/api/backend/gateway/receive/batch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lines: [{ sku, quantity: 1 }] }) })).status, a.sku);
+    check("seller: the backend refuses a batch receive", refused === 403, `status=${refused}`);
+    await s.close();
+  }
+
+  // ---- the page on a phone, as the admin who uses it ---------------------------------------------
+  {
+    const s = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const sp = await s.newPage();
+    await sp.goto(`${baseUrl}/login`);
+    await sp.fill("#username", "admin");
+    await sp.fill("#password", "ChangeMe123!");
+    await sp.click("button[type=submit]");
+    await sp.waitForURL("**/dashboard", { timeout: 30000 });
+    await sp.goto(`${baseUrl}/receive/delivery`);
+    const phoneBox = sp.getByRole("combobox", { name: "Scan or search for an item" });
     await sp.waitForFunction(() => !(document.querySelector('input[role="combobox"]') as HTMLInputElement)?.disabled);
-    await sellerBox.fill(a.barcode);
-    await sellerBox.press("Enter");
+    await phoneBox.fill(a.barcode);
+    await phoneBox.press("Enter");
     await sp.getByLabel(`Quantity for ${a.name}`).waitFor();
     await sp.getByRole("button", { name: "Receive all" }).click();
-    check("seller: can receive from it", await visible(sp, "Received 1 item · 1 unit.", 20000));
+    check("phone: an admin can receive from it", await visible(sp, "Received 1 item · 1 unit.", 20000));
     check("phone: no horizontal scrolling", await sp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
     await sp.screenshot({ path: `${SCREENS}/p11-delivery-phone.png`, fullPage: true });
     await s.close();

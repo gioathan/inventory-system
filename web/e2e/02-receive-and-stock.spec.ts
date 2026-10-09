@@ -54,10 +54,19 @@ test("receiving stock and the stock lookup screen", async () => {
 
   // ---- receive --------------------------------------------------------------------------------
   {
-    const { context, page } = await login(seller.username, seller.password, { width: 390, height: 844 }, "/scan");
-    await page.getByRole("link", { name: "Receive" }).click();
-    await page.waitForURL("**/receive");
-    check("receive: seller has Scan / Receive / Stock tabs", (await page.locator("nav[aria-label=Main] a").count()) === 3);
+    // Receiving is admin-only: a seller has no Receive tab and is sent home from the page.
+    const asSeller = await login(seller.username, seller.password, { width: 390, height: 844 }, "/scan");
+    check("receive: seller has only Scan / Stock tabs", (await asSeller.page.locator("nav[aria-label=Main] a").allInnerTexts()).join(",") === "Scan,Stock");
+    await asSeller.page.goto(`${baseUrl}/receive`);
+    check("receive: a seller opening /receive lands back on /scan", new URL(asSeller.page.url()).pathname === "/scan");
+    const refused = await asSeller.page.evaluate(async (barcode) =>
+      (await fetch(`/api/backend/gateway/scan/${barcode}/receive`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ quantity: 1 }) })).status, lowItem.barcode);
+    check("receive: the backend refuses a seller's receive", refused === 403, `status=${refused}`);
+    await asSeller.context.close();
+
+    const { context, page } = await login("admin", "ChangeMe123!", { width: 390, height: 844 }, "/dashboard");
+    await page.goto(`${baseUrl}/receive`);
+    check("receive: admin has Scan / Receive / Stock / Console tabs", (await page.locator("nav[aria-label=Main] a").count()) === 4);
 
     await page.getByLabel("Barcode").fill(lowItem.barcode);
     await page.getByRole("button", { name: "Look up" }).click();
@@ -134,8 +143,14 @@ test("receiving stock and the stock lookup screen", async () => {
     await page.getByLabel("Search items").fill(`Receivable ${tag}`);
     check("stock: shows current stock (6 from the earlier receive)", await visible(page, "6 in stock"));
     await page.screenshot({ path: `${SCREENS}/p2-phone-stock.png`, fullPage: true });
+    check("stock: a seller's cards have no Receive button", (await page.locator("ul li").getByRole("button", { name: "Receive" }).count()) === 0);
+    await context.close();
+  }
 
-    // "Receive" on a card receives in place: the search stays, and the card updates.
+  // "Receive" on a card (admin only) receives in place: the search stays, and the card updates.
+  {
+    const { context, page } = await login("admin", "ChangeMe123!", { width: 390, height: 844 }, "/dashboard");
+    await page.goto(`${baseUrl}/stock`);
     await page.getByLabel("Search items").fill(`Receivable ${tag}`);
     await page.locator("ul li").getByRole("button", { name: "Receive" }).first().click();
     const dialog = page.getByRole("dialog");

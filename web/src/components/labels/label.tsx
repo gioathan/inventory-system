@@ -1,41 +1,55 @@
 import { formatMoney } from "@/lib/format";
-import { LABEL_HEIGHT_IN, LABEL_WIDTH_IN, type LabelFormat } from "@/lib/label";
+import { DEFAULT_LABEL_SIZE, type LabelFormat, type LabelSize } from "@/lib/label";
 import type { CatalogEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { BarcodeSvg } from "./barcode-svg";
 import { QrSvg } from "./qr-svg";
 
-// A physical label at its real size (inches), so what's on screen is what comes out of the
+// The height the type and spacing below were designed at; a bigger label scales them up in
+// proportion rather than leaving small print in a large box.
+const BASE_HEIGHT_MM = 25;
+
+// A physical label at its real size (millimetres), so what's on screen is what comes out of the
 // printer. Always black on white regardless of the app theme — it's paper, not UI.
 export function Label({
   item,
   format,
+  size = DEFAULT_LABEL_SIZE,
   className,
+  style,
 }: {
   item: Pick<CatalogEntry, "name" | "barcode" | "sku" | "effectivePrice">;
   format: LabelFormat;
+  size?: LabelSize;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   const showBarcode = format !== "qr";
   const showQr = format !== "code128";
 
+  const k = size.heightMm / BASE_HEIGHT_MM;
+  const mm = (n: number) => `${n * k}mm`;
+  const pt = (n: number) => `${n * k}pt`;
+
   return (
     <div
-      className={cn("flex flex-col overflow-hidden bg-white p-[0.06in] text-black", className)}
-      style={{ width: `${LABEL_WIDTH_IN}in`, height: `${LABEL_HEIGHT_IN}in` }}
+      className={cn("flex flex-col overflow-hidden bg-white text-black", className)}
+      style={{ width: `${size.widthMm}mm`, height: `${size.heightMm}mm`, padding: mm(1.5), ...style }}
     >
-      <div className="flex items-baseline justify-between gap-2 text-[7.5pt] leading-tight">
+      <div className="flex items-baseline justify-between leading-tight" style={{ fontSize: pt(7.5), gap: mm(2) }}>
         <span className="truncate font-semibold">{item.name}</span>
         <span className="shrink-0 font-bold tabular-nums">{formatMoney(item.effectivePrice)}</span>
       </div>
 
-      <div className="mt-[0.04in] flex min-h-0 flex-1 items-stretch gap-[0.08in]">
+      <div className="flex min-h-0 flex-1 items-stretch" style={{ marginTop: mm(1), gap: mm(2) }}>
         {showBarcode && (
           <div className="flex min-w-0 flex-1 flex-col">
             <div className="min-h-0 flex-1">
               <BarcodeSvg value={item.barcode} className="size-full" />
             </div>
-            <div className="text-center font-mono text-[6.5pt] leading-tight">{item.barcode}</div>
+            <div className="text-center font-mono leading-tight" style={{ fontSize: pt(6.5) }}>
+              {item.barcode}
+            </div>
           </div>
         )}
         {showQr && (
@@ -46,7 +60,9 @@ export function Label({
       </div>
 
       {item.sku !== item.barcode && (
-        <div className="mt-[0.02in] truncate font-mono text-[5.5pt] leading-tight text-neutral-600">SKU {item.sku}</div>
+        <div className="truncate font-mono leading-tight text-neutral-600" style={{ marginTop: mm(0.5), fontSize: pt(5.5) }}>
+          SKU {item.sku}
+        </div>
       )}
     </div>
   );

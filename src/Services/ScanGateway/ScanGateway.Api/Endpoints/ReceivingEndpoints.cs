@@ -12,6 +12,8 @@ public static partial class ReceivingEndpoints
 
     public static void MapReceivingEndpoints(this WebApplication app)
     {
+        // Everything here adds stock, and adding stock is admin-only: a seller sells and looks
+        // things up, but what comes into the shop is recorded by an admin.
         // New item intake. Omit Barcode and Catalog generates one (for items with no pre-existing
         // manufacturer barcode); supply one to register goods under the UPC/EAN they already
         // carry. Response includes the barcode either way.
@@ -30,18 +32,37 @@ public static partial class ReceivingEndpoints
             if (barcode is not null && !SafeBarcode.IsMatch(barcode))
                 return Results.BadRequest("Barcode may only contain letters, digits, '.', '_' and '-' (max 64 characters).");
 
+            if (string.IsNullOrWhiteSpace(request.Name))
+                return Results.BadRequest("Name is required.");
+            if (request.Price <= 0)
+                return Results.BadRequest("Price must be more than 0.");
+
+            CatalogItem item;
             try
             {
-                var item = await catalog.CreateItemAsync(request.Name, request.Price, request.CategoryId, request.ImageUrl, barcode, cancellationToken);
-                var stock = await inventory.ReceiveStockAsync(item.Sku, request.Quantity, MovementReason.Intake, cancellationToken);
-
-                return Results.Ok(new ReceiveResponse(item.Sku, item.Name, item.Barcode, item.Price, stock.QuantityOnHand));
+                item = await catalog.CreateItemAsync(request.Name, request.Price, request.CategoryId, request.ImageUrl, barcode, cancellationToken);
             }
             catch (ItemAlreadyExistsException ex)
             {
                 return Results.Conflict(ex.Message);
             }
-        }).RequireAuthorization(AuthPolicies.SellerOrAdmin);
+
+            // Two services, no shared transaction: if Inventory fails here the catalog item
+            // already exists. Say so, with its barcode — a plain error would invite a retry, and
+            // retrying intake would create a second item rather than stock this one.
+            try
+            {
+                var stock = await inventory.ReceiveStockAsync(item.Sku, request.Quantity, MovementReason.Intake, cancellationToken);
+
+                return Results.Ok(new ReceiveResponse(item.Sku, item.Name, item.Barcode, item.Price, stock.QuantityOnHand));
+            }
+            catch (global::Grpc.Core.RpcException)
+            {
+                return Results.Problem(
+                    $"'{item.Name}' was created with barcode {item.Barcode}, but its stock could not be added. Don't create it again — receive stock against that barcode instead.",
+                    statusCode: StatusCodes.Status502BadGateway);
+            }
+        }).RequireAuthorization(AuthPolicies.AdminOnly);
 
         // Restock an existing item by its already-assigned barcode — the "I scanned something
         // the system already knows about" path. Unknown barcodes 404 here rather than
@@ -63,7 +84,7 @@ public static partial class ReceivingEndpoints
             var stock = await inventory.ReceiveStockAsync(item.Sku, request.Quantity, MovementReason.Restock, cancellationToken);
 
             return Results.Ok(new ReceiveResponse(item.Sku, item.Name, item.Barcode, item.Price, stock.QuantityOnHand));
-        }).RequireAuthorization(AuthPolicies.SellerOrAdmin);
+        }).RequireAuthorization(AuthPolicies.AdminOnly);
 
         // A whole delivery in one request: many existing items, each with its own quantity.
         // Deliberately NOT all-or-nothing — every line gets its own outcome and a 200 comes back
@@ -112,7 +133,7 @@ public static partial class ReceivingEndpoints
             }
 
             return Results.Ok(new BatchReceiveResponse(results));
-        }).RequireAuthorization(AuthPolicies.SellerOrAdmin);
+        }).RequireAuthorization(AuthPolicies.AdminOnly);
     }
 
     private const int MaxBatchLines = 500;

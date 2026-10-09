@@ -15,6 +15,7 @@
   "actions": {
     "LoginFailed": "Αποτυχία σύνδεσης",
     "LoginSucceeded": "Επιτυχής σύνδεση",
-    "UserCreated": "Δημιουργία χρήστη"
+    "UserCreated": "Δημιουργία χρήστη",
+    "UserDeleted": "Διαγραφή χρήστη"
   }
 }

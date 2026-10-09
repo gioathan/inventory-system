@@ -24,7 +24,8 @@ function StockCard({
 }: {
   item: CatalogEntry;
   soldThisSession: number | null;
-  onReceive: (item: CatalogEntry) => void;
+  // Absent for sellers: receiving stock is admin-only.
+  onReceive?: (item: CatalogEntry) => void;
 }) {
   const t = useTranslations("stock.card");
   const tc = useTranslations("common");
@@ -58,15 +59,17 @@ function StockCard({
         )}
         {level === "low" && <StatusPill tone="warning">{t("lowLeft", { count: item.quantityOnHand ?? 0 })}</StatusPill>}
         {level === "ok" && <StatusPill tone="success">{t("inStock", { count: item.quantityOnHand ?? 0 })}</StatusPill>}
-        <Button type="button" variant="outline" size="sm" className="h-9 px-3" onClick={() => onReceive(item)}>
-          {t("receive")}
-        </Button>
+        {onReceive && (
+          <Button type="button" variant="outline" size="sm" className="h-9 px-3" onClick={() => onReceive(item)}>
+            {t("receive")}
+          </Button>
+        )}
       </div>
     </li>
   );
 }
 
-export function StockLookup() {
+export function StockLookup({ canReceive = false }: { canReceive?: boolean }) {
   const t = useTranslations("stock");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
@@ -175,7 +178,7 @@ export function StockLookup() {
           </p>
           <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {visible.map((item) => (
-              <StockCard key={item.sku} item={item} soldThisSession={soldOf(item.sku)} onReceive={setReceiving} />
+              <StockCard key={item.sku} item={item} soldThisSession={soldOf(item.sku)} onReceive={canReceive ? setReceiving : undefined} />
             ))}
           </ul>
         </>
