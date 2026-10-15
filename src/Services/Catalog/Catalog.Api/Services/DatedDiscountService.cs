@@ -11,21 +11,8 @@ public record ActiveDatedDiscount(double Percentage, string Name);
 public class DatedDiscountService(CatalogDbContext db, IConfiguration configuration, TimeProvider clock)
 {
     // The shop's calendar day, not the server's: a discount for 20 October starts at midnight
-    // where the shop is. Shop:TimeZone is an IANA id; an unknown one falls back to UTC rather
-    // than failing every price lookup.
-    public DateOnly Today()
-    {
-        TimeZoneInfo zone;
-        try
-        {
-            zone = TimeZoneInfo.FindSystemTimeZoneById(configuration["Shop:TimeZone"] ?? "Europe/Athens");
-        }
-        catch (Exception ex) when (ex is TimeZoneNotFoundException or InvalidTimeZoneException)
-        {
-            zone = TimeZoneInfo.Utc;
-        }
-        return DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.GetUtcNow(), zone).DateTime);
-    }
+    // where the shop is (see ShopTime).
+    public DateOnly Today() => ShopTime.DayOf(configuration, clock.GetUtcNow());
 
     // Per Sku, the biggest dated discount running today. All of them are loaded and filtered in
     // memory: there are a handful, and "is today inside a yearly-repeating span" isn't something

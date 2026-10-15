@@ -19,6 +19,7 @@ import {
   useSessionLabel,
   type ComparedRow,
 } from "@/lib/restock";
+import { SITE_CONFIG } from "@/lib/site-config";
 import { cn } from "@/lib/utils";
 
 // Each id doubles as its label key under "compare.filters" in the restock messages.
@@ -50,6 +51,9 @@ function Change({ value, pct, money = false, neutral = false }: { value: number;
   );
 }
 
+// How many items each of the "selling faster / slower" lists names.
+const MOVERS_SHOWN = 5;
+
 export function CompareView() {
   const sessions = useRestockSessions();
   const tree = useCategoryTree();
@@ -69,17 +73,28 @@ export function CompareView() {
   const reportA = useSessionReport(a?.id ?? null);
   const reportB = useSessionReport(b?.id ?? null);
 
-  const [perDay, setPerDay] = useState(false);
+  // Per day by default: two sessions are rarely the same length, and totals would then mostly
+  // measure which one ran longer.
+  const [perDay, setPerDay] = useState(true);
   const [by, setBy] = useState<"item" | "category">("item");
   const [filter, setFilter] = useState<RowFilter>("all");
   const [search, setSearch] = useState("");
 
+  const daysA = a ? sessionDays(a) : 1;
+  const daysB = b ? sessionDays(b) : 1;
+  const scaleA = perDay ? 1 / daysA : 1;
+  const scaleB = perDay ? 1 / daysB : 1;
+
   const rows = useMemo(() => {
     if (!reportA.data || !reportB.data) return [];
-    return by === "item"
+    const compared = by === "item"
       ? compareItems(reportA.data, reportB.data)
       : compareCategories(reportA.data, reportB.data, (id) => tree.get(id)?.name, { none: noCategory, unknown: unknownCategory }, (id) => tree.topLevel(id)?.id ?? id);
-  }, [reportA.data, reportB.data, by, tree, noCategory, unknownCategory]);
+    // "Selling more / less", their counts and the sort order must follow the numbers on screen:
+    // with "Per day" on, an item that sold 4 in a one-day session and 4 in a two-day one is
+    // selling less, even though the totals are equal.
+    return compared.map((r) => ({ ...r, change: r.soldB * scaleB - r.soldA * scaleA, pct: percentChange(r.soldA * scaleA, r.soldB * scaleB) }));
+  }, [reportA.data, reportB.data, by, tree, noCategory, unknownCategory, scaleA, scaleB]);
 
   const counts = useMemo(
     () => Object.fromEntries(ROW_FILTERS.map((id) => [id, rows.filter(MATCHES[id]).length])) as Record<RowFilter, number>,
@@ -103,10 +118,6 @@ export function CompareView() {
     );
   }
 
-  const daysA = a ? sessionDays(a) : 1;
-  const daysB = b ? sessionDays(b) : 1;
-  const scaleA = perDay ? 1 / daysA : 1;
-  const scaleB = perDay ? 1 / daysB : 1;
   const tA = reportA.data ? totalsOf(reportA.data) : null;
   const tB = reportB.data ? totalsOf(reportB.data) : null;
   const loading = reportA.isPending || reportB.isPending;
@@ -114,11 +125,27 @@ export function CompareView() {
   const numA = String(a?.number ?? "");
   const numB = String(b?.number ?? "");
 
+  // The comparison in a sentence, and the items behind it: always per day, whatever the
+  // "Per day" switch says about the totals below.
+  const rate = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: value < 10 ? 1 : 0 });
+  const paceA = tA ? tA.sold / daysA : 0;
+  const paceB = tB ? tB.sold / daysB : 0;
+  const paceChange = percentChange(paceA, paceB);
+  const movers = (reportA.data && reportB.data ? compareItems(reportA.data, reportB.data) : [])
+    .map((r) => ({ key: r.key, label: r.label, before: r.soldA / daysA, after: r.soldB / daysB }))
+    .map((r) => ({ ...r, difference: r.after - r.before }))
+    .filter((r) => r.difference !== 0);
+  const faster = movers.filter((r) => r.difference > 0).sort((x, y) => y.difference - x.difference).slice(0, MOVERS_SHOWN);
+  const slower = movers.filter((r) => r.difference < 0).sort((x, y) => x.difference - y.difference).slice(0, MOVERS_SHOWN);
+
   const kpis =
     tA && tB
       ? [
           { id: "unitsSold", label: t("compare.kpi.unitsSold"), a: tA.sold * scaleA, b: tB.sold * scaleB, money: false },
-          { id: "revenue", label: t("compare.kpi.revenue"), a: tA.revenue * scaleA, b: tB.revenue * scaleB, money: true, estimated: tA.estimated || tB.estimated },
+          // Left out when the site hides revenue (lib/site-config.ts).
+          ...(SITE_CONFIG.showRevenue
+            ? [{ id: "revenue", label: t("compare.kpi.revenue"), a: tA.revenue * scaleA, b: tB.revenue * scaleB, money: true, estimated: tA.estimated || tB.estimated }]
+            : []),
           { id: "unitsReceived", label: t("compare.kpi.unitsReceived"), a: tA.received * scaleA, b: tB.received * scaleB, money: false, neutral: true },
           { id: "itemsSold", label: t("compare.kpi.itemsSold"), a: tA.itemsSold, b: tB.itemsSold, money: false, noPerDay: true },
         ]
@@ -164,6 +191,21 @@ export function CompareView() {
         </div>
       ) : (
         <>
+          <p className="rounded-xl bg-muted/50 px-4 py-3 text-sm leading-relaxed">
+            {paceChange === null
+              ? t("compare.headline.noBaseline", { a: numA, b: numB, pace: rate(paceB) })
+              : paceChange === 0
+                ? t("compare.headline.same", { a: numA, b: numB, pace: rate(paceB) })
+                : t("compare.headline.moved", {
+                    a: numA,
+                    b: numB,
+                    percent: `${Math.round(Math.abs(paceChange) * 100)}%`,
+                    direction: paceChange > 0 ? "up" : "down",
+                    paceA: rate(paceA),
+                    paceB: rate(paceB),
+                  })}
+          </p>
+
           <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {kpis.map((k) => {
               const aVal = k.a;
@@ -186,6 +228,33 @@ export function CompareView() {
               );
             })}
           </dl>
+
+          {(faster.length > 0 || slower.length > 0) && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {[
+                { id: "faster", title: t("compare.movers.faster", { number: numB }), rows: faster, tone: "text-success" },
+                { id: "slower", title: t("compare.movers.slower", { number: numB }), rows: slower, tone: "text-destructive" },
+              ].map((list) => (
+                <section key={list.id} aria-label={list.title} className="flex min-w-0 flex-col gap-2 rounded-2xl border bg-card p-4">
+                  <h2 className="text-sm font-semibold">{list.title}</h2>
+                  {list.rows.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">{t("compare.movers.none")}</p>
+                  ) : (
+                    <ul className="flex flex-col gap-1 text-sm">
+                      {list.rows.map((r) => (
+                        <li key={r.key} className="flex items-baseline justify-between gap-3">
+                          <span className="truncate">{r.label}</span>
+                          <span className="shrink-0 tabular-nums text-muted-foreground">
+                            {rate(r.before)} → <span className={cn("font-medium", list.tone)}>{rate(r.after)}</span> {t("compare.movers.aDay")}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              ))}
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div role="group" aria-label={t("compare.byLabel")} className="inline-flex rounded-lg border p-0.5">
@@ -231,7 +300,7 @@ export function CompareView() {
                     <th className="px-3 py-2.5 text-right font-medium">{t("compare.columns.soldIn", { number: numA })}</th>
                     <th className="px-3 py-2.5 text-right font-medium">{t("compare.columns.soldIn", { number: numB })}</th>
                     <th className="px-3 py-2.5 text-right font-medium">{t("compare.columns.change")}</th>
-                    <th className="px-4 py-2.5 text-right font-medium">{t("compare.columns.revenue", { a: numA, b: numB })}</th>
+                    {SITE_CONFIG.showRevenue && <th className="px-4 py-2.5 text-right font-medium">{t("compare.columns.revenue", { a: numA, b: numB })}</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -252,9 +321,11 @@ export function CompareView() {
                         <td className="px-3 py-2.5 text-right">
                           <Change value={sb - sa} pct={percentChange(sa, sb)} />
                         </td>
-                        <td className="px-4 py-2.5 text-right tabular-nums">
-                          {formatMoney(r.revenueA * scaleA)} → {formatMoney(r.revenueB * scaleB)}
-                        </td>
+                        {SITE_CONFIG.showRevenue && (
+                          <td className="px-4 py-2.5 text-right tabular-nums">
+                            {formatMoney(r.revenueA * scaleA)} → {formatMoney(r.revenueB * scaleB)}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}

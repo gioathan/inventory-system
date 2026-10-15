@@ -9,7 +9,10 @@ public record SessionSummaryLine(
 
 // Shared by both the REST endpoints (direct/admin use) and the gRPC service (Dashboard's
 // sessionReport query) so the aggregation logic exists exactly once.
-public class RestockSessionService(InventoryDbContext db)
+public record ItemSales(string Sku, int UnitsSold, decimal RecordedRevenue);
+public record DailySales(DateOnly Date, int UnitsSold, int UnitsReceived, decimal RecordedRevenue, int UnpricedSold);
+
+public class RestockSessionService(InventoryDbContext db, IConfiguration configuration)
 {
     // Starting a new session closes whichever one is open, at the same instant — a restocking
     // period ends when the next one begins, so there's never a forgotten session left open.
@@ -124,6 +127,57 @@ public class RestockSessionService(InventoryDbContext db)
             var closing = closingBySku.GetValueOrDefault(g.Sku);
             return new SessionSummaryLine(g.Sku, g.Restocked, g.Sold, g.NetDelta, closing - g.NetDelta, closing, g.RecordedRevenue, g.UnpricedSold);
         }).ToList();
+    }
+
+    // The ledger added up per calendar day of the shop. Grouped in memory after one narrow
+    // query: "which day is this instant, in the shop's time zone" is a clock question, and the
+    // rows for any period an admin looks at number in the thousands at most. Same definitions as
+    // GetSummaryAsync — received is every positive movement, sold is Sale movements only.
+    public async Task<List<DailySales>> GetDailySalesAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
+    {
+        var movements = await db.StockMovements.AsNoTracking()
+            .Where(m => m.Timestamp >= from && m.Timestamp < to)
+            .Select(m => new { m.Timestamp, m.Delta, m.Reason, m.UnitPrice })
+            .ToListAsync(cancellationToken);
+
+        var byDay = movements
+            .GroupBy(m => ShopTime.DayOf(configuration, m.Timestamp))
+            .ToDictionary(g => g.Key, g =>
+            {
+                var sales = g.Where(m => m.Reason == StockMovementReason.Sale && m.Delta < 0).ToList();
+                return new DailySales(
+                    g.Key,
+                    sales.Sum(m => -m.Delta),
+                    g.Where(m => m.Delta > 0).Sum(m => m.Delta),
+                    sales.Where(m => m.UnitPrice != null).Sum(m => -m.Delta * m.UnitPrice!.Value),
+                    sales.Where(m => m.UnitPrice == null).Sum(m => -m.Delta));
+            });
+
+        // Every day from the first to the last, so quiet days show as zero rather than missing.
+        // `to` is exclusive: a period ending exactly at midnight doesn't include the next day.
+        var first = ShopTime.DayOf(configuration, from);
+        var last = ShopTime.DayOf(configuration, to > from ? to.AddTicks(-1) : from);
+        var days = new List<DailySales>();
+        for (var day = first; day <= last; day = day.AddDays(1))
+            days.Add(byDay.GetValueOrDefault(day) ?? new DailySales(day, 0, 0, 0m, 0));
+        return days;
+    }
+
+    // Units and revenue per item over a period — the calendar-based counterpart to a session's
+    // summary, for "what sold this week" and "how fast is this selling".
+    public async Task<List<ItemSales>> GetSalesByItemAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
+    {
+        var rows = await db.StockMovements.AsNoTracking()
+            .Where(m => m.Timestamp >= from && m.Timestamp < to && m.Reason == StockMovementReason.Sale && m.Delta < 0)
+            .GroupBy(m => m.Sku)
+            .Select(g => new
+            {
+                Sku = g.Key,
+                UnitsSold = g.Sum(m => -m.Delta),
+                RecordedRevenue = g.Where(m => m.UnitPrice != null).Sum(m => -m.Delta * m.UnitPrice!.Value)
+            })
+            .ToListAsync(cancellationToken);
+        return rows.Select(r => new ItemSales(r.Sku, r.UnitsSold, r.RecordedRevenue)).ToList();
     }
 
     public Task<List<StockMovement>> GetMovementsAsync(

@@ -44,6 +44,7 @@ function makeSchema(t: CatalogT) {
       .refine((v) => Number(v) > 0, t("validation.pricePositive")),
     categoryId: z.string(),
     barcode: z.string().trim().regex(/^[A-Za-z0-9._-]{1,64}$/, t("validation.barcodeFormat")),
+    location: z.string().trim().max(128, t("validation.locationLength")),
     imageUrl: z
       .string()
       .trim()
@@ -106,6 +107,7 @@ export function EditItemDialog({
           name: values.name,
           price: Number(values.price),
           barcode: values.barcode,
+          location: values.location || null,
           categoryId: values.categoryId || null,
           imageUrl: values.imageUrl || null,
         }),
@@ -193,6 +195,10 @@ export function EditItemDialog({
               />
             </FormField>
 
+            <FormField id="edit-location" label={t("fields.location")} error={errors.location?.message} hint={t("newItem.locationHint")}>
+              <Input id="edit-location" autoComplete="off" maxLength={128} aria-invalid={!!errors.location} aria-describedby="edit-location-msg" className="h-11" {...register("location")} />
+            </FormField>
+
             {errors.root?.message && (
               <p role="alert" className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
                 {errors.root.message}
@@ -259,6 +265,7 @@ function toDefaults(item: CatalogEntry): FormValues {
     price: item.price.toFixed(2),
     categoryId: item.categoryId ?? "",
     barcode: item.barcode,
+    location: item.location ?? "",
     imageUrl: item.imageUrl ?? "",
   };
 }

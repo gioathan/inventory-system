@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Minus, Plus, ShoppingBag, Tag } from "lucide-react";
+import { Loader2, MapPin, Minus, Plus, ShoppingBag, Tag } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { ItemImage } from "@/components/item-image";
 import { StatusPill } from "@/components/status-pill";
@@ -46,6 +46,13 @@ export function ProductCard({ item, quantity, onQuantityChange, onConfirm, onCle
         <div className="min-w-0">
           <h2 className="text-xl font-semibold leading-tight tracking-tight sm:text-2xl">{item.name}</h2>
           <p className="mt-1 font-mono text-xs text-muted-foreground">{item.barcode}</p>
+          {item.location && (
+            <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+              <MapPin aria-hidden className="size-3.5 shrink-0" />
+              <span className="sr-only">{t("location")}</span>
+              {item.location}
+            </p>
+          )}
         </div>
       </div>
 

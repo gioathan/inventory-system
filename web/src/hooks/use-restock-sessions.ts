@@ -1,9 +1,10 @@
 "use client";
 
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { gql } from "@/lib/graphql";
-import type { CurrentSessionSales, RestockSession, SessionReportLine } from "@/lib/types";
+import type { CurrentSessionSales, DailySales, ItemSales, RestockSession, SessionReportLine } from "@/lib/types";
 
 // Readable by sellers too: the Receive screen shows which session their receives land in.
 export function useCurrentSession() {
@@ -76,6 +77,60 @@ export function useSessionReport(sessionId: string | null) {
 // useSessionReport, so switching between tabs doesn't refetch.
 export function useSessionReports(sessionIds: string[]) {
   return useQueries({ queries: sessionIds.map((id) => reportQuery(id)) });
+}
+
+const DAILY_SALES_QUERY = /* GraphQL */ `
+  query DailySales($from: DateTime!, $to: DateTime) {
+    dailySales(from: $from, to: $to) {
+      date
+      unitsSold
+      unitsReceived
+      revenue
+      unpricedSold
+    }
+  }
+`;
+
+// Sales and receipts per calendar day between two instants (ISO strings); `to` null means until
+// now. Under the "restock-sessions" key so a sale or a receive refreshes it with everything else.
+export function useDailySales(from: string | null, to: string | null) {
+  return useQuery({
+    queryKey: ["restock-sessions", "daily", from, to],
+    queryFn: async () => (await gql<{ dailySales: DailySales[] }>(DAILY_SALES_QUERY, { from, to })).dailySales,
+    enabled: from !== null,
+  });
+}
+
+const SALES_BY_ITEM_QUERY = /* GraphQL */ `
+  query SalesByItem($from: DateTime!) {
+    salesByItem(from: $from) {
+      sku
+      name
+      unitsSold
+      revenue
+    }
+  }
+`;
+
+// The instant `days` days ago, fixed when the component mounts: computed on every render it
+// would be a new query key each time, and so a refetch each time.
+function useDaysAgo(days: number): string {
+  const [from] = useState(() => new Date(Date.now() - days * 86_400_000).toISOString());
+  return from;
+}
+
+// The last `days` days, day by day, up to now.
+export function useRecentDailySales(days: number) {
+  return useDailySales(useDaysAgo(days), null);
+}
+
+// What each item sold in the last `days` days.
+export function useRecentSalesByItem(days: number) {
+  const from = useDaysAgo(days);
+  return useQuery({
+    queryKey: ["restock-sessions", "by-item", from],
+    queryFn: async () => (await gql<{ salesByItem: ItemSales[] }>(SALES_BY_ITEM_QUERY, { from })).salesByItem,
+  });
 }
 
 export function useStartSession() {

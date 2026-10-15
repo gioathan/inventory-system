@@ -128,6 +128,10 @@ namespace InventorySystem.Catalog.Api.Migrations
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)");
 
+                    b.Property<string>("Location")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(256)

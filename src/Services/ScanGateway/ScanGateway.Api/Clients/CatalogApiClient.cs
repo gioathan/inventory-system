@@ -48,17 +48,8 @@ public class CatalogApiClient(CatalogGrpcService.CatalogGrpcServiceClient grpcCl
     // today's price, and a dated discount starts or ends exactly at midnight there.
     private TimeSpan TimeToCache()
     {
-        TimeZoneInfo zone;
-        try
-        {
-            zone = TimeZoneInfo.FindSystemTimeZoneById(configuration["Shop:TimeZone"] ?? "Europe/Athens");
-        }
-        catch (Exception ex) when (ex is TimeZoneNotFoundException or InvalidTimeZoneException)
-        {
-            zone = TimeZoneInfo.Utc;
-        }
-        var now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, zone);
-        var untilMidnight = now.Date.AddDays(1) - now.DateTime;
+        var now = ShopTime.Local(configuration, DateTimeOffset.UtcNow);
+        var untilMidnight = now.Date.AddDays(1) - now;
         return untilMidnight < CacheTtl ? (untilMidnight > TimeSpan.FromSeconds(1) ? untilMidnight : TimeSpan.FromSeconds(1)) : CacheTtl;
     }
 
@@ -66,7 +57,7 @@ public class CatalogApiClient(CatalogGrpcService.CatalogGrpcServiceClient grpcCl
     // with no pre-existing manufacturer barcode. With one, Catalog uses exactly that value (and
     // reuses it as the SKU), so goods that already carry a UPC/EAN can be registered under it.
     public async Task<CatalogItem> CreateItemAsync(
-        string name, decimal price, Guid? categoryId, string? imageUrl, string? barcode, CancellationToken cancellationToken)
+        string name, decimal price, Guid? categoryId, string? imageUrl, string? barcode, string? location, CancellationToken cancellationToken)
     {
         var request = new CreateItemRequest
         {
@@ -78,6 +69,8 @@ public class CatalogApiClient(CatalogGrpcService.CatalogGrpcServiceClient grpcCl
             request.CategoryId = id.ToString();
         if (imageUrl is not null)
             request.ImageUrl = imageUrl;
+        if (!string.IsNullOrWhiteSpace(location))
+            request.Location = location;
         if (barcode is not null)
             request.Barcode = barcode;
 
@@ -108,7 +101,7 @@ public class CatalogApiClient(CatalogGrpcService.CatalogGrpcServiceClient grpcCl
     // barcode itself: unchanged, that entry still holds the old name/price/image; changed, it
     // would otherwise keep resolving the old barcode to this item until the entry's TTL expired.
     public async Task<CatalogItem> UpdateItemAsync(
-        string sku, string name, decimal price, string barcode, Guid? categoryId, string? imageUrl, CancellationToken cancellationToken)
+        string sku, string name, decimal price, string barcode, Guid? categoryId, string? imageUrl, string? location, CancellationToken cancellationToken)
     {
         ItemReply before;
         try
@@ -132,6 +125,8 @@ public class CatalogApiClient(CatalogGrpcService.CatalogGrpcServiceClient grpcCl
             request.CategoryId = id.ToString();
         if (imageUrl is not null)
             request.ImageUrl = imageUrl;
+        if (!string.IsNullOrWhiteSpace(location))
+            request.Location = location;
 
         ItemReply reply;
         try
@@ -153,6 +148,22 @@ public class CatalogApiClient(CatalogGrpcService.CatalogGrpcServiceClient grpcCl
 
         await cache.RemoveAsync($"catalog-item:{before.Barcode}", cancellationToken);
         return ToCatalogItem(reply);
+    }
+
+    // Deletes the item and drops its cached barcode lookup, so a scan stops finding it at once
+    // rather than when the cache entry expires.
+    public async Task DeleteItemAsync(string sku, CancellationToken cancellationToken)
+    {
+        DeleteItemReply reply;
+        try
+        {
+            reply = await grpcClient.DeleteItemAsync(new DeleteItemRequest { Sku = sku }, cancellationToken: cancellationToken);
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
+        {
+            throw new CatalogItemsNotFoundException(ex.Status.Detail);
+        }
+        await cache.RemoveAsync($"catalog-item:{reply.Barcode}", cancellationToken);
     }
 
     public async Task<Category> CreateCategoryAsync(string name, Guid? parentId, CancellationToken cancellationToken)
@@ -406,7 +417,8 @@ public class CatalogApiClient(CatalogGrpcService.CatalogGrpcServiceClient grpcCl
         reply.HasDiscountPercentage ? reply.DiscountPercentage : null,
         decimal.Parse(reply.EffectivePrice, CultureInfo.InvariantCulture),
         reply.HasActiveDiscountPercentage ? reply.ActiveDiscountPercentage : null,
-        reply.HasDatedDiscountName ? reply.DatedDiscountName : null);
+        reply.HasDatedDiscountName ? reply.DatedDiscountName : null,
+        reply.HasLocation ? reply.Location : null);
 }
 
 public record CatalogItem(
@@ -415,7 +427,9 @@ public record CatalogItem(
     // What is setting EffectivePrice today — the manual discount or a dated one, whichever is
     // bigger — and the dated discount's name when that is the one. Defaulted so entries cached
     // before these existed still deserialize.
-    double? ActiveDiscountPercentage = null, string? DatedDiscountName = null);
+    double? ActiveDiscountPercentage = null, string? DatedDiscountName = null,
+    // Where the item is kept in storage; free text, null when not recorded.
+    string? Location = null);
 public record DatedDiscountPeriod(string StartDate, string EndDate);
 public record DatedDiscount(
     Guid Id, string Name, double Percentage, List<DatedDiscountPeriod> Periods, List<string> Skus,

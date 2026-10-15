@@ -6,7 +6,12 @@ public enum StockMovementReason
     Restock,
     Sale,
     ManualAdjust,
-    PurchaseOrderReceipt
+    PurchaseOrderReceipt,
+
+    // The item was deleted from the catalog and whatever stock it had was written off. Kept apart
+    // from ManualAdjust so a report can tell "someone corrected a count" from "this item is gone".
+    // Appended last: reasons are stored as their number.
+    ItemRemoved
 }
 
 // Append-only ledger row for every quantity change — never updated or deleted. QuantityOnHand

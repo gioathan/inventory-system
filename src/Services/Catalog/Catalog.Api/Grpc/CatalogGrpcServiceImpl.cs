@@ -64,6 +64,7 @@ public class CatalogGrpcServiceImpl(CatalogDbContext db, ItemCreationService ite
                 request.HasSku ? request.Sku : null,
                 categoryId,
                 request.HasImageUrl ? request.ImageUrl : null,
+                NormalizeLocation(request.HasLocation ? request.Location : null),
                 context.CancellationToken);
 
             return (await ItemRepliesAsync(context.CancellationToken))(item);
@@ -94,6 +95,7 @@ public class CatalogGrpcServiceImpl(CatalogDbContext db, ItemCreationService ite
             await RequireAssignableCategoryAsync(id, context.CancellationToken);
         item.CategoryId = categoryId;
         item.ImageUrl = request.HasImageUrl ? request.ImageUrl : null;
+        item.Location = NormalizeLocation(request.HasLocation ? request.Location : null);
 
         try
         {
@@ -105,6 +107,22 @@ public class CatalogGrpcServiceImpl(CatalogDbContext db, ItemCreationService ite
         }
 
         return (await ItemRepliesAsync(context.CancellationToken))(item);
+    }
+
+    [Authorize(Policy = AuthPolicies.AdminOnly)]
+    public override async Task<DeleteItemReply> DeleteItem(DeleteItemRequest request, ServerCallContext context)
+    {
+        var item = await db.Items.FirstOrDefaultAsync(i => i.Sku == request.Sku, context.CancellationToken);
+        if (item is null)
+            throw new RpcException(new Status(StatusCode.NotFound, $"No catalog item found for SKU '{request.Sku}'."));
+
+        // Dated discounts list their items by Sku with no foreign key, so the membership rows are
+        // cleared here: left behind, a new item that later took the same Sku would inherit them.
+        db.RemoveRange(await db.Set<DatedDiscountItem>().Where(d => d.Sku == request.Sku).ToListAsync(context.CancellationToken));
+        db.Items.Remove(item);
+        await db.SaveChangesAsync(context.CancellationToken);
+
+        return new DeleteItemReply { Barcode = item.Barcode };
     }
 
     [Authorize(Policy = AuthPolicies.AdminOnly)]
@@ -363,6 +381,19 @@ public class CatalogGrpcServiceImpl(CatalogDbContext db, ItemCreationService ite
             ? throw new RpcException(new Status(StatusCode.InvalidArgument, "name is required."))
             : name;
 
+    private const int MaxLocationLength = 128;
+
+    // Blank means "not recorded", stored as null rather than as an empty string.
+    private static string? NormalizeLocation(string? value)
+    {
+        var trimmed = value?.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+            return null;
+        return trimmed.Length <= MaxLocationLength
+            ? trimmed
+            : throw new RpcException(new Status(StatusCode.InvalidArgument, $"The storage location can be at most {MaxLocationLength} characters."));
+    }
+
     private static decimal ParsePrice(string value) =>
         decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var price) && price >= 0
             ? price
@@ -414,6 +445,8 @@ public class CatalogGrpcServiceImpl(CatalogDbContext db, ItemCreationService ite
             reply.CategoryId = categoryId.ToString();
         if (item.ImageUrl is not null)
             reply.ImageUrl = item.ImageUrl;
+        if (item.Location is not null)
+            reply.Location = item.Location;
         if (item.DiscountPercentage is { } percentage)
             reply.DiscountPercentage = percentage;
         if (active is { } activePercentage)

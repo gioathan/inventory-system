@@ -1,15 +1,18 @@
 "use client";
 
-import { PackagePlus, Pencil, Printer, Tag, X } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { PackagePlus, Pencil, Printer, Tag, Trash2, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useState } from "react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ItemImage } from "@/components/item-image";
 import { Label } from "@/components/labels/label";
 import { useDatedDiscounts } from "@/hooks/use-admin-data";
 import { useDateRangeLabel } from "./dated-discounts";
 import { StatusPill } from "@/components/status-pill";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { apiFetch } from "@/lib/api";
 import { formatMoney, formatPercent } from "@/lib/format";
 import { DEFAULT_LABEL_SIZE, LABEL_FORMAT } from "@/lib/label";
 import { stockLevel } from "@/lib/stock";
@@ -38,9 +41,12 @@ export function ItemPanel({
   item,
   categoryName,
   onClose,
+  onDeleted,
 }: {
   item: CatalogEntry;
   categoryName: string | null;
+  /** Called once the item has been deleted, so whatever shows this panel can close it. */
+  onDeleted?: () => void;
   /** Shown only when the panel is a docked column; inside a sheet the sheet has its own close. */
   onClose?: () => void;
 }) {
@@ -50,6 +56,19 @@ export function ItemPanel({
   const dated = (useDatedDiscounts().data ?? []).filter((d) => d.skus.includes(item.sku));
   const [editOpen, setEditOpen] = useState(false);
   const [receiveOpen, setReceiveOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const remove = useMutation({
+    mutationFn: () => apiFetch<void>("gateway", `items/${encodeURIComponent(item.sku)}`, { method: "DELETE" }),
+    onSuccess: () => {
+      setDeleteOpen(false);
+      // Stock and the session's counts change with it, and it leaves any dated discount it was in.
+      queryClient.invalidateQueries({ queryKey: ["items"] });
+      queryClient.invalidateQueries({ queryKey: ["restock-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["dated-discounts"] });
+      onDeleted?.();
+    },
+  });
   const t = useTranslations("catalog");
   const tc = useTranslations("common");
 
@@ -94,6 +113,7 @@ export function ItemPanel({
         <Field label={t("fields.barcode")}>
           <span className="font-mono text-xs">{item.barcode}</span>
         </Field>
+        <Field label={t("fields.location")}>{item.location ?? <span className="text-muted-foreground">{t("panel.none")}</span>}</Field>
         <Field label={t("fields.listPrice")}>{formatMoney(item.price)}</Field>
       </dl>
 
@@ -159,6 +179,31 @@ export function ItemPanel({
           {t("panel.receiveStock")}
         </Button>
       </div>
+
+      <Button
+        type="button"
+        variant="ghost"
+        className="h-9 gap-2 self-start text-muted-foreground hover:text-destructive"
+        onClick={() => {
+          remove.reset();
+          setDeleteOpen(true);
+        }}
+      >
+        <Trash2 className="size-4" />
+        {t("panel.deleteItem")}
+      </Button>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={t("delete.title", { name: item.name })}
+        description={(item.quantityOnHand ?? 0) > 0 ? t("delete.descriptionWithStock", { count: item.quantityOnHand ?? 0 }) : t("delete.description")}
+        confirmLabel={t("delete.confirm")}
+        destructive
+        pending={remove.isPending}
+        error={remove.isError ? (remove.error instanceof Error ? remove.error.message : t("delete.failed")) : null}
+        onConfirm={() => remove.mutate()}
+      />
 
       <EditItemDialog open={editOpen} onOpenChange={setEditOpen} item={item} />
       {/* In place: receiving here keeps you on the catalog, so you can move straight on to the next item. */}

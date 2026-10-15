@@ -24,11 +24,14 @@ export function ColumnChart({
   points,
   format,
   valueHeader,
+  labelHeader,
 }: {
   title: string;
   points: ColumnPoint[];
   format: (value: number) => string;
   valueHeader: string;
+  /** What the axis counts, for the numbers table. Defaults to "Session". */
+  labelHeader?: string;
 }) {
   const [active, setActive] = useState<string | null>(null);
   // Only the Insights tab uses these charts today, so their few built-in strings live in "restock".
@@ -120,7 +123,7 @@ export function ColumnChart({
         <table className="mt-2 w-full text-sm">
           <thead>
             <tr className="border-b text-left text-xs text-muted-foreground">
-              <th className="py-1.5 font-medium">{t("charts.session")}</th>
+              <th className="py-1.5 font-medium">{labelHeader ?? t("charts.session")}</th>
               <th className="py-1.5 text-right font-medium">{valueHeader}</th>
               <th className="py-1.5 pl-3 text-right font-medium">{t("charts.other")}</th>
             </tr>

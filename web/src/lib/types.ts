@@ -18,6 +18,8 @@ export interface ScanItem {
   /** Null when the item has a catalog entry but has never been stocked. */
   quantityOnHand: number | null;
   imageUrl: string | null;
+  /** Where the item is kept in storage: free text, null when not recorded. */
+  location: string | null;
 }
 
 /** Reply from POST /scan/{barcode}/receive and POST /items/intake. */
@@ -42,6 +44,8 @@ export interface CatalogEntry {
   datedDiscountName: string | null;
   imageUrl: string | null;
   categoryId: string | null;
+  /** Where the item is kept in storage: free text, null when not recorded. */
+  location: string | null;
   /** Null when the item exists in the catalog but has never been stocked. */
   quantityOnHand: number | null;
 }
@@ -112,6 +116,27 @@ export interface RestockSession {
 }
 
 /** One item's movement during a restock session, from the Dashboard's sessionReport query. */
+/** One calendar day (the shop's own) from the Dashboard `dailySales` query. */
+export interface DailySales {
+  /** yyyy-MM-dd */
+  date: string;
+  unitsSold: number;
+  unitsReceived: number;
+  /** What was paid that day, on sales that recorded their price. */
+  revenue: number;
+  /** Units sold before prices were recorded; not in `revenue`. */
+  unpricedSold: number;
+}
+
+/** One item's sales over a period, from the Dashboard `salesByItem` query. */
+export interface ItemSales {
+  sku: string;
+  /** Null for an item no longer in the catalog. */
+  name: string | null;
+  unitsSold: number;
+  revenue: number;
+}
+
 export interface SessionReportLine {
   sku: string;
   name: string | null;

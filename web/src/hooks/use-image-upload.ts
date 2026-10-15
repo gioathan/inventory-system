@@ -1,11 +1,11 @@
 import { useTranslations } from "next-intl";
 import { useRef, useState } from "react";
 import { ApiError, apiFetch } from "@/lib/api";
+import { compressImage, IMAGE_MAX_INPUT_BYTES, ImageDecodeError } from "@/lib/image-compress";
 
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // Cloudflare Images' own per-file limit.
-
-// Shared by the new-item form and the edit-item dialog: pick a file, upload it to Cloudflare
-// Images through the gateway, and hand back the resulting URL via `onUploaded`. Degrading to a
+// Shared by the new-item form, the edit-item dialog and bulk add: pick a file, shrink it (see
+// lib/image-compress.ts), upload it to the bucket through the gateway, and hand back the
+// resulting URL via `onUploaded`. Degrading to a
 // clear message when Cloudflare isn't configured (502) is the expected state until real
 // credentials exist, not a failure of the upload itself — see architecture.md.
 export function useImageUpload(onUploaded: (url: string) => void) {
@@ -17,12 +17,19 @@ export function useImageUpload(onUploaded: (url: string) => void) {
   async function upload(file: File) {
     setError(null);
     if (!file.type.startsWith("image/")) return setError(t("image.notImage"));
-    if (file.size > MAX_IMAGE_BYTES) return setError(t("image.tooLarge"));
+    if (file.size > IMAGE_MAX_INPUT_BYTES) return setError(t("image.tooLarge"));
 
     setUploading(true);
     try {
+      let small: File;
+      try {
+        small = await compressImage(file);
+      } catch (err) {
+        setError(err instanceof ImageDecodeError ? t("image.unreadable") : t("image.failed"));
+        return;
+      }
       const body = new FormData();
-      body.append("file", file);
+      body.append("file", small);
       const { imageUrl } = await apiFetch<{ imageUrl: string }>("gateway", "images", { method: "POST", body });
       onUploaded(imageUrl);
     } catch (err) {

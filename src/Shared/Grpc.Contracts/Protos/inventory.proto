@@ -14,9 +14,14 @@ service InventoryGrpcService {
   // Scan Gateway's "sell" action: same atomic floor-at-zero guard as the REST /adjust endpoint,
   // just reachable internally now that a real caller (scan-to-sell) needs it over gRPC.
   rpc AdjustStock (AdjustStockRequest) returns (StockReply);
+  // Scan Gateway's "delete item": drops the item's stock row, recording a write-off for
+  // whatever was on hand. No stock row is not an error.
+  rpc RemoveStock (RemoveStockRequest) returns (RemoveStockReply);
   // Dashboard's sessionReport query calls this, then joins the lines against Catalog's prices
   // to compute revenue — Inventory only ever reports quantities, never money.
   rpc GetSessionSummary (GetSessionSummaryRequest) returns (SessionSummaryReply);
+  rpc GetDailySales (GetDailySalesRequest) returns (DailySalesReply);
+  rpc GetSalesByItem (GetSalesByItemRequest) returns (SalesByItemReply);
 
   // Restock sessions, reachable through Scan Gateway so the frontend can run them. Opening one
   // closes whichever session was open; every receive made while a session is open is tagged
@@ -196,4 +201,51 @@ message PurchaseOrderReply {
 
 message ListPurchaseOrdersReply {
   repeated PurchaseOrderReply purchase_orders = 1;
+}
+
+// What sold and what came in, per calendar day of the shop (its own time zone), between two
+// instants (ISO-8601). `to` unset means "until now". Every day in the range is returned, days
+// with nothing included, so a chart needs no gap-filling. Revenue follows the session summary:
+// what was actually paid for sales that recorded their price, with the units that didn't
+// counted separately.
+message GetDailySalesRequest {
+  string from = 1;
+  optional string to = 2;
+}
+
+message DailySalesDay {
+  string date = 1; // yyyy-MM-dd
+  int32 units_sold = 2;
+  int32 units_received = 3;
+  string recorded_revenue = 4;
+  int32 unpriced_sold = 5;
+}
+
+message DailySalesReply {
+  repeated DailySalesDay days = 1;
+}
+
+// What each item sold between two instants (ISO-8601; `to` unset means "until now"): only items
+// with at least one sale. Same revenue rule as the daily figures.
+message GetSalesByItemRequest {
+  string from = 1;
+  optional string to = 2;
+}
+
+message ItemSales {
+  string sku = 1;
+  int32 units_sold = 2;
+  string recorded_revenue = 3;
+}
+
+message SalesByItemReply {
+  repeated ItemSales items = 1;
+}
+
+message RemoveStockRequest {
+  string sku = 1;
+}
+
+message RemoveStockReply {
+  int32 written_off = 1; // units that were on hand
 }

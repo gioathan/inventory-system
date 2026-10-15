@@ -1,13 +1,15 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, Check, Download, Loader2, Plus, Trash2, Upload, X } from "lucide-react";
+import { AlertCircle, Check, Download, ImageUp, Loader2, Plus, Trash2, Upload, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useId, useMemo, useRef, useState } from "react";
 import { Combobox } from "@/components/ui/combobox";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ItemImage } from "@/components/item-image";
+import { useImageUpload } from "@/hooks/use-image-upload";
 import { useCategoryTree } from "@/hooks/use-items";
 import { buildCategoryTree, leafOptions } from "@/lib/categories";
 import type { Category } from "@/lib/types";
@@ -32,6 +34,10 @@ interface Row {
   /** Set when this row came from a CSV category name that didn't match any existing category. */
   unmatchedCategory: string | null;
   barcode: string;
+  /** Where the item is kept in storage; optional free text. */
+  location: string;
+  /** Set by uploading a picture on the row; empty for none. */
+  imageUrl: string;
   status: "idle" | "saving" | "done" | "error";
   message: string | null;
   createdSku: string | null;
@@ -46,6 +52,8 @@ const blankRow = (): Row => ({
   categoryId: "",
   unmatchedCategory: null,
   barcode: "",
+  location: "",
+  imageUrl: "",
   status: "idle",
   message: null,
   createdSku: null,
@@ -63,7 +71,36 @@ function fieldError(row: Row, t: CatalogT): string | null {
   if (!QUANTITY_RE.test(q) || Number(q) < 1 || Number(q) > 99_999) return t("bulk.invalidQuantity");
   if (!BARCODE_RE.test(row.barcode.trim())) return t("bulk.invalidBarcode");
   if (row.name.trim().length > 200) return t("bulk.nameTooLong");
+  if (row.location.trim().length > 128) return t("validation.locationLength");
   return null;
+}
+
+// One row's picture: pick a file, it uploads straight away, and the row keeps the resulting URL.
+// Each row needs its own upload state (several can be in flight at once), hence a component per
+// row rather than one hook for the whole screen.
+function RowImage({ value, label, disabled, onChange }: { value: string; label: string; disabled: boolean; onChange: (imageUrl: string) => void }) {
+  const t = useTranslations("catalog");
+  const { fileInput, uploading, error, onFileInputChange, pick } = useImageUpload(onChange);
+  return (
+    <div className="col-span-2 flex flex-wrap items-center gap-2">
+      <input ref={fileInput} type="file" accept="image/*" className="sr-only" aria-label={label} tabIndex={-1} onChange={onFileInputChange} />
+      {value && <ItemImage src={value} alt="" className="size-10 rounded-lg" />}
+      <Button type="button" variant="outline" className="h-10 gap-2" disabled={disabled || uploading} onClick={pick}>
+        {uploading ? <Loader2 className="size-4 animate-spin" /> : <ImageUp className="size-4" />}
+        {uploading ? t("image.uploading") : value ? t("bulk.changeImage") : t("bulk.addImage")}
+      </Button>
+      {value && (
+        <Button type="button" variant="ghost" size="icon" className="size-9 text-muted-foreground" aria-label={t("bulk.removeImage")} disabled={disabled} onClick={() => onChange("")}>
+          <X className="size-4" />
+        </Button>
+      )}
+      {error && (
+        <p role="alert" className="basis-full text-xs text-destructive">
+          {error}
+        </p>
+      )}
+    </div>
+  );
 }
 
 export function BulkAddView() {
@@ -134,6 +171,7 @@ export function BulkAddView() {
           price: cells.price ?? "",
           quantity: (cells.quantity ?? "1").trim() || "1",
           barcode: cells.barcode ?? "",
+          location: (cells.location ?? "").trim(),
           categoryId: matchedId ?? "",
           unmatchedCategory: categoryText && !matchedId ? categoryText : null,
         };
@@ -150,7 +188,7 @@ export function BulkAddView() {
   }
 
   function downloadTemplate() {
-    downloadCsv("items-template.csv", toCsv(["name", "price", "quantity", "category", "barcode"], []));
+    downloadCsv("items-template.csv", toCsv(["name", "price", "quantity", "category", "barcode", "location"], []));
   }
 
   const create = useMutation({
@@ -162,8 +200,9 @@ export function BulkAddView() {
           price: Number(row.price),
           quantity: Number(row.quantity),
           categoryId: row.categoryId || null,
-          imageUrl: null,
+          imageUrl: row.imageUrl || null,
           barcode: row.barcode.trim() || null,
+          location: row.location.trim() || null,
         }),
       }),
   });
@@ -330,6 +369,25 @@ export function BulkAddView() {
                     disabled={busy}
                     onChange={(e) => update(row.id, { barcode: e.target.value })}
                     className="col-span-2 h-10 font-mono sm:col-span-1"
+                  />
+                  <label htmlFor={`${rowId}-location`} className="sr-only">
+                    {t("fields.location")}
+                  </label>
+                  <Input
+                    id={`${rowId}-location`}
+                    placeholder={t("bulk.locationOptional")}
+                    autoComplete="off"
+                    maxLength={128}
+                    value={row.location}
+                    disabled={busy}
+                    onChange={(e) => update(row.id, { location: e.target.value })}
+                    className="col-span-2 h-10"
+                  />
+                  <RowImage
+                    value={row.imageUrl}
+                    disabled={busy}
+                    label={row.name ? t("bulk.imageForNamed", { name: row.name }) : t("bulk.imageForRow", { n: index + 1 })}
+                    onChange={(imageUrl) => update(row.id, { imageUrl })}
                   />
                 </div>
               )}

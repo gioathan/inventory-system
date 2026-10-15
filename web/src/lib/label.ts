@@ -5,7 +5,9 @@ export type LabelFormat = "code128" | "qr" | "both";
 // scanners (which can't read QR) sets `code128`. Scanning never depends on it: the scanner
 // reads whichever symbology it sees, so mixed labels in circulation are fine.
 const configured = process.env.NEXT_PUBLIC_LABEL_FORMAT;
-export const LABEL_FORMAT: LabelFormat = configured === "code128" || configured === "qr" ? configured : "both";
+// QR only unless configured otherwise: it leaves the whole label to one code a phone camera or a
+// 2D scanner reads easily. `code128` or `both` bring the barcode back for 1D laser scanners.
+export const LABEL_FORMAT: LabelFormat = configured === "code128" || configured === "both" ? configured : "qr";
 
 export interface LabelSize {
   id: "small" | "medium" | "large" | "xlarge";

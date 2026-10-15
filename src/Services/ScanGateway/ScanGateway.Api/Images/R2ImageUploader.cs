@@ -17,6 +17,12 @@ public class R2ImageOptions
     // dashboard first, and this is that base URL. An uploaded object is unreachable without it,
     // so a blank value here is treated the same as a blank access key: not configured.
     public string PublicBaseUrl { get; set; } = "";
+
+    // The largest picture accepted, in bytes. The app shrinks pictures in the browser to about
+    // 200 KB before uploading, so this is the backstop for anything that skipped that (an old
+    // tab, a direct API call) — kept low because with thousands of items the bucket's size is
+    // the cost. Raise it if a shop ever needs sharper pictures.
+    public long MaxBytes { get; set; } = 300 * 1024;
 }
 
 // Real implementation, talking to R2's actual (S3-compatible) API via the AWS SDK pointed at

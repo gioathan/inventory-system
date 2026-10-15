@@ -23,7 +23,7 @@ public static class ScanEndpoints
 
             return Results.Ok(new ScanResponse(
                 item.Sku, item.Name, item.Barcode, item.Price, item.DiscountPercentage, item.EffectivePrice, stock?.QuantityOnHand, item.ImageUrl,
-                item.ActiveDiscountPercentage, item.DatedDiscountName));
+                item.ActiveDiscountPercentage, item.DatedDiscountName, item.Location));
         }).RequireAuthorization(AuthPolicies.SellerOrAdmin);
 
         // The confirm step of the scan-and-sell UX: GET /scan/{barcode} above is always a pure
@@ -51,7 +51,7 @@ public static class ScanEndpoints
                 SellOutcome.InsufficientStock => Results.Conflict($"Insufficient stock for '{item.Sku}'."),
                 _ => Results.Ok(new ScanResponse(
                     item.Sku, item.Name, item.Barcode, item.Price, item.DiscountPercentage, item.EffectivePrice, result.Stock!.QuantityOnHand, item.ImageUrl,
-                    item.ActiveDiscountPercentage, item.DatedDiscountName))
+                    item.ActiveDiscountPercentage, item.DatedDiscountName, item.Location))
             };
         }).RequireAuthorization(AuthPolicies.SellerOrAdmin);
     }
@@ -59,5 +59,5 @@ public static class ScanEndpoints
 
 public record ScanResponse(
     string Sku, string Name, string Barcode, decimal Price, double? DiscountPercentage, decimal EffectivePrice, int? QuantityOnHand, string? ImageUrl,
-    double? ActiveDiscountPercentage = null, string? DatedDiscountName = null);
+    double? ActiveDiscountPercentage = null, string? DatedDiscountName = null, string? Location = null);
 public record SellRequest(int Quantity = 1);

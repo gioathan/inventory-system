@@ -15,6 +15,7 @@
     "soldThisSession": "{count} sold this session",
     "lowLeft": "Low · {count} left",
     "inStock": "{count} in stock",
-    "receive": "Receive"
+    "receive": "Receive",
+    "location": "Storage location"
   }
 }

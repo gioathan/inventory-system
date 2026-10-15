@@ -11,6 +11,7 @@ using Wolverine;
 // (SessionSummaryLine, PurchaseOrderLineInput, PurchaseOrderStatus) — alias the wire-format
 // ones so usage below stays unambiguous without fully qualifying every reference.
 using GrpcSessionSummaryLine = InventorySystem.Grpc.Contracts.Inventory.SessionSummaryLine;
+using GrpcItemSales = InventorySystem.Grpc.Contracts.Inventory.ItemSales;
 using GrpcPurchaseOrderLineInput = InventorySystem.Grpc.Contracts.Inventory.PurchaseOrderLineInput;
 using GrpcPurchaseOrderStatus = InventorySystem.Grpc.Contracts.Inventory.PurchaseOrderStatus;
 
@@ -101,6 +102,63 @@ public class InventoryGrpcServiceImpl(
         }));
         return reply;
     }
+
+    // Part of deleting an item — Admin-only, like the rest of catalog management.
+    [Authorize(Policy = AuthPolicies.AdminOnly)]
+    public override async Task<RemoveStockReply> RemoveStock(RemoveStockRequest request, ServerCallContext context) =>
+        new() { WrittenOff = await receiving.RemoveStockAsync(request.Sku, context.CancellationToken) };
+
+    // Revenue per day — Admin-only, like the session summary it sits beside.
+    [Authorize(Policy = AuthPolicies.AdminOnly)]
+    public override async Task<DailySalesReply> GetDailySales(GetDailySalesRequest request, ServerCallContext context)
+    {
+        var (from, to) = ParsePeriod(request.From, request.HasTo ? request.To : null);
+
+        var reply = new DailySalesReply();
+        reply.Days.AddRange((await sessions.GetDailySalesAsync(from, to, context.CancellationToken)).Select(d => new DailySalesDay
+        {
+            Date = d.Date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            UnitsSold = d.UnitsSold,
+            UnitsReceived = d.UnitsReceived,
+            RecordedRevenue = d.RecordedRevenue.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            UnpricedSold = d.UnpricedSold
+        }));
+        return reply;
+    }
+
+    [Authorize(Policy = AuthPolicies.AdminOnly)]
+    public override async Task<SalesByItemReply> GetSalesByItem(GetSalesByItemRequest request, ServerCallContext context)
+    {
+        var (from, to) = ParsePeriod(request.From, request.HasTo ? request.To : null);
+
+        var reply = new SalesByItemReply();
+        reply.Items.AddRange((await sessions.GetSalesByItemAsync(from, to, context.CancellationToken)).Select(i => new GrpcItemSales
+        {
+            Sku = i.Sku,
+            UnitsSold = i.UnitsSold,
+            RecordedRevenue = i.RecordedRevenue.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        }));
+        return reply;
+    }
+
+    // Two instants; `to` omitted means now. Capped as a guard on the reply size, not a product rule.
+    private static (DateTimeOffset From, DateTimeOffset To) ParsePeriod(string fromText, string? toText)
+    {
+        if (!DateTimeOffset.TryParse(fromText, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out var from))
+            throw new RpcException(new Status(StatusCode.InvalidArgument, $"'{fromText}' is not a valid date and time."));
+
+        var to = DateTimeOffset.UtcNow;
+        if (toText is not null && !DateTimeOffset.TryParse(toText, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out to))
+            throw new RpcException(new Status(StatusCode.InvalidArgument, $"'{toText}' is not a valid date and time."));
+
+        if (to < from)
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "The period can't end before it starts."));
+        if ((to - from).TotalDays > MaxDailySalesDays)
+            throw new RpcException(new Status(StatusCode.InvalidArgument, $"The period can cover at most {MaxDailySalesDays} days."));
+        return (from, to);
+    }
+
+    private const int MaxDailySalesDays = 800;
 
     // Stays at the class-level SellerOrAdmin floor on purpose: counts only, no revenue, so the
     // Stock and Scan screens can show sellers what's moving in the current session.

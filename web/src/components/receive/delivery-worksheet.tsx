@@ -147,7 +147,11 @@ const DeliveryRow = memo(function DeliveryRow({
         <ItemImage src={item.imageUrl} alt="" className="size-10 rounded-lg" />
         <div className="min-w-0">
           <div className="truncate text-sm font-medium">{item.name}</div>
-          <div className="truncate font-mono text-xs text-muted-foreground">{item.sku}</div>
+          <div className="truncate text-xs text-muted-foreground">
+            <span className="font-mono">{item.sku}</span>
+            {/* Where to put it away, when the catalog says. */}
+            {item.location && <> · {item.location}</>}
+          </div>
         </div>
       </div>
       <span className="hidden text-right text-sm tabular-nums text-muted-foreground md:block">{onHand}</span>
@@ -508,7 +512,10 @@ export function DeliveryWorksheet({ isAdmin }: { isAdmin: boolean }) {
                   >
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{item.name}</span>
-                      <span className="block truncate font-mono text-xs text-muted-foreground">{item.sku}</span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        <span className="font-mono">{item.sku}</span>
+                        {item.location && <> · {item.location}</>}
+                      </span>
                     </span>
                     <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{t("add.inStock", { count: item.quantityOnHand ?? 0 })}</span>
                   </li>

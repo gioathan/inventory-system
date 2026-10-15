@@ -64,7 +64,58 @@
     },
     "removedItem": "Removed item",
     "revenueNote": "Revenue is what customers paid at each sale.",
-    "revenueNoteEstimated": "Revenue is what customers paid at each sale. ≈ marks items with sales from before prices were recorded, valued at today's price."
+    "revenueNoteEstimated": "Revenue is what customers paid at each sale. ≈ marks items with sales from before prices were recorded, valued at today's price.",
+    "unitsSold": "Units sold",
+    "soldPerDay": "Sold per day",
+    "unitsReceived": "Units received",
+    "sellThrough": "Sell-through",
+    "soldOutCount": "Sold out",
+    "measureLabel": "Show charts by",
+    "perDayLabel": "Sales per day",
+    "unitsPerDay": "Units sold per day",
+    "revenuePerDay": "Revenue per day",
+    "day": "Day",
+    "bestDay": "Best day: {day}, with {value}.",
+    "bestSellers": "Best sellers",
+    "topCategories": "Top categories",
+    "noSales": "Nothing was sold in this session.",
+    "soldDetail": "{count} sold",
+    "allItems": "Every item that moved ({count})",
+    "searchItems": "Search items",
+    "export": "Download CSV",
+    "columnsNote": "Start and End are the stock when the session began and ended. Click a column heading to sort by it.",
+    "summary": {
+      "sold": "{sold, plural, one {# unit} other {# units}} of {items, plural, one {# item} other {# different items}} sold for {revenue} over {length}, about {perDay} a day.",
+      "soldSoFar": "So far, {sold, plural, one {# unit} other {# units}} of {items, plural, one {# item} other {# different items}} sold for {revenue} over {length}, about {perDay} a day.",
+      "nothingSold": "Nothing was sold over {length}.",
+      "versus": "That is {percent} {direction, select, up {more} other {less}} per day than session #{number}.",
+      "received": "{received, plural, one {# unit} other {# units}} came in.",
+      "soldOut": "{count, plural, one {# item} other {# items}} sold out.",
+      "notSelling": "{count, plural, one {# item you received} other {# items you received}} sold nothing.",
+      "soldNoMoney": "{sold, plural, one {# unit} other {# units}} of {items, plural, one {# item} other {# different items}} sold over {length}, about {perDay} a day.",
+      "soldSoFarNoMoney": "So far, {sold, plural, one {# unit} other {# units}} of {items, plural, one {# item} other {# different items}} sold over {length}, about {perDay} a day."
+    },
+    "notes": {
+      "revenue": "What customers paid. About {perDay} a day.",
+      "sold": "Across {items, plural, one {# item} other {# different items}}.",
+      "perDay": "Units sold divided by the session's length ({length}).",
+      "received": "Everything that came into stock during the session.",
+      "sellThrough": "Of everything you had (stock at the start plus what came in), how much was sold.",
+      "soldOut": "Items that sold and were at zero when the session ended."
+    },
+    "change": {
+      "versus": "{percent} {direction, select, up {more} other {less}} per day than #{number}",
+      "same": "Same per day as #{number}"
+    },
+    "attention": {
+      "soldOutTitle": "Sold out ({count})",
+      "soldOutExplanation": "These sold and then ran out, so you may have missed sales. Worth reordering first.",
+      "notSellingTitle": "Received but not selling ({count})",
+      "notSellingExplanation": "Stock came in during this session and none of it sold.",
+      "receivedInStock": "{received} received · {stock} in stock",
+      "more": "and {count} more, in the table below"
+    },
+    "length": "{days, plural, one {# day} other {# days}}"
   },
   "startDialog": {
     "title": "Start a restock session",
@@ -135,13 +186,25 @@
       "newSeller": "New seller",
       "stopped": "Stopped selling",
       "soldOutIn": "Sold out in #{number}"
+    },
+    "headline": {
+      "moved": "Session #{b} sold {percent} {direction, select, up {more} other {less}} per day than session #{a}: {paceB} units a day against {paceA}.",
+      "same": "Sessions #{b} and #{a} sold at the same pace: {pace} units a day.",
+      "noBaseline": "Session #{a} sold nothing, so there is nothing to measure #{b} against. #{b} sold {pace} units a day."
+    },
+    "movers": {
+      "faster": "Selling faster in #{number}",
+      "slower": "Selling slower in #{number}",
+      "none": "None.",
+      "aDay": "a day"
     }
   },
   "insights": {
     "scopes": {
       "latest": "Latest",
       "last": "Last {count}",
-      "all": "All"
+      "all": "All",
+      "lastMonth": "Last month"
     },
     "scopeLabel": "Sessions to include",
     "measureLabel": "Measure",
@@ -168,8 +231,18 @@
     "unitsPerSession": "Units sold per session",
     "revenuePerSession": "Revenue per session",
     "sessionsLabel": "Sessions",
-    "trendNote": "Totals per session, not per day — longer sessions naturally sell more. Compare per day on the Compare tab.",
-    "soldDetail": "{count} sold"
+    "trendNote": "Each bar is that session's average per day, so long and short sessions compare fairly.",
+    "soldDetail": "{count} sold",
+    "unitsPerDayBySession": "Units sold per day, session by session",
+    "revenuePerDayBySession": "Revenue per day, session by session",
+    "unsold": {
+      "title": "In stock but not sold in these sessions ({count})",
+      "explanation": "Stock that is sitting: {value} at today's prices. Biggest first.",
+      "detail": "{stock} in stock · {value}",
+      "more": "and {count} more"
+    },
+    "lastMonthNote": "Sessions from the last 30 days.",
+    "lastMonthEmpty": "No session was running in the last 30 days."
   },
   "charts": {
     "showNumbers": "Show the numbers",

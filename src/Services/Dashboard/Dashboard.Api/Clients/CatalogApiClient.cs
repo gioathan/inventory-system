@@ -20,11 +20,12 @@ public class CatalogApiClient(CatalogGrpcService.CatalogGrpcServiceClient grpcCl
                 i.HasDiscountPercentage ? i.DiscountPercentage : null,
                 decimal.Parse(i.EffectivePrice, CultureInfo.InvariantCulture),
                 i.HasActiveDiscountPercentage ? i.ActiveDiscountPercentage : null,
-                i.HasDatedDiscountName ? i.DatedDiscountName : null))
+                i.HasDatedDiscountName ? i.DatedDiscountName : null,
+                i.HasLocation ? i.Location : null))
             .ToList();
     }
 }
 
 public record CatalogItem(
     string Sku, string Name, string Barcode, decimal Price, string? ImageUrl, Guid? CategoryId,
-    double? DiscountPercentage, decimal EffectivePrice, double? ActiveDiscountPercentage, string? DatedDiscountName);
+    double? DiscountPercentage, decimal EffectivePrice, double? ActiveDiscountPercentage, string? DatedDiscountName, string? Location);

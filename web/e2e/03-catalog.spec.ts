@@ -91,20 +91,19 @@ test("catalog, labels that really scan, printing, new SKUs, categories and disco
     check("panel: shows category name", await visible(page, `Cat ${tag}`));
     await page.screenshot({ path: `${SCREENS}/p3-desktop-catalog.png` });
 
+    // Labels carry a QR code only (NEXT_PUBLIC_LABEL_FORMAT can bring the barcode back).
     const label = page.locator("aside");
-    const bar = await label.locator('svg[aria-label^="Barcode"]').screenshot({ scale: "device" });
     const qr = await label.locator('svg[aria-label^="QR code"]').screenshot({ scale: "device" });
-    writeFileSync(`${SCREENS}/p3-label-bar.png`, bar);
     writeFileSync(`${SCREENS}/p3-label-qr.png`, qr);
-    check("label: Code128 decodes to the item's barcode", decode(bar, ZX.BarcodeFormat.CODE_128) === alpha.barcode, `decoded=${decode(bar, ZX.BarcodeFormat.CODE_128)}`);
+    check("label: QR only, no barcode", (await label.locator('svg[aria-label^="Barcode"]').count()) === 0);
     check("label: QR decodes to the item's barcode", decode(qr, ZX.BarcodeFormat.QR_CODE) === alpha.barcode, `decoded=${decode(qr, ZX.BarcodeFormat.QR_CODE)}`);
 
     await page.getByRole("button", { name: "Close details" }).click();
     await page.waitForURL((u) => !u.search.includes("sku="));
     await page.getByRole("button", { name: `Charlie ${tag}` }).click();
     await visible(page, "Label");
-    const cBar = await page.locator("aside").locator('svg[aria-label^="Barcode"]').screenshot({ scale: "device" });
-    check("label: alphanumeric manufacturer barcode decodes too", decode(cBar, ZX.BarcodeFormat.CODE_128) === mfrBarcode, `decoded=${decode(cBar, ZX.BarcodeFormat.CODE_128)}`);
+    const cQr = await page.locator("aside").locator('svg[aria-label^="QR code"]').screenshot({ scale: "device" });
+    check("label: alphanumeric manufacturer barcode decodes too", decode(cQr, ZX.BarcodeFormat.QR_CODE) === mfrBarcode, `decoded=${decode(cQr, ZX.BarcodeFormat.QR_CODE)}`);
     await page.getByRole("button", { name: "Close details" }).click();
 
     // ---- CSV export --------------------------------------------------------------------------

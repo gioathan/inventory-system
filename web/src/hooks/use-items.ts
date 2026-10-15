@@ -20,6 +20,7 @@ const ITEMS_QUERY = /* GraphQL */ `
       effectivePrice
       imageUrl
       categoryId
+      location
       quantityOnHand
     }
   }

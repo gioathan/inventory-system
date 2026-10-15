@@ -18,6 +18,7 @@ public class ItemCreationService(CatalogDbContext db)
         string? sku,
         Guid? categoryId,
         string? imageUrl,
+        string? location,
         CancellationToken cancellationToken)
     {
         var barcodeProvided = !string.IsNullOrWhiteSpace(barcode);
@@ -38,7 +39,8 @@ public class ItemCreationService(CatalogDbContext db)
                 Price = price,
                 Barcode = candidateBarcode,
                 CategoryId = categoryId,
-                ImageUrl = imageUrl
+                ImageUrl = imageUrl,
+                Location = location
             };
 
             db.Items.Add(item);

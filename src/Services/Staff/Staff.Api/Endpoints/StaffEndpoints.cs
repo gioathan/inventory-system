@@ -53,6 +53,26 @@ public static partial class StaffEndpoints
                 .ToListAsync(cancellationToken);
             return Results.Ok(users);
         }).RequireAuthorization(AuthPolicies.AdminOnly);
+        // Admin-only: set a new password on any account. CurrentPassword is required (and checked)
+        // only when the account is the caller's own — see AuthService.ChangePasswordAsync.
+        app.MapPost("/staff/{id:guid}/password", async (Guid id, ChangePasswordRequest request, ClaimsPrincipal caller, AuthService auth, CancellationToken cancellationToken) =>
+        {
+            var subject = caller.FindFirstValue(ClaimTypes.NameIdentifier) ?? caller.FindFirstValue(JwtRegisteredClaimNames.Sub);
+            if (!Guid.TryParse(subject, out var actorId))
+                return Results.Forbid();
+
+            if (request.NewPassword is null || request.NewPassword.Length < MinPasswordLength || request.NewPassword.Length > MaxPasswordLength)
+                return Results.BadRequest($"Password must be {MinPasswordLength} to {MaxPasswordLength} characters.");
+
+            return await auth.ChangePasswordAsync(id, actorId, request.CurrentPassword, request.NewPassword, cancellationToken) switch
+            {
+                ChangePasswordOutcome.Changed => Results.NoContent(),
+                ChangePasswordOutcome.NotFound => Results.NotFound(),
+                ChangePasswordOutcome.WrongCurrentPassword => Results.Conflict("Your current password isn't right."),
+                _ => Results.Forbid()
+            };
+        }).RequireAuthorization(AuthPolicies.AdminOnly);
+
         // Admin-only, like creating one. Who is asking comes from the token's subject claim —
         // AuthService needs it to refuse deleting yourself and to record who did it.
         app.MapDelete("/staff/{id:guid}", async (Guid id, ClaimsPrincipal caller, AuthService auth, CancellationToken cancellationToken) =>
@@ -76,5 +96,6 @@ public static partial class StaffEndpoints
         new(user.Id, user.Username, user.Role, user.CreatedAt);
 }
 
+public record ChangePasswordRequest(string NewPassword, string? CurrentPassword = null);
 public record CreateStaffUserRequest(string Username, string Password, string Role);
 public record StaffUserResponse(Guid Id, string Username, string Role, DateTimeOffset CreatedAt);

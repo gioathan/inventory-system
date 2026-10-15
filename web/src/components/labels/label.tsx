@@ -18,7 +18,7 @@ export function Label({
   className,
   style,
 }: {
-  item: Pick<CatalogEntry, "name" | "barcode" | "sku" | "effectivePrice">;
+  item: Pick<CatalogEntry, "name" | "barcode" | "sku" | "price">;
   format: LabelFormat;
   size?: LabelSize;
   className?: string;
@@ -38,7 +38,9 @@ export function Label({
     >
       <div className="flex items-baseline justify-between leading-tight" style={{ fontSize: pt(7.5), gap: mm(2) }}>
         <span className="truncate font-semibold">{item.name}</span>
-        <span className="shrink-0 font-bold tabular-nums">{formatMoney(item.effectivePrice)}</span>
+        {/* The list price, not today's discounted one: a sticker stays on the item long after a
+            promotion ends, and the till applies whatever discount is running when it's scanned. */}
+        <span className="shrink-0 font-bold tabular-nums">{formatMoney(item.price)}</span>
       </div>
 
       <div className="flex min-h-0 flex-1 items-stretch" style={{ marginTop: mm(1), gap: mm(2) }}>

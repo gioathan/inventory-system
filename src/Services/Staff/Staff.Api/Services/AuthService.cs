@@ -13,6 +13,7 @@ public record LoginResult(bool Succeeded, string? AccessToken, DateTimeOffset? E
     public static LoginResult Success(IssuedToken token, string role) => new(true, token.AccessToken, token.ExpiresAt, role);
 }
 
+public enum ChangePasswordOutcome { Changed, NotFound, WrongCurrentPassword, ActorNotAllowed }
 public enum DeleteUserOutcome { Deleted, NotFound, IsSelf, LastAdmin, ActorNotAllowed }
 
 public class AuthService(StaffDbContext db, IPasswordHasher<StaffUser> hasher, IConfiguration configuration)
@@ -122,6 +123,39 @@ public class AuthService(StaffDbContext db, IPasswordHasher<StaffUser> hasher, I
         await db.SaveChangesAsync(cancellationToken);
         await LogAsync(user.Id, user.Username, "UserDeleted", $"Role={user.Role}; DeletedBy={actor.Username}", cancellationToken);
         return DeleteUserOutcome.Deleted;
+    }
+
+    // An admin sets a new password — their own, or anyone else's (the "they forgot it" case).
+    // Changing your own asks for the current one: an unattended, signed-in admin screen must not
+    // be enough to take the account over. Resetting someone else's doesn't, since the admin has no
+    // way to know it. As with DeleteUserAsync, the acting admin is looked up rather than trusted
+    // from the token.
+    //
+    // Sessions already signed in keep working until their token expires (tokens can't be
+    // revoked — see JwtConstants); only new sign-ins need the new password.
+    public async Task<ChangePasswordOutcome> ChangePasswordAsync(
+        Guid id, Guid actorId, string? currentPassword, string newPassword, CancellationToken cancellationToken)
+    {
+        var actor = await db.StaffUsers.AsNoTracking().FirstOrDefaultAsync(u => u.Id == actorId, cancellationToken);
+        if (actor is null || actor.Role != StaffRoles.Admin)
+            return ChangePasswordOutcome.ActorNotAllowed;
+
+        var user = await db.StaffUsers.FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
+        if (user is null)
+            return ChangePasswordOutcome.NotFound;
+
+        if (id == actorId &&
+            (string.IsNullOrEmpty(currentPassword) ||
+             hasher.VerifyHashedPassword(user, user.PasswordHash, currentPassword) == PasswordVerificationResult.Failed))
+        {
+            await LogAsync(user.Id, user.Username, "PasswordChangeFailed", "Wrong current password", cancellationToken);
+            return ChangePasswordOutcome.WrongCurrentPassword;
+        }
+
+        user.PasswordHash = hasher.HashPassword(user, newPassword);
+        await db.SaveChangesAsync(cancellationToken);
+        await LogAsync(user.Id, user.Username, "PasswordChanged", $"ChangedBy={actor.Username}", cancellationToken);
+        return ChangePasswordOutcome.Changed;
     }
 
     private async Task LogAsync(Guid? userId, string username, string action, string? details, CancellationToken cancellationToken)

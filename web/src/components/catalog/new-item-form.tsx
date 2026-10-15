@@ -48,6 +48,7 @@ function makeSchema(t: CatalogT) {
       .refine((v) => Number(v) >= 1 && Number(v) <= 99_999, t("validation.quantityRange")),
     categoryId: z.string(),
     barcode: z.string().trim().regex(/^[A-Za-z0-9._-]{0,64}$/, t("validation.barcodeFormat")),
+    location: z.string().trim().max(128, t("validation.locationLength")),
     imageUrl: z
       .string()
       .trim()
@@ -68,7 +69,7 @@ export function NewItemForm() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", price: "", quantity: "1", categoryId: "", barcode: "", imageUrl: "" },
+    defaultValues: { name: "", price: "", quantity: "1", categoryId: "", barcode: "", location: "", imageUrl: "" },
   });
   const { register, handleSubmit, setValue, setError, control, formState } = form;
   const { errors } = formState;
@@ -87,6 +88,7 @@ export function NewItemForm() {
           categoryId: values.categoryId || null,
           imageUrl: values.imageUrl || null,
           barcode: values.barcode || null,
+          location: values.location || null,
         }),
       }),
     onSuccess: (created) => {
@@ -149,6 +151,10 @@ export function NewItemForm() {
           hint={t("newItem.barcodeHint")}
         >
           <Input id="barcode" autoComplete="off" autoCapitalize="none" spellCheck={false} aria-invalid={!!errors.barcode} aria-describedby="barcode-msg" className="h-11 font-mono" {...register("barcode")} />
+        </FormField>
+
+        <FormField id="location" label={t("fields.location")} error={errors.location?.message} hint={t("newItem.locationHint")}>
+          <Input id="location" autoComplete="off" maxLength={128} aria-invalid={!!errors.location} aria-describedby="location-msg" className="h-11" {...register("location")} />
         </FormField>
 
         {submitError && (

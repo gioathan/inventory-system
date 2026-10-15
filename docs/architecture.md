@@ -169,6 +169,83 @@ e.g. 20% off 10 SKUs — without touching their base `Price`.
   "revenue uses today's Catalog price, not price-at-time-of-sale" tradeoff already in
   TECH_DEBT.md; a discount is just today's price being lower than it was.
 
+## Site configuration (2026-10-15)
+
+`web/src/lib/site-config.ts` holds per-installation switches set in code (change and redeploy), not
+from the admin screens.
+
+- **`showRevenue`** (currently **off**): whether reports show sales money — revenue totals and
+  per-item revenue in the session report, Compare, Insights, the dashboard's Sales section and an
+  item's session box. Off, those screens keep every unit-based figure (sold, received, best
+  sellers, trends) and drop the money; the revenue/units toggles disappear and the session
+  summary sentence has a wording without an amount. Item prices, the stock's value at today's
+  prices (dashboard, Insights' unsold list) and the scan screen's running total are not revenue
+  and stay. Display only: the queries still return revenue.
+
+## Deleting an item (2026-10-10)
+
+`DELETE /items/{sku}` on Scan Gateway (admin only) removes an item for good, across two services
+with no shared transaction, so the order is chosen for what a half-finished delete leaves behind:
+
+1. **Inventory `RemoveStock` first.** The stock row is dropped; if anything was on hand, one
+   ledger movement with the new reason `ItemRemoved` writes it off (not published as an event —
+   the only listener raises low-stock alerts, and a deleted item isn't something to reorder).
+2. **Catalog `DeleteItem` second.** The item goes, along with its membership of any dated
+   discount, and its cached barcode lookup is dropped so a scan stops finding it immediately.
+
+If step 2 fails, the item is merely left with no stock and the delete can be retried (both steps
+tolerate a repeat). The other order could leave stock behind for an item that no longer exists,
+which a later item reusing the same SKU would silently inherit.
+
+- **History is kept.** Sales and receipts stay in the ledger, so past session reports still
+  count them; the line shows as a removed item (no name). Such lines are left out of the
+  report's "sold out" and "not selling" lists, since there is nothing left to act on.
+- **The SKU and barcode become free** to register again; a new item with the same code starts
+  with its own stock.
+- A hard delete was chosen over hiding the item: codes become reusable, and nothing else in the
+  system needs a "deleted" flag to remember to check.
+
+## Storage location and label changes (2026-10-10)
+
+- **`Item.Location`** — optional free text (max 128, blank stored as null) for where an item is
+  kept: "Aisle 3, shelf B". Deliberately not a lookup table: every shop names its storage its own
+  way. It travels everywhere an item does (gRPC `ItemReply`, the scan response, the GraphQL
+  `items` query) and is shown on the scan card and stock cards, where a seller needs it, as well
+  as in the catalog table, item panel, CSV export, both search boxes, the delivery worksheet and
+  the dashboard's lists. Set from the new-item
+  form, the edit dialog, and each row of bulk add (also a `location` CSV column).
+- **Labels show the list price and a QR code only.** A sticker outlives any promotion, so it
+  carries `price`, not today's `effectivePrice`; the till still applies the discount on scan.
+  QR-only is the new default of `NEXT_PUBLIC_LABEL_FORMAT`.
+- **Bulk add** rows can upload a picture each (same `/images` endpoint as the single-item form;
+  needs R2 configured).
+
+## Session report and sales per day (2026-10-10)
+
+The single-session report (`web/src/components/restock/session-report.tsx`) is written to be read,
+not decoded: a summary sentence first, then six numbers that each say what they mean (revenue,
+units sold, sold per day, received, sell-through, sold out), a sales-per-day chart, best sellers
+and top categories (by top-level category), two "worth acting on" lists (sold out; received but
+not selling), and only then the full item table (searchable, sortable, CSV).
+
+- **Comparisons are per day.** Where a previous session exists, revenue and units are compared
+  with it per day, never as totals: sessions differ in length.
+- **`dailySales(from, to)`** is the one new query (Dashboard GraphQL → Inventory `GetDailySales`).
+  It adds the ledger up per calendar day of the shop and returns every day in the range, quiet
+  ones as zeros. It takes instants, not a session id, so the dashboard's calendar numbers
+  (today / 7 days / month — next step) can use the same query.
+- **`ShopTime`** (ServiceDefaults) is now the single place that knows the shop's time zone;
+  Catalog's dated discounts, Scan Gateway's cache expiry and this report all use it.
+- Everything else in the report is derived in the browser from the existing `sessionReport`.
+- **Dashboard sales** (`dashboard-sales.tsx`) is the calendar view beside the session-based
+  reports: today / last 7 days / this month, each against the period before; a 30-day chart; the
+  week's best sellers; and "running out soon" — stock ÷ recent units per day, which replaces a
+  fixed threshold with how fast each item actually sells. It needs one more query,
+  `salesByItem(from, to)` (Inventory `GetSalesByItem`), for sales per item over any period.
+- **Compare** opens with the result as a sentence, defaults to per-day, and names the items
+  selling faster and slower. **Insights** charts each session's per-day average rather than its
+  total, shows each category's share, and lists stock that didn't sell in the sessions in view.
+
 ## Dated discounts (2026-10-09)
 
 A second kind of discount beside the manual one (`Item.DiscountPercentage`, unchanged): a
@@ -439,6 +516,21 @@ the two R2-specific SDK settings and one unrelated AppHost-configuration bug tha
   Tokens) — not a general Cloudflare API token, which isn't the right shape for R2's
   S3-compatible auth (that always needs a separate Access Key ID + Secret Access Key pair).
 
+### Picture size (2026-10-12)
+
+Pictures are only for recognising an item on screen, and with thousands of items the bucket's size
+is the cost, so every upload is kept small on two levels:
+
+- **The browser shrinks first** (`web/src/lib/image-compress.ts`, used by every upload in the app):
+  longest side at most 1000 px, encoded as WebP (JPEG where the browser can't write WebP), stepping
+  quality and then size down until it is about 200 KB or less. Measured: an 11.5 MB noisy photo went
+  up as 167 KB at 800×600; a typical picture lands far lower. Phone photos keep their orientation;
+  a format the browser can't read (e.g. HEIC outside Safari) gets a clear message.
+- **The gateway enforces a cap** (`R2Images:MaxBytes`, default 300 KB) before anything reaches R2, for
+  uploads that skipped the browser step. Raise it in configuration if a shop needs sharper pictures.
+
+Pictures uploaded before this were not re-processed.
+
 ## CORS — opt-in per service, not global
 
 Until now every caller has been curl, gRPC, or another service — nothing has ever come from a
@@ -629,7 +721,7 @@ Receive tab, the pages redirect them, and the gateway and gRPC receive/intake ca
   (`LABEL_SIZES` in `lib/label.ts`: 50x25, 60x30, 75x40, 90x50 mm), picked on the print page; type
   and spacing scale with the label's height.
   Code128 via `jsbarcode`; the QR is built from the `qrcode` module matrix as one `<path>`, never
-  injected HTML. `NEXT_PUBLIC_LABEL_FORMAT` (`code128 | qr | both`, default both) is a deploy-time
+  injected HTML. `NEXT_PUBLIC_LABEL_FORMAT` (`code128 | qr | both`, default **qr** since 2026-10-10) is a deploy-time
   choice for what gets printed; scanning is symbology-agnostic. Verified by decoding the rendered
   images with a real barcode reader, not just by looking at them.
 - **Printing** (`/labels/print?sku=…&sku=…`): the admin shell hides itself under `@media print`.

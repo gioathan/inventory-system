@@ -52,5 +52,43 @@
     "runningUntil": "running until {date}",
     "startsIn": "{count, plural, one {starts tomorrow} other {starts in # days}} ({dates})",
     "review": "Review"
+  },
+  "sales": {
+    "title": "Sales",
+    "measureLabel": "Show sales as",
+    "revenue": "Revenue",
+    "units": "Units",
+    "loading": "Loading sales",
+    "loadError": "Couldn't load sales: {message}",
+    "today": "Today",
+    "week": "Last 7 days",
+    "month": "This month",
+    "versus": {
+      "yesterday": "yesterday",
+      "weekBefore": "the 7 days before",
+      "lastMonth": "the same days last month"
+    },
+    "change": {
+      "moved": "{percent} {direction, select, up {more} other {less}} than {versus}",
+      "same": "Same as {versus}",
+      "noBaseline": "Nothing sold {versus}, so nothing to compare with",
+      "nothingEither": "Nothing sold, same as {versus}"
+    },
+    "unitsDetail": "{count, plural, one {# unit} other {# units}}",
+    "chartRevenue": "Revenue per day, last {days} days",
+    "chartUnits": "Units sold per day, last {days} days",
+    "chartLabel": "Sales per day",
+    "day": "Day",
+    "bestSellers": "Best sellers, last {days} days",
+    "item": "Item",
+    "noSales": "Nothing sold in the last {days} days.",
+    "runningOut": {
+      "title": "Running out soon",
+      "explanation": "Items that will reach zero within a week if they keep selling as they have over the last {days, plural, one {day} other {# days}}.",
+      "none": "Nothing is about to run out at the current pace.",
+      "lessThanADay": "Less than a day left",
+      "daysLeft": "{days, plural, one {About # day left} other {About # days left}}",
+      "detail": "{stock} in stock, sells {perDay} a day"
+    }
   }
 }

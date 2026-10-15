@@ -16,6 +16,8 @@
     "LoginFailed": "Login failed",
     "LoginSucceeded": "Login succeeded",
     "UserCreated": "User created",
-    "UserDeleted": "User deleted"
+    "UserDeleted": "User deleted",
+    "PasswordChanged": "Password changed",
+    "PasswordChangeFailed": "Password change failed"
   }
 }

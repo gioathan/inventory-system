@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, PackageSearch, RefreshCw, Search, Tag, X } from "lucide-react";
+import { Loader2, MapPin, PackageSearch, RefreshCw, Search, Tag, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FilterChips } from "@/components/filter-chips";
@@ -38,6 +38,13 @@ function StockCard({
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-semibold leading-tight">{item.name}</h3>
           <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{item.sku}</p>
+          {item.location && (
+            <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+              <MapPin aria-hidden className="size-3 shrink-0" />
+              <span className="sr-only">{t("location")}</span>
+              <span className="truncate">{item.location}</span>
+            </p>
+          )}
           {soldThisSession !== null && <p className="mt-0.5 text-xs text-muted-foreground">{t("soldThisSession", { count: soldThisSession })}</p>}
           <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2">
             <span className="text-lg font-semibold tabular-nums">{formatMoney(item.effectivePrice)}</span>
@@ -106,7 +113,7 @@ export function StockLookup({ canReceive = false }: { canReceive?: boolean }) {
     return all
       .filter(active.matches)
       .filter((item) => !within || (item.categoryId !== null && within.has(item.categoryId)))
-      .filter((item) => matchesSearch(item, search, item.categoryId ? [tree.pathLabel(item.categoryId)] : []))
+      .filter((item) => matchesSearch(item, search, [item.categoryId ? tree.pathLabel(item.categoryId) : "", item.location ?? ""]))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [all, filter, search, category, tree]);
 

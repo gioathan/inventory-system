@@ -14,7 +14,8 @@
     "stock": "Stock",
     "listPrice": "List price",
     "startingStock": "Starting stock",
-    "noCategory": "No category"
+    "noCategory": "No category",
+    "location": "Storage location"
   },
   "list": {
     "title": "Items & SKUs",
@@ -66,7 +67,8 @@
     "editItem": "Edit item",
     "printLabel": "Print label",
     "receiveStock": "Receive stock",
-    "datedDiscounts": "Dated discounts"
+    "datedDiscounts": "Dated discounts",
+    "deleteItem": "Delete item"
   },
   "session": {
     "loading": "Loading this session",
@@ -91,7 +93,8 @@
     "wholeNumber": "Enter a whole number.",
     "quantityRange": "Enter a number from 1 to 99,999.",
     "barcodeFormat": "Use letters, digits, . _ or - only (up to 64).",
-    "imageUrl": "Enter a full web address starting with http:// or https://."
+    "imageUrl": "Enter a full web address starting with http:// or https://.",
+    "locationLength": "Keep it under 128 characters."
   },
   "image": {
     "uploading": "Uploading…",
@@ -99,9 +102,10 @@
     "uploadAria": "Upload an image file",
     "preview": "Item preview",
     "notImage": "Choose an image file.",
-    "tooLarge": "That image is over 10 MB. Choose a smaller one.",
+    "tooLarge": "That picture is over 25 MB. Choose a smaller one.",
     "notConfigured": "Image uploads aren't set up on this server yet. Paste an image address instead.",
-    "failed": "The upload failed. Try again."
+    "failed": "The upload failed. Try again.",
+    "unreadable": "This picture's format can't be read here. Use a JPG, PNG or WebP."
   },
   "newItem": {
     "heading": "New SKU",
@@ -113,7 +117,8 @@
     "barcodeTaken": "An item with that barcode already exists.",
     "createFailed": "Couldn't create the item. Try again.",
     "create": "Create item",
-    "imageHint": "Paste an image address, or upload a file."
+    "imageHint": "Paste an image address, or upload a file. Uploads are shrunk to at most 1000 px and about 200 KB.",
+    "locationHint": "Optional. Where it is kept, e.g. \"Aisle 3, shelf B\"."
   },
   "edit": {
     "title": "Edit item",
@@ -122,7 +127,7 @@
     "barcodeHint": "Changing this won't update labels already printed with the old one.",
     "barcodeTaken": "Another item already uses that barcode.",
     "saveFailed": "Couldn't save the changes. Try again.",
-    "imageHint": "Paste an address, or upload a file.",
+    "imageHint": "Paste an address, or upload a file. Uploads are shrunk to at most 1000 px and about 200 KB.",
     "save": "Save changes"
   },
   "bulk": {
@@ -155,7 +160,13 @@
     "invalidBarcode": "Barcode: letters, digits, . _ or - only (up to 64).",
     "nameTooLong": "Keep the name under 200 characters.",
     "barcodeTaken": "That barcode is already used by another item.",
-    "createFailed": "Couldn't create this item."
+    "createFailed": "Couldn't create this item.",
+    "locationOptional": "Storage location (optional)",
+    "addImage": "Add image",
+    "changeImage": "Change image",
+    "removeImage": "Remove image",
+    "imageForNamed": "Image for {name}",
+    "imageForRow": "Image for row {n}"
   },
   "move": {
     "title": "Move {count, plural, one {# item} other {# items}} to a category",
@@ -163,5 +174,12 @@
     "cancel": "Cancel",
     "confirm": "Move {count, plural, one {# item} other {# items}}",
     "failed": "Couldn't move the items."
+  },
+  "delete": {
+    "title": "Delete “{name}”?",
+    "description": "It is removed from the catalog for good and can no longer be scanned. Past sales stay in the reports, shown as a removed item. This can't be undone.",
+    "descriptionWithStock": "It is removed from the catalog for good and can no longer be scanned. Its {count, plural, one {# unit} other {# units}} in stock will be written off. Past sales stay in the reports, shown as a removed item. This can't be undone.",
+    "confirm": "Delete item",
+    "failed": "Couldn't delete the item."
   }
 }

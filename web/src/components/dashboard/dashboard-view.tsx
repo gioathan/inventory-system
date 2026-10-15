@@ -10,6 +10,7 @@ import { QuickReceiveDialog } from "@/components/receive/quick-receive-dialog";
 import { StatusPill } from "@/components/status-pill";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAlerts, useDatedDiscounts } from "@/hooks/use-admin-data";
+import { DashboardSales } from "./dashboard-sales";
 import { useItems } from "@/hooks/use-items";
 import { useCurrentSession, useSessionReport } from "@/hooks/use-restock-sessions";
 import { computeStats, needsAttention } from "@/lib/dashboard";
@@ -21,7 +22,7 @@ import { cn } from "@/lib/utils";
 
 function Panel({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section aria-label={title} className="flex flex-col gap-3 rounded-2xl border bg-card p-4 sm:p-5">
+    <section aria-label={title} className="flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4 sm:p-5">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold">{title}</h2>
         {action}
@@ -134,6 +135,8 @@ export function DashboardView() {
         </div>
       )}
 
+      <DashboardSales />
+
       {health && (
         <Panel title={t("health.title")}>
           <div
@@ -172,7 +175,10 @@ export function DashboardView() {
                   <ItemImage src={item.imageUrl} alt="" className="size-10 rounded-lg" />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">{item.name}</div>
-                    <div className="truncate font-mono text-xs text-muted-foreground">{item.sku}</div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      <span className="font-mono">{item.sku}</span>
+                      {item.location && <> · {item.location}</>}
+                    </div>
                   </div>
                   <StatusPill tone={item.quantityOnHand === 0 ? "danger" : "warning"}>
                     {item.quantityOnHand === 0 ? t("attention.out") : t("attention.left", { count: item.quantityOnHand ?? 0 })}

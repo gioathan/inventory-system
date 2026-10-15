@@ -117,7 +117,7 @@ export function CatalogView() {
     return all
       .filter(active.matches)
       .filter((item) => !within || (item.categoryId !== null && within.has(item.categoryId)))
-      .filter((item) => matchesSearch(item, search, [pathOf(item)]));
+      .filter((item) => matchesSearch(item, search, [pathOf(item), item.location ?? ""]));
     // pathOf reads tree, which is what actually changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [all, filter, search, category, tree]);
@@ -165,6 +165,11 @@ export function CatalogView() {
         header: t("fields.category"),
         cell: ({ getValue }) => <span className="text-muted-foreground">{getValue() || "—"}</span>,
       }),
+      columnHelper.accessor((item) => item.location ?? "", {
+        id: "location",
+        header: t("fields.location"),
+        cell: ({ getValue }) => <span className="text-muted-foreground">{getValue() || "—"}</span>,
+      }),
       columnHelper.accessor("effectivePrice", {
         id: "price",
         header: t("fields.price"),
@@ -199,7 +204,7 @@ export function CatalogView() {
     // TanStack sorts numeric columns descending on the first click; people expect low-to-high first.
     sortDescFirst: false,
     // The panel takes a third of the width, so the least essential column steps aside while it is open.
-    state: { sorting, rowSelection, columnVisibility: { category: !(isWide && openEntry), sessionSold: sessionOpen } },
+    state: { sorting, rowSelection, columnVisibility: { category: !(isWide && openEntry), location: !(isWide && openEntry), sessionSold: sessionOpen } },
     initialState: { pagination: { pageSize: PAGE_SIZE } },
     onSortingChange: setSorting,
     onRowSelectionChange: setRowSelection,
@@ -225,9 +230,9 @@ export function CatalogView() {
     downloadCsv(
       "catalog.csv",
       toCsv(
-        ["SKU", "Name", "Barcode", "Category", "List price", "Discount %", "Price", "Stock"],
+        ["SKU", "Name", "Barcode", "Category", "Location", "List price", "Discount %", "Price", "Stock"],
         sorted.map((i) => [
-          i.sku, i.name, i.barcode, nameOf(i), i.price,
+          i.sku, i.name, i.barcode, nameOf(i), i.location, i.price,
           i.activeDiscountPercentage === null ? null : Math.round(i.activeDiscountPercentage * 100),
           i.effectivePrice, i.quantityOnHand,
         ]),
@@ -236,7 +241,7 @@ export function CatalogView() {
   }
 
   const panel = openEntry && (
-    <ItemPanel item={openEntry} categoryName={pathOf(openEntry) || null} onClose={isWide ? closeItem : undefined} />
+    <ItemPanel item={openEntry} categoryName={pathOf(openEntry) || null} onClose={isWide ? closeItem : undefined} onDeleted={closeItem} />
   );
 
   return (

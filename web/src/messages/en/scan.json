@@ -43,6 +43,7 @@
     "increase": "Increase quantity",
     "confirmSale": "Confirm sale · {total}",
     "cantSell": "This item can't be sold right now — there's no stock on hand.",
-    "clear": "Clear · scan next item"
+    "clear": "Clear · scan next item",
+    "location": "Storage location"
   }
 }

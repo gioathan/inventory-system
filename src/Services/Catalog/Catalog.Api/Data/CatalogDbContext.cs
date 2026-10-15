@@ -25,6 +25,7 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbCo
             entity.Property(e => e.Barcode).IsRequired().HasMaxLength(64);
             entity.Property(e => e.Price).HasColumnType("decimal(18,2)");
             entity.Property(e => e.ImageUrl).HasMaxLength(2048);
+            entity.Property(e => e.Location).HasMaxLength(128);
             entity.HasIndex(e => e.Sku).IsUnique();
             entity.HasIndex(e => e.Barcode).IsUnique();
         });

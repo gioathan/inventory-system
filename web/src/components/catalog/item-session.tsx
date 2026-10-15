@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useCurrentSessionReport } from "@/hooks/use-restock-sessions";
 import { formatMoney } from "@/lib/format";
+import { SITE_CONFIG } from "@/lib/site-config";
 import { useTimeFormat } from "@/lib/time";
 import type { CatalogEntry } from "@/lib/types";
 
@@ -58,19 +59,21 @@ export function ItemSession({ item }: { item: CatalogEntry }) {
             ))}
           </dl>
           <div className="flex flex-wrap justify-between gap-2 text-sm">
-            <span>
-              {t("session.revenue")}{" "}
-              <span className="font-medium tabular-nums">
-                {line.revenue === null ? "—" : `${line.revenueEstimated ? "≈ " : ""}${formatMoney(line.revenue)}`}
+            {SITE_CONFIG.showRevenue && (
+              <span>
+                {t("session.revenue")}{" "}
+                <span className="font-medium tabular-nums">
+                  {line.revenue === null ? "—" : `${line.revenueEstimated ? "≈ " : ""}${formatMoney(line.revenue)}`}
+                </span>
               </span>
-            </span>
+            )}
             {sellThrough !== null && (
               <span title={t("session.sellThroughHint")}>
                 {t("session.sellThrough")} <span className="font-medium tabular-nums">{sellThrough}%</span>
               </span>
             )}
           </div>
-          {line.revenueEstimated && (
+          {SITE_CONFIG.showRevenue && line.revenueEstimated && (
             <p className="text-xs text-muted-foreground">{t("session.estimatedNote")}</p>
           )}
         </>

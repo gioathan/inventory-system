@@ -15,6 +15,7 @@
     "soldThisSession": "{count} πουλήθηκαν σε αυτή τη συνεδρία",
     "lowLeft": "Χαμηλό · απομένουν {count}",
     "inStock": "{count} σε απόθεμα",
-    "receive": "Παραλαβή"
+    "receive": "Παραλαβή",
+    "location": "Θέση αποθήκευσης"
   }
 }

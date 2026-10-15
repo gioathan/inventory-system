@@ -10,7 +10,7 @@
   "created": "Created",
   "you": "(you)",
   "added": "Added {date}",
-  "footnote": "Passwords and roles can't be changed after an account is created yet.",
+  "footnote": "Roles can't be changed after an account is created yet.",
   "createdNotice": "Created the {role, select, Admin {admin} Seller {seller} other {{role}}} account “{username}”.",
   "roles": {
     "Admin": "Admin",
@@ -44,5 +44,20 @@
     "description": "They won't be able to sign in again, and this can't be undone. If they are signed in right now, that session keeps working until it expires, up to 8 hours.",
     "confirm": "Delete account",
     "failed": "Couldn't delete the account."
+  },
+  "password": {
+    "actionNamed": "Change password for {username}",
+    "title": "New password for “{username}”",
+    "titleOwn": "Change your password",
+    "description": "Tell them the new password directly. If they are signed in right now, that session keeps working until it expires, up to 8 hours.",
+    "descriptionOwn": "You stay signed in here. Other places where you are signed in keep working until they expire, up to 8 hours.",
+    "current": "Current password",
+    "new": "New password",
+    "wrongCurrent": "That isn't your current password.",
+    "cancel": "Cancel",
+    "confirm": "Change password",
+    "failed": "Couldn't change the password.",
+    "changed": "Changed the password for “{username}”.",
+    "changedOwn": "Your password has been changed."
   }
 }

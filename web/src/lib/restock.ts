@@ -56,6 +56,24 @@ export function totalsOf(lines: SessionReportLine[]): SessionTotals {
   return { received, sold, revenue, itemsSold, sellThrough: available > 0 ? sold / available : null, estimated };
 }
 
+// The two lists a session report puts in front of an admin as "worth acting on".
+export interface SessionAttention {
+  /** Sold during the session and at zero by its end: demand that may have gone unmet. */
+  soldOut: SessionReportLine[];
+  /** Received during the session and not one sold: stock that isn't moving. */
+  notSelling: SessionReportLine[];
+}
+
+export function attentionOf(lines: SessionReportLine[]): SessionAttention {
+  // An item deleted from the catalog (no name any more) ends at zero because its stock was
+  // written off, not because it sold out — and there is nothing left to reorder or to move.
+  const current = lines.filter((l) => l.name !== null);
+  return {
+    soldOut: current.filter((l) => l.sold > 0 && l.closingQuantity === 0).sort((a, b) => b.sold - a.sold),
+    notSelling: current.filter((l) => l.restocked > 0 && l.sold === 0).sort((a, b) => b.restocked - a.restocked),
+  };
+}
+
 /** % change from a to b; null when there's no baseline to compare against. */
 export function percentChange(a: number, b: number): number | null {
   if (a === 0) return null;

@@ -16,6 +16,8 @@
     "LoginFailed": "Αποτυχία σύνδεσης",
     "LoginSucceeded": "Επιτυχής σύνδεση",
     "UserCreated": "Δημιουργία χρήστη",
-    "UserDeleted": "Διαγραφή χρήστη"
+    "UserDeleted": "Διαγραφή χρήστη",
+    "PasswordChanged": "Αλλαγή κωδικού",
+    "PasswordChangeFailed": "Αποτυχία αλλαγής κωδικού"
   }
 }

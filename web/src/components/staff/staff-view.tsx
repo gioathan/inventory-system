@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Trash2, UserPlus } from "lucide-react";
+import { KeyRound, Loader2, Trash2, UserPlus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -14,6 +14,7 @@ import { apiFetch } from "@/lib/api";
 import { useTimeFormat } from "@/lib/time";
 import type { StaffUser } from "@/lib/types";
 import { AddStaffDialog } from "./add-staff-dialog";
+import { ChangePasswordDialog } from "./change-password-dialog";
 
 function RolePill({ role }: { role: StaffUser["role"] }) {
   const t = useTranslations("staff.roles");
@@ -40,8 +41,26 @@ export function StaffView({ currentUsername }: { currentUsername: string }) {
     },
   });
 
-  // Your own account has no delete button: the server refuses it anyway, and an admin who
-  // removed themselves would be locked out with no way back in.
+  const [changingPassword, setChangingPassword] = useState<StaffUser | null>(null);
+
+  // Every account gets "change password"; your own has no delete button — the server refuses
+  // it anyway, and an admin who removed themselves would be locked out with no way back in.
+  const rowActions = (user: StaffUser) => (
+    <span className="inline-flex items-center gap-1">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label={t("password.actionNamed", { username: user.username })}
+        className="size-9 text-muted-foreground hover:text-foreground"
+        onClick={() => setChangingPassword(user)}
+      >
+        <KeyRound className="size-4" />
+      </Button>
+      {deleteButton(user)}
+    </span>
+  );
+
   const deleteButton = (user: StaffUser) =>
     user.username === currentUsername ? null : (
       <Button
@@ -102,7 +121,7 @@ export function StaffView({ currentUsername }: { currentUsername: string }) {
                   <th scope="col" className="px-4 py-3 font-medium">{t("username")}</th>
                   <th scope="col" className="px-4 py-3 font-medium">{t("role")}</th>
                   <th scope="col" className="px-4 py-3 text-right font-medium">{t("created")}</th>
-                  <th scope="col" className="w-14 px-2 py-3">
+                  <th scope="col" className="w-24 px-2 py-3">
                     <span className="sr-only">{t("actions")}</span>
                   </th>
                 </tr>
@@ -116,7 +135,7 @@ export function StaffView({ currentUsername }: { currentUsername: string }) {
                     </td>
                     <td className="px-4 py-3"><RolePill role={user.role} /></td>
                     <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatDateTime(user.createdAt)}</td>
-                    <td className="px-2 py-1.5 text-right">{deleteButton(user)}</td>
+                    <td className="px-2 py-1.5 text-right">{rowActions(user)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -135,7 +154,7 @@ export function StaffView({ currentUsername }: { currentUsername: string }) {
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   <RolePill role={user.role} />
-                  {deleteButton(user)}
+                  {rowActions(user)}
                 </div>
               </li>
             ))}
@@ -143,6 +162,22 @@ export function StaffView({ currentUsername }: { currentUsername: string }) {
 
           <p className="text-xs text-muted-foreground">{t("footnote")}</p>
         </>
+      )}
+
+      {changingPassword && (
+        <ChangePasswordDialog
+          key={changingPassword.id}
+          user={changingPassword}
+          own={changingPassword.username === currentUsername}
+          onClose={() => setChangingPassword(null)}
+          onChanged={() => {
+            setNotice({
+              kind: "success",
+              text: changingPassword.username === currentUsername ? t("password.changedOwn") : t("password.changed", { username: changingPassword.username }),
+            });
+            setChangingPassword(null);
+          }}
+        />
       )}
 
       <AddStaffDialog

@@ -1,12 +1,11 @@
 using InventorySystem.Auth.Contracts;
 using InventorySystem.ScanGateway.Api.Images;
+using Microsoft.Extensions.Options;
 
 namespace InventorySystem.ScanGateway.Api.Endpoints;
 
 public static class ImageEndpoints
 {
-    private const long MaxImageBytes = 10 * 1024 * 1024;
-
     public static void MapImageEndpoints(this WebApplication app)
     {
         // Deliberately separate from /items/intake, not a combined "create item with an
@@ -15,7 +14,7 @@ public static class ImageEndpoints
         // passes it straight into intake's existing imageUrl field; this only exists for the
         // "I have a raw file, not a link yet" case. Admin-only, same as categories/discounts —
         // admin-managed setup, not a day-to-day seller action.
-        app.MapPost("/images", async (HttpRequest request, IImageUploader uploader, CancellationToken cancellationToken) =>
+        app.MapPost("/images", async (HttpRequest request, IImageUploader uploader, IOptions<R2ImageOptions> options, CancellationToken cancellationToken) =>
         {
             // Binding straight from HttpRequest instead of an IFormFile parameter is
             // deliberate: minimal APIs bind IFormFile by reading the form during argument
@@ -33,10 +32,11 @@ public static class ImageEndpoints
             if (file is null || file.Length == 0)
                 return Results.BadRequest("An image file is required.");
 
-            // Same limit the upload form enforces in the browser, checked here too since the
-            // browser's check is only a courtesy.
-            if (file.Length > MaxImageBytes)
-                return Results.BadRequest("That image is over 10 MB. Choose a smaller one.");
+            // The browser shrinks pictures before sending them; this is the cap for anything that
+            // didn't (see R2ImageOptions.MaxBytes), checked before a byte reaches the bucket.
+            var maxBytes = options.Value.MaxBytes;
+            if (file.Length > maxBytes)
+                return Results.BadRequest($"That picture is {file.Length / 1024} KB; the limit is {maxBytes / 1024} KB. Upload it from the app, which shrinks it first.");
 
             if (!file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
                 return Results.BadRequest($"'{file.ContentType}' is not an image content type.");

@@ -127,6 +127,45 @@ public class StockReceivingService(InventoryDbContext db, IDbContextOutbox outbo
         });
     }
 
+    // The item is being deleted from the catalog: its stock row goes, and if anything was on hand
+    // the write-off is recorded so the ledger still adds up (and past sessions still show the
+    // item, as a removed one). One SaveChanges, so the row and its ledger entry go together.
+    // Returns how many units were written off; 0 — and no error — if there was no stock row, so
+    // a retried delete is harmless.
+    //
+    // Deliberately not published as a StockMovementRecorded event: its only listener raises
+    // low-stock alerts, and "this item no longer exists" is not a reason to reorder it.
+    public async Task<int> RemoveStockAsync(string sku, CancellationToken cancellationToken)
+    {
+        var item = await db.StockItems.FirstOrDefaultAsync(s => s.Sku == sku, cancellationToken);
+        if (item is null)
+            return 0;
+
+        var writtenOff = item.QuantityOnHand;
+        if (writtenOff > 0)
+        {
+            var openSessionId = await db.RestockSessions
+                .Where(s => s.ClosedAt == null)
+                .Select(s => (Guid?)s.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            db.StockMovements.Add(new StockMovement
+            {
+                Id = Guid.NewGuid(),
+                Sku = sku,
+                Delta = -writtenOff,
+                Reason = StockMovementReason.ItemRemoved,
+                Timestamp = DateTimeOffset.UtcNow,
+                ResultingQuantity = 0,
+                SessionId = openSessionId
+            });
+        }
+
+        db.StockItems.Remove(item);
+        await db.SaveChangesAsync(cancellationToken);
+        return writtenOff;
+    }
+
     // Shared by ReceiveStockAsync, AdjustStockAsync and StockEndpoints' POST /stock so every
     // quantity change — no matter which path caused it — ends up in the same ledger, tagged
     // with whichever session (if any) is currently open.

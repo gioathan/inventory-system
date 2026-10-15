@@ -32,7 +32,39 @@ public class Query
             item.DatedDiscountName,
             item.ImageUrl,
             item.CategoryId,
+            item.Location,
             stockBySku.TryGetValue(item.Sku, out var quantity) ? quantity : null));
+    }
+
+    // Units sold, units received and revenue for each calendar day (the shop's own) between two
+    // instants; `to` omitted means until now. Every day is present, quiet ones as zeros. Revenue
+    // is what was paid on sales that recorded their price; UnpricedSold counts the units from
+    // before prices were recorded (none since 2026-09-28). Admin-only: revenue data.
+    [Authorize(Policy = AuthPolicies.AdminOnly)]
+    public async Task<IEnumerable<DailySales>> DailySales(
+        DateTimeOffset from,
+        DateTimeOffset? to,
+        [Service] InventoryApiClient inventory,
+        CancellationToken cancellationToken) =>
+        await inventory.GetDailySalesAsync(from, to, cancellationToken);
+
+    // What each item sold between two instants (`to` omitted = until now), with its current name.
+    // The calendar-based counterpart to SessionReport: "this week's best sellers", and the selling
+    // pace behind "running out soon". Admin-only: revenue data.
+    [Authorize(Policy = AuthPolicies.AdminOnly)]
+    public async Task<IEnumerable<ItemSalesLine>> SalesByItem(
+        DateTimeOffset from,
+        DateTimeOffset? to,
+        [Service] CatalogApiClient catalog,
+        [Service] InventoryApiClient inventory,
+        CancellationToken cancellationToken)
+    {
+        var salesTask = inventory.GetSalesByItemAsync(from, to, cancellationToken);
+        var itemsTask = catalog.GetAllItemsAsync(cancellationToken);
+        await Task.WhenAll(salesTask, itemsTask);
+
+        var nameBySku = itemsTask.Result.ToDictionary(i => i.Sku, i => i.Name);
+        return salesTask.Result.Select(s => new ItemSalesLine(s.Sku, nameBySku.GetValueOrDefault(s.Sku), s.UnitsSold, s.Revenue));
     }
 
     // Answers "what came in, what sold and what was it worth" for one session's period, per item.
@@ -83,7 +115,11 @@ public record DashboardItem(
     // The discount setting EffectivePrice today (the manual DiscountPercentage or a dated discount,
     // whichever is bigger), and the dated discount's name when that is the one.
     double? ActiveDiscountPercentage, string? DatedDiscountName,
-    string? ImageUrl, Guid? CategoryId, int? QuantityOnHand);
+    string? ImageUrl, Guid? CategoryId,
+    // Where the item is kept in storage; free text, null when not recorded.
+    string? Location,
+    int? QuantityOnHand);
+public record ItemSalesLine(string Sku, string? Name, int UnitsSold, decimal Revenue);
 public record SessionReportLine(
     string Sku, string? Name, Guid? CategoryId, int Restocked, int Sold, int NetDelta,
     int OpeningQuantity, int ClosingQuantity, decimal? Revenue, bool RevenueEstimated);

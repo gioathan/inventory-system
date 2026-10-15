@@ -14,6 +14,7 @@ service CatalogGrpcService {
   rpc ListItems (ListItemsRequest) returns (ListItemsReply);
   rpc CreateItem (CreateItemRequest) returns (ItemReply);
   rpc UpdateItem (UpdateItemRequest) returns (ItemReply);
+  rpc DeleteItem (DeleteItemRequest) returns (DeleteItemReply);
   rpc CreateCategory (CreateCategoryRequest) returns (CategoryReply);
   rpc ListCategories (ListCategoriesRequest) returns (ListCategoriesReply);
   rpc MoveItemsToCategory (MoveItemsToCategoryRequest) returns (MoveItemsToCategoryReply);
@@ -61,6 +62,8 @@ message ItemReply {
   optional double active_discount_percentage = 9;
   // Set when a dated discount is the one setting the price today — its name, for display.
   optional string dated_discount_name = 10;
+  // Where the item is kept in storage — free text, unset when not recorded.
+  optional string location = 11;
 }
 
 message ListItemsRequest {
@@ -80,6 +83,7 @@ message CreateItemRequest {
   optional string sku = 4;
   optional string category_id = 5;
   optional string image_url = 6;
+  optional string location = 7; // where it is kept in storage; free text
 }
 
 // A full replace of the editable fields, like the form that submits it — not a partial patch.
@@ -94,6 +98,7 @@ message UpdateItemRequest {
   string barcode = 4;
   optional string category_id = 5;
   optional string image_url = 6;
+  optional string location = 7; // where it is kept in storage; free text
 }
 
 // parent_id unset creates a top-level category; set, a sub-category of that one.
@@ -215,4 +220,15 @@ message DeleteDatedDiscountRequest {
 }
 
 message DeleteDatedDiscountReply {
+}
+
+// Removes the item for good, and takes it out of any dated discount it was in. Its Sku and
+// barcode become free to use again. Stock and the sales ledger live in Inventory and are not
+// touched here — the caller (Scan Gateway) removes the stock first.
+message DeleteItemRequest {
+  string sku = 1;
+}
+
+message DeleteItemReply {
+  string barcode = 1; // what it scanned as, so the caller can drop its cached lookup
 }

@@ -40,7 +40,7 @@ public static partial class ReceivingEndpoints
             CatalogItem item;
             try
             {
-                item = await catalog.CreateItemAsync(request.Name, request.Price, request.CategoryId, request.ImageUrl, barcode, cancellationToken);
+                item = await catalog.CreateItemAsync(request.Name, request.Price, request.CategoryId, request.ImageUrl, barcode, request.Location, cancellationToken);
             }
             catch (ItemAlreadyExistsException ex)
             {
@@ -156,6 +156,6 @@ public static class BatchReceiveStatus
     public const string Failed = "failed";
 }
 
-public record IntakeNewItemRequest(string Name, decimal Price, Guid? CategoryId, string? ImageUrl, int Quantity, string? Barcode = null);
+public record IntakeNewItemRequest(string Name, decimal Price, Guid? CategoryId, string? ImageUrl, int Quantity, string? Barcode = null, string? Location = null);
 public record RestockRequest(int Quantity);
 public record ReceiveResponse(string Sku, string Name, string Barcode, decimal Price, int QuantityOnHand);

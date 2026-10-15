@@ -26,6 +26,10 @@ public class InventoryApiClient(InventoryGrpcService.InventoryGrpcServiceClient 
         return new StockLevel(reply.Sku, reply.QuantityOnHand);
     }
 
+    // Part of deleting an item: drops its stock row and returns how many units were written off.
+    public async Task<int> RemoveStockAsync(string sku, CancellationToken cancellationToken) =>
+        (await grpcClient.RemoveStockAsync(new RemoveStockRequest { Sku = sku }, cancellationToken: cancellationToken)).WrittenOff;
+
     // Scan-to-sell: quantity is always sent as a negative delta here so the caller (the /sell
     // endpoint) only ever deals in positive "how many did they sell" numbers.
     // unitPrice is what the customer is charged per unit right now (discount included), recorded
